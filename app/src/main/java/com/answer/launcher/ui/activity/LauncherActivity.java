@@ -1,0 +1,149 @@
+package com.answer.launcher.ui.activity;
+
+import android.annotation.TargetApi;
+import android.graphics.Bitmap;
+import android.graphics.Rect;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
+import android.util.Log;
+import android.view.PixelCopy;
+import android.view.Surface;
+import android.view.SurfaceHolder;
+import com.answer.launcher.core.manager.MinecraftManager;
+import com.mojang.minecraftpe.MainActivity;
+
+public class LauncherActivity extends MainActivity {
+
+  private SurfaceHolder mHolder;
+  private DrawGameSurface mThread;
+  private boolean mIsRunning;
+  private int width;
+  private int height;
+
+  @Override
+  public void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+  }
+
+  @Override
+  public void surfaceCreated(SurfaceHolder holder) {
+    super.surfaceCreated(holder);
+    this.mHolder = holder;
+    this.mIsRunning = true;
+    this.width = holder.getSurfaceFrame().width();
+    this.height = holder.getSurfaceFrame().height();
+  }
+
+  @Override
+  public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+    super.surfaceChanged(holder, format, width, height);
+        if(mHolder!=null) startThread();
+  }
+
+  // 需要重新绘制表面
+  @Override
+  public void surfaceRedrawNeeded(SurfaceHolder holder) {
+    super.surfaceRedrawNeeded(holder);
+  }
+
+  // 需要异步地重新绘制表面
+  @Override
+  public void surfaceRedrawNeededAsync(SurfaceHolder holder, Runnable drawingFinished) {
+    super.surfaceRedrawNeededAsync(holder, drawingFinished);
+  }
+
+  @Override
+  public void surfaceDestroyed(SurfaceHolder holder) {
+    super.surfaceDestroyed(holder);
+    mIsRunning = false;
+  }
+
+  public void startThread() {
+    mThread = new DrawGameSurface(0, 0, width, height, mHolder.getSurface());
+    mThread.setName("DrawGameSurface");
+    mThread.start();
+  }
+
+  private class DrawGameSurface extends Thread {
+
+    private final Handler.Callback mCallback =
+        new Handler.Callback() {
+          @Override
+          public boolean handleMessage(Message msg) {
+            if (null != msg) {
+              if (msg.what == 1) {
+                MinecraftManager.getManager()
+                    .getCallbacks()
+                    .forEach(callback -> callback.onRedraw((Bitmap) msg.obj));
+              }
+            }
+            return true;
+          }
+        };
+
+    private Handler mHandler = new Handler(Looper.getMainLooper(), mCallback);
+    private final int left;
+    private final int top;
+    private final int right;
+    private final int bottom;
+    private Surface surface;
+    private Bitmap mScreenBitmap;
+
+    private void sendMessage(Object obj) {
+      Message msg = Message.obtain();
+      msg.obj = obj;
+      msg.what = 1;
+      this.mHandler.sendMessage(msg);
+    }
+
+    public DrawGameSurface(int left, int top, int right, int bottom, Surface surface) {
+      this.left = left;
+      this.top = top;
+      this.right = right;
+      this.bottom = bottom;
+      this.surface = surface;
+    }
+
+    @TargetApi(Build.VERSION_CODES.O)
+    @Override
+    public void run() {
+      while (mIsRunning) {
+        if (mScreenBitmap == null) {
+          mScreenBitmap = Bitmap.createBitmap(right - left, bottom - top, Bitmap.Config.ARGB_8888);
+        }
+
+        Rect tempRect = new Rect(left, top, right, bottom);
+
+        PixelCopy.request(
+            surface,
+            tempRect,
+            mScreenBitmap,
+            new PixelCopy.OnPixelCopyFinishedListener() {
+              @Override
+              public void onPixelCopyFinished(int copyResult) {
+                if (PixelCopy.SUCCESS == copyResult) {
+                  sendMessage(mScreenBitmap);
+                } else {
+                  Log.d("drawGameSurface", "request scapy mapview failed");
+                }
+              }
+            },
+            mHandler);
+
+        try {
+          //noinspection BusyWait
+          sleep(15);
+        } catch (InterruptedException e) {
+          e.printStackTrace();
+        }
+      }
+      mScreenBitmap.recycle();
+      mHandler.removeCallbacksAndMessages(null);
+      mScreenBitmap = null;
+      mHandler = null;
+    }
+  }
+}

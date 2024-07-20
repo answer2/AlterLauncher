@@ -1,0 +1,71 @@
+package com.answer.launcher.core.hook;
+
+import com.answer.launcher.core.Constants;
+import java.io.File;
+import top.canyie.pine.Pine;
+import top.canyie.pine.callback.MethodHook;
+import top.canyie.pine.callback.MethodReplacement;
+import top.canyie.pine.Pine.CallFrame;
+import com.answer.launcher.core.manager.IOManager;
+
+/**
+ * @Author AnswerDev
+ * @Date 2024/07/06 15:01
+ */
+public class EnvironmentHook {
+
+    public static void init() {
+
+        try {
+            Pine.hook(Class.forName("android.app.ContextImpl").getDeclaredMethod("ensurePrivateDirExists", File.class, int.class, int.class, String.class),
+                new MethodHook(){
+                    @Override
+                    public void beforeCall(Pine.CallFrame params) {
+                        File file = (File) params.args[0];
+                        if (file != null && file.getAbsolutePath().contains(Constants.MINECRAFTPACKAGE)) {
+                            params.args[0] = new File(file.getAbsolutePath().replace(Constants.MINECRAFTPACKAGE, Constants.PACKAGE));
+                        }
+                    }
+                });
+
+            Pine.hook(libcore.io.IoBridge.class.getDeclaredMethod("open", String.class, int.class),
+                new MethodHook(){
+                    @Override
+                    public void beforeCall(Pine.CallFrame params) {
+                        String path = (String) params.args[0];
+                        if (path != null && path.contains(Constants.MINECRAFTPACKAGE)) {
+                            params.args[0] = IOManager.get().redirectPath(path);
+                        }
+                    }
+                });
+       
+            Pine.hook(libcore.io.Linux.class.getDeclaredMethod("access", String.class, int.class),
+                new MethodHook(){
+                    @Override
+                    public void beforeCall(Pine.CallFrame params) {
+                        String path = (String) params.args[0];
+                        if (path != null && path.contains(Constants.MINECRAFTPACKAGE)) {
+                            params.args[0] = IOManager.get().redirectPath(path);
+                        }
+                    }
+                });
+            
+               
+            Pine.hook(System.class.getDeclaredMethod("exit", int.class),
+                new MethodReplacement(){
+                    @Override
+                    protected Object replaceCall(Pine.CallFrame callFrame) throws Throwable {
+                        if((int)callFrame.args[0] != 0){
+                            callFrame.invokeOriginalMethod();
+                        }
+                        return null;
+                    }
+                });
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        } 
+    }
+
+
+}

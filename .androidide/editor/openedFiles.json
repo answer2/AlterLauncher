@@ -1,0 +1,125 @@
+{
+  "allFiles": [
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/build.gradle.kts",
+      "selection": {
+        "end": {
+          "column": 19,
+          "index": 238,
+          "line": 12
+        },
+        "start": {
+          "column": 19,
+          "index": 238,
+          "line": 12
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/core/manager/MinecraftManager.java",
+      "selection": {
+        "end": {
+          "column": 62,
+          "index": 748,
+          "line": 26
+        },
+        "start": {
+          "column": 62,
+          "index": 748,
+          "line": 26
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/api/SurfaceCallback.java",
+      "selection": {
+        "end": {
+          "column": 32,
+          "index": 98,
+          "line": 3
+        },
+        "start": {
+          "column": 17,
+          "index": 83,
+          "line": 3
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/ui/activity/LauncherActivity.java",
+      "selection": {
+        "end": {
+          "column": 50,
+          "index": 2084,
+          "line": 74
+        },
+        "start": {
+          "column": 47,
+          "index": 2081,
+          "line": 74
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/api/AlternativeApi.java",
+      "selection": {
+        "end": {
+          "column": 29,
+          "index": 1803,
+          "line": 54
+        },
+        "start": {
+          "column": 29,
+          "index": 1803,
+          "line": 54
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/res/layout/activity_main.xml",
+      "selection": {
+        "end": {
+          "column": 59,
+          "index": 2041,
+          "line": 52
+        },
+        "start": {
+          "column": 59,
+          "index": 2041,
+          "line": 52
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/core/manager/ProcessIntentManager.java",
+      "selection": {
+        "end": {
+          "column": 0,
+          "index": 0,
+          "line": 0
+        },
+        "start": {
+          "column": 0,
+          "index": 0,
+          "line": 0
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/MainActivity.java",
+      "selection": {
+        "end": {
+          "column": 124,
+          "index": 1446,
+          "line": 37
+        },
+        "start": {
+          "column": 124,
+          "index": 1446,
+          "line": 37
+        }
+      }
+    }
+  ],
+  "selectedFile": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/ui/activity/LauncherActivity.java"
+}
