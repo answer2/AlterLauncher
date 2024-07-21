@@ -7,6 +7,8 @@
 
 #include <hook/fake_asset.h>
 #include <hook/fake_dlopen.h>
+#include <hook/manager_minecraft.h>
+
 #include <util/stringUtil.h>
 #include <util/fake_dlfcn.h>
 #include <util/Utils.h>
@@ -20,25 +22,26 @@
 #include <stdint.h>
 #include <dl_internal.h>
 
+
  // init 变量
 JavaVM *Main::vm = nullptr;
 long Main::baseAddress = 0L;
 AAssetManager *Main::manager = nullptr;
 const char* corePath = "com/answer/launcher/core/manager/Alternative";
 
-
 void initAssets(JNIEnv *env, jobject obj, jobject assetManager);
 void loadLibrary_java(JNIEnv *env, jobject obj, jstring libraryPath);
 void unloadLibrary_java(JNIEnv *env, jobject obj,jlong handle);
 long findLibBaseAddress_java(JNIEnv *env, jobject obj, jstring library);
 void load(JNIEnv *env, jobject obj);
+void loadManager(JNIEnv *env, jobject obj);
 
 static JNINativeMethod MethodCalled[] = { 
     {"initAssets", "(Landroid/content/res/AssetManager;)V", (void*)initAssets},
     {"loadLibrary", "(Ljava/lang/String;)J", (void*)loadLibrary_java},
     {"unloadLibrary", "(J)V", (void*) unloadLibrary_java},
     {"findLibBaseAddress", "(Ljava/lang/String;)J", (void*)findLibBaseAddress_java},
-    {"load", "()V", (void*) load}
+    {"loadManager", "()V", (void*) loadManager}
 };
 
 
@@ -70,6 +73,10 @@ void initAssets(JNIEnv *env, jobject obj, jobject assetManager){
 void loadLibrary_java(JNIEnv *env, jobject obj, jstring libraryPath) {
     Utils::loadLibrary(env, libraryPath);
 }
+
+void loadManager(JNIEnv *env, jobject obj){
+    initManagers();
+};
 
 void unloadLibrary_java(JNIEnv *env, jobject obj,jlong handle) {
     Utils::unloadLibrary((void*)handle);

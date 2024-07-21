@@ -35,5 +35,7 @@ int dlclose_ex(void *handle);
 
 const char *dlerror_ex();
 
+void *getSymCompat(const char *filename, const char *name);
+
 };
 #endif //DEXPOSED_DLFCN_H

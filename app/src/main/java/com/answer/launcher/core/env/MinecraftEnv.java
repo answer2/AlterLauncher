@@ -10,7 +10,8 @@ import com.google.firebase.messaging.FirebaseMessagingService;
 import com.microsoft.xbox.service.notification.NotificationFirebaseMessagingService;
 
 /**
- * @Author AnswerDev @Date 2024/07/06 11:53
+ * @Author AnswerDev
+ * @Date 2024/07/06 11:53
  */
 public class MinecraftEnv {
 
@@ -19,25 +20,28 @@ public class MinecraftEnv {
   public static void establishEnv(Context context) {
 
     try {
-            
-
       // setup FirebaseInitProvider
-
       if (checkClass("com.google.firebase.FirebaseApp")
           && FirebaseApp.initializeApp(context) == null) {
         Log.i(TAG, "FirebaseApp initialization unsuccessful");
       }
 
       // setup ComponentDiscoveryService
-     if(checkClass("com.google.firebase.components.ComponentDiscoveryService")) Alternative.getManager().createService(ComponentDiscoveryService.class.getName());
-      
+      if (checkClass("com.google.firebase.components.ComponentDiscoveryService"))
+        Alternative.getManager().createService(ComponentDiscoveryService.class.getName());
+
       // setup FirebaseMessagingService
-      if(checkClass("com.google.firebase.messaging.FirebaseMessagingService"))Alternative.getManager().createService(FirebaseMessagingService.class.getName());
-      
+      if (checkClass("com.google.firebase.messaging.FirebaseMessagingService"))
+        Alternative.getManager().createService(FirebaseMessagingService.class.getName());
+
       // setup NotificationFirebaseMessagingService
-      if(checkClass("com.microsoft.xbox.service.notification.NotificationFirebaseMessagingService"))Alternative.getManager().createService(NotificationFirebaseMessagingService.class.getName());
+      if (checkClass(
+          "com.microsoft.xbox.service.notification.NotificationFirebaseMessagingService"))
+        Alternative.getManager()
+            .createService(NotificationFirebaseMessagingService.class.getName());
 
     } catch (Exception e) {
+      e.printStackTrace();
     }
   }
 }

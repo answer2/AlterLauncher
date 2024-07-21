@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Handler;
+import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -36,7 +37,7 @@ public class SplashScreenHook {
 
     public static PopupWindow popupWindow;
     private static LoadingOverlay loadingOverlay;
-    private static Handler handler = new Handler();
+    private static Handler handler = new Handler(Looper.getMainLooper());
     private static float progress;
     private static boolean isFinish = false;
 
@@ -48,11 +49,11 @@ public class SplashScreenHook {
                     @Override
                     public void beforeCall(Pine.CallFrame callFrame) throws Throwable {
                         super.beforeCall(callFrame);
-                        System.out.println("onCreate on com.mojang.minecraftpe.MainActivity");
+                        
                         MainActivity minecraft = (MainActivity) callFrame.thisObject;
                         
                         MinecraftManager.getManager().setActivity(minecraft);
-                        if(MainActivity.class.getDeclaredMethod("disableBrazeSDK")!=null)minecraft.disableBrazeSDK();
+                        if(SystemUtil.checkMethod(MainActivity.class,"disableBrazeSDK", (Class<?>[]) null))minecraft.disableBrazeSDK();
 
                         if (SystemUtil.checkClass(Constants.MINECRAFTACTIVITY) &&minecraft.getIntent() != null) {
                             Method processIntent = Class.forName(Constants.MINECRAFTACTIVITY).getDeclaredMethod("processIntent", Intent.class);
@@ -76,19 +77,6 @@ public class SplashScreenHook {
                     }
 
                 });
-
-            //仅限高版本
-            /*
-            Class<?> SplashScreenClass = Class.forName("androidx.core.splashscreen.SplashScreen");
-            Pine.hook(SplashScreenClass.getDeclaredMethod("installSplashScreen", Activity.class),
-                new MethodReplacement(){
-                    @Override
-                    protected Object replaceCall(Pine.CallFrame callFrame) throws Throwable {
-                        MainActivity minecraft = (MainActivity) callFrame.args[0];
-                        
-                        return null;
-                    }
-                });*/
         } catch (Exception e) {
             e.printStackTrace();
         }

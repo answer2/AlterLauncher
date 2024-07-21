@@ -4,104 +4,89 @@
       "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/build.gradle.kts",
       "selection": {
         "end": {
-          "column": 19,
-          "index": 238,
-          "line": 12
+          "column": 1,
+          "index": 51,
+          "line": 4
         },
         "start": {
-          "column": 19,
-          "index": 238,
-          "line": 12
+          "column": 0,
+          "index": 50,
+          "line": 4
         }
       }
     },
     {
-      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/core/manager/MinecraftManager.java",
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/cpp/hook/manager_minecraft.cpp",
       "selection": {
         "end": {
-          "column": 62,
-          "index": 748,
-          "line": 26
+          "column": 37,
+          "index": 2537,
+          "line": 74
         },
         "start": {
-          "column": 62,
-          "index": 748,
-          "line": 26
+          "column": 37,
+          "index": 2537,
+          "line": 74
         }
       }
     },
     {
-      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/api/SurfaceCallback.java",
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/cpp/hook/fake_asset.h",
       "selection": {
         "end": {
-          "column": 32,
-          "index": 98,
-          "line": 3
+          "column": 12,
+          "index": 102,
+          "line": 4
         },
         "start": {
+          "column": 12,
+          "index": 102,
+          "line": 4
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/cpp/hook/manager_minecraft.h",
+      "selection": {
+        "end": {
+          "column": 18,
+          "index": 120,
+          "line": 8
+        },
+        "start": {
+          "column": 18,
+          "index": 120,
+          "line": 8
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/cpp/main.cpp",
+      "selection": {
+        "end": {
           "column": 17,
-          "index": 83,
+          "index": 1368,
+          "line": 43
+        },
+        "start": {
+          "column": 6,
+          "index": 1357,
+          "line": 43
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/cpp/hook/fake_asset.cpp",
+      "selection": {
+        "end": {
+          "column": 34,
+          "index": 174,
+          "line": 4
+        },
+        "start": {
+          "column": 1,
+          "index": 108,
           "line": 3
-        }
-      }
-    },
-    {
-      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/ui/activity/LauncherActivity.java",
-      "selection": {
-        "end": {
-          "column": 50,
-          "index": 2084,
-          "line": 74
-        },
-        "start": {
-          "column": 47,
-          "index": 2081,
-          "line": 74
-        }
-      }
-    },
-    {
-      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/api/AlternativeApi.java",
-      "selection": {
-        "end": {
-          "column": 29,
-          "index": 1803,
-          "line": 54
-        },
-        "start": {
-          "column": 29,
-          "index": 1803,
-          "line": 54
-        }
-      }
-    },
-    {
-      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/res/layout/activity_main.xml",
-      "selection": {
-        "end": {
-          "column": 59,
-          "index": 2041,
-          "line": 52
-        },
-        "start": {
-          "column": 59,
-          "index": 2041,
-          "line": 52
-        }
-      }
-    },
-    {
-      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/core/manager/ProcessIntentManager.java",
-      "selection": {
-        "end": {
-          "column": 0,
-          "index": 0,
-          "line": 0
-        },
-        "start": {
-          "column": 0,
-          "index": 0,
-          "line": 0
         }
       }
     },
@@ -109,17 +94,242 @@
       "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/MainActivity.java",
       "selection": {
         "end": {
-          "column": 124,
-          "index": 1446,
-          "line": 37
+          "column": 46,
+          "index": 1426,
+          "line": 38
         },
         "start": {
-          "column": 124,
-          "index": 1446,
-          "line": 37
+          "column": 46,
+          "index": 1426,
+          "line": 38
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/core/manager/Alternative.java",
+      "selection": {
+        "end": {
+          "column": 42,
+          "index": 2206,
+          "line": 61
+        },
+        "start": {
+          "column": 42,
+          "index": 2206,
+          "line": 61
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/core/hook/LoadLibraryHook.java",
+      "selection": {
+        "end": {
+          "column": 27,
+          "index": 3434,
+          "line": 80
+        },
+        "start": {
+          "column": 27,
+          "index": 3434,
+          "line": 80
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/core/hook/SplashScreenHook.java",
+      "selection": {
+        "end": {
+          "column": 49,
+          "index": 2091,
+          "line": 55
+        },
+        "start": {
+          "column": 49,
+          "index": 2091,
+          "line": 55
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/core/tool/SystemUtil.java",
+      "selection": {
+        "end": {
+          "column": 77,
+          "index": 509,
+          "line": 19
+        },
+        "start": {
+          "column": 67,
+          "index": 499,
+          "line": 19
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/AlterApplication.java",
+      "selection": {
+        "end": {
+          "column": 0,
+          "index": 1340,
+          "line": 42
+        },
+        "start": {
+          "column": 0,
+          "index": 1340,
+          "line": 42
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/cpp/util/Utils.cpp",
+      "selection": {
+        "end": {
+          "column": 17,
+          "index": 149,
+          "line": 5
+        },
+        "start": {
+          "column": 10,
+          "index": 142,
+          "line": 5
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/cpp/hook/fake_dlopen.h",
+      "selection": {
+        "end": {
+          "column": 0,
+          "index": 759,
+          "line": 44
+        },
+        "start": {
+          "column": 0,
+          "index": 706,
+          "line": 43
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/cpp/hook/native_bridge.h",
+      "selection": {
+        "end": {
+          "column": 0,
+          "index": 0,
+          "line": 0
+        },
+        "start": {
+          "column": 0,
+          "index": 0,
+          "line": 0
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/cpp/util/fake_dlfcn.cpp",
+      "selection": {
+        "end": {
+          "column": 73,
+          "index": 9710,
+          "line": 315
+        },
+        "start": {
+          "column": 65,
+          "index": 9702,
+          "line": 315
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/cpp/util/fake_dlfcn.h",
+      "selection": {
+        "end": {
+          "column": 28,
+          "index": 28,
+          "line": 0
+        },
+        "start": {
+          "column": 28,
+          "index": 28,
+          "line": 0
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/cpp/util/stringUtil.cpp",
+      "selection": {
+        "end": {
+          "column": 50,
+          "index": 426,
+          "line": 21
+        },
+        "start": {
+          "column": 38,
+          "index": 414,
+          "line": 21
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/core/hook/ActivityThreadHook.java",
+      "selection": {
+        "end": {
+          "column": 0,
+          "index": 0,
+          "line": 0
+        },
+        "start": {
+          "column": 0,
+          "index": 0,
+          "line": 0
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/core/hook/LoadedAfterHook.java",
+      "selection": {
+        "end": {
+          "column": 29,
+          "index": 1034,
+          "line": 30
+        },
+        "start": {
+          "column": 29,
+          "index": 1034,
+          "line": 30
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/cpp/CMakeLists.txt",
+      "selection": {
+        "end": {
+          "column": 11,
+          "index": 431,
+          "line": 26
+        },
+        "start": {
+          "column": 11,
+          "index": 431,
+          "line": 26
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/ui/activity/LauncherActivity.java",
+      "selection": {
+        "end": {
+          "column": 28,
+          "index": 1737,
+          "line": 62
+        },
+        "start": {
+          "column": 28,
+          "index": 1737,
+          "line": 62
         }
       }
     }
   ],
-  "selectedFile": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/java/com/answer/launcher/ui/activity/LauncherActivity.java"
+  "selectedFile": "/storage/emulated/0/AndroidIDEProjects/AlterLauncher/app/src/main/cpp/hook/manager_minecraft.cpp"
 }

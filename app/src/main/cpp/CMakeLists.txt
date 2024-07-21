@@ -12,6 +12,7 @@ set(SRC_FILES
     main.cpp
     util/fake_dlfcn.cpp
     util/stringUtil.cpp
+    hook/manager_minecraft.cpp
     hook/fake_asset.cpp
     util/Utils.cpp
     util/FindSignature.cpp
@@ -23,6 +24,7 @@ include_directories(
     util
     hook
     shadowhook
+    include
 )
 
 # 添加库

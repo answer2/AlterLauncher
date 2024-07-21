@@ -75,7 +75,7 @@ std::string Utils::analyzeAppPlatformVTable( uintptr_t readAssetFileAddr) {
 }
 
 void* Utils::loadLibrary(JNIEnv *env, jstring libraryPath) {
-    void* handle = dlopen_ex(jstringToCharArr(env,libraryPath), RTLD_LAZY);
+    void* handle = dlopen(jstringToCharArr(env,libraryPath), RTLD_LAZY);
     if (handle == NULL) {
         // 处理加载失败的情况
         const char* error = dlerror();

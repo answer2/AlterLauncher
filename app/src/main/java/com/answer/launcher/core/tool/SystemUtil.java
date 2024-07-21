@@ -11,10 +11,20 @@ public class SystemUtil {
     public static boolean checkClass(String clazz) {
     	try{
             Class.forName(clazz);
+            return true;
         }catch(Exception e){
             return false;
         }
-        return true;
+    }
+    
+    public static boolean checkMethod(Class<?> clazz, String name, Class<?>[] params) {
+    	try {
+    		clazz.getDeclaredMethod(name, params);
+            return true;
+    	} catch(Exception err) {
+    		err.printStackTrace();
+            return false;
+    	}
     }
     
     /**

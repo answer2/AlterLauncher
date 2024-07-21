@@ -51,6 +51,7 @@ public class Alternative {
   private Application application;
   private LoadedApk loadedApk;
   private AppBindData bindData;
+    public static String nativepath;
     
     public static native long findLibBaseAddress(String library);
     public static native long loadLibrary(String libPath);
@@ -58,7 +59,7 @@ public class Alternative {
 
     public static native void initAssets(AssetManager manager);
     public static native void hookDlopen();
-    public static native void load();
+    public static native void loadManager();
 
   public void init(Context context) {
     this.mContext = context;
@@ -115,6 +116,7 @@ public class Alternative {
 
     // init info
     Constants.MINECRAFT_VERSION = packageInfo.versionName;
+        nativepath = packageInfo.applicationInfo.nativeLibraryDir;
 
     // Add providers to mProviders list
     if (packageInfo.providers == null) {
@@ -216,6 +218,8 @@ public class Alternative {
 
     // init assets
     initAssets(loadedApk.getAssets());
+        
+    
 
     // Establish VM Runtime
     VirtualRuntime.setupRuntime(bindData.processName, bindData.appInfo);

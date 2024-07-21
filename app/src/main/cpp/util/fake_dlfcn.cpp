@@ -39,11 +39,13 @@
 #define log_info(fmt, args...) __android_log_print(ANDROID_LOG_INFO, TAG_NAME, (const char *) fmt, ##args)
 #define log_err(fmt, args...) __android_log_print(ANDROID_LOG_ERROR, TAG_NAME, (const char *) fmt, ##args)
 #define log_dbg log_info
+
 #else
 #define log_dbg(...)
 #define log_info(fmt, args...)
 #define log_err(fmt, args...)
 #endif
+
 
 #ifdef __LP64__
 #define Elf_Ehdr Elf64_Ehdr
@@ -307,4 +309,23 @@ const char *dlerror_ex() {
         return dlerror();
     }
 }
+
+
+void *getSymCompat(const char *filename, const char *name) {
+    if (get_sdk_level() >= 24) {
+        void* handle = fake_dlopen(const_cast<char *>(filename), RTLD_NOW);
+        if (handle) {
+            void* ret = fake_dlsym(handle, name);
+            fake_dlclose(handle);
+            return ret;
+        }
+    } else {
+        void* handle = dlopen(filename, RTLD_LAZY | RTLD_GLOBAL);
+        if (handle) {
+            return dlsym(handle, name);
+        }
+    }
+    return nullptr;
+}
+
 }

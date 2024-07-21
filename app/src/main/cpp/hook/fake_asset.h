@@ -3,11 +3,10 @@
 #include <android/native_activity.h>
 
 #pragma once
-
-#ifndef HELPER_JAVAFILEUTIL_H
-#define HELPER_JAVAFILEUTIL_H
+#ifndef HELPER_FAKEASSETS_H
+#define HELPER_FAKEASSETS_H
 
 
 void initFakeAssets(JNIEnv *env, AAssetManager* assets);
 
-#endif //HELPER_JAVAFILEUTIL_H
+#endif //HELPER_FAKEASSETS_H

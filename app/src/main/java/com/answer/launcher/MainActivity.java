@@ -7,6 +7,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import android.os.Bundle;
 import com.answer.launcher.core.manager.Alternative;
+import com.answer.launcher.core.manager.MinecraftManager;
 import com.answer.launcher.core.manager.NativePluginManager;
 import com.answer.launcher.core.manager.PluginManager;
 import com.answer.launcher.databinding.ActivityMainBinding;
@@ -51,13 +52,13 @@ public class MainActivity extends AppCompatActivity {
                     Log.d("Main","获取部分权限成功，但部分权限未正常授予");
                     return;
                 }
-                Log.d("Main","获取录音和日历权限成功");
+                Log.d("Main","获取存储成功");
             }
 
             @Override
             public void onDenied(@NonNull List<String> permissions, boolean doNotAskAgain) {
                 if (doNotAskAgain) {
-                    Log.d("Main","被永久拒绝授权，请手动授予录音和日历权限");
+                    Log.d("Main","被永久拒绝授权，请手动授予存储权限");
                     // 如果是被永久拒绝就跳转到应用权限系统设置页面
                     XXPermissions.startPermissionActivity(MainActivity.this, permissions);
                 } else {
