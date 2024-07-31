@@ -12,7 +12,7 @@ public class Constants {
     public static String MINECRAFT_VERSION = "undefined";
     public static int LAUNCHER_VERSION = 1;
     public static final String PACKAGE = "com.answer.launcher";
-    public static final String MINECRAFTPACKAGE = "com.mojang.minecraftpe";
+    public static String MINECRAFTPACKAGE = "com.mojang.minecraftpe";
     public static final String MINECRAFTACTIVITY = "com.mojang.minecraftpe.MainActivity";
     //
     public static final String MOJANG_RED = "#ef323d";

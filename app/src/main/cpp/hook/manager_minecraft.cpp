@@ -19,17 +19,17 @@ void onNativeWindowCreated_hook(ANativeActivity* activity, ANativeWindow* window
     LOGD("Minecraft onNativeWindowCreated_hook * : Success");
     LOGD("Minecraft ANativeWindow * : %p", window);
     
+    ANativeWindow* mANativeWindow = window;
+        
 }
 
 void (*onContentRectChanged_real)(ANativeActivity* activity, const ARect* rect);
 void onContentRectChanged_hook(ANativeActivity* activity, const ARect* rect){
     LOGD("Minecraft onContentRectChanged_hook * : Success");
-    // 输出内容矩形的信息
     LOGD("Content Rect: left=%d, top=%d, right=%d, bottom=%d\n",
                rect->left, rect->top,
                rect->right, rect->bottom);
                
-    // 创建一个非 const 的副本
     /*
     ARect mutableRect = {
         rect->left,         // 保持原有的 left
@@ -41,7 +41,7 @@ void onContentRectChanged_hook(ANativeActivity* activity, const ARect* rect){
    // const ARect* modifiedRect = &mutableRect;
     
                
-    onContentRectChanged_real(activity, modifiedRect);
+    onContentRectChanged_real(activity, rect);
 }
 
 void (*mOnCreate_real)(ANativeActivity* activity,void* savedState, size_t savedStateSize);
@@ -72,7 +72,7 @@ void mMain_hook(struct android_app* state) {
 
 
 
-void initManagers(const char * path){
+void initManagers(){
     void* handle = dlopen("libminecraftpe.so", RTLD_LAZY);
     if(handle == 0) return;
     

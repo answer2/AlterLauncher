@@ -22,7 +22,6 @@ public class SystemUtil {
     		clazz.getDeclaredMethod(name, params);
             return true;
     	} catch(Exception err) {
-    		err.printStackTrace();
             return false;
     	}
     }

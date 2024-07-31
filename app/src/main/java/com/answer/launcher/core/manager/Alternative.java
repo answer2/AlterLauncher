@@ -2,41 +2,44 @@ package com.answer.launcher.core.manager;
 
 import android.app.Activity;
 import android.app.ActivityManager;
+import android.app.ActivityManagerNative;
 import android.app.ActivityThread;
 import android.app.Application;
 import android.app.LoadedApk;
 import android.app.Service;
-import android.content.Intent;
-import android.os.IBinder;
-import com.answer.launcher.core.hook.ActivityThreadHook;
-import com.answer.launcher.core.tool.SystemUtil;
-import java.lang.reflect.Method;
-import android.app.ActivityManagerNative;
-import java.lang.reflect.InvocationTargetException;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.content.pm.ApplicationInfo;
 import android.content.pm.ProviderInfo;
 import android.content.res.AssetManager;
+import android.os.IBinder;
 import com.answer.launcher.core.Constants;
+import com.answer.launcher.core.env.AlterEnvironment;
+import com.answer.launcher.core.env.AlterInstrumentation;
 import com.answer.launcher.core.env.MinecraftEnv;
-import com.answer.launcher.core.hook.XboxHook;
 import com.answer.launcher.core.env.VirtualRuntime;
+import com.answer.launcher.core.hook.ActivityThreadHook;
+import com.answer.launcher.core.hook.XboxHook;
+import com.answer.launcher.core.tool.AbiUtils;
 import com.answer.launcher.core.tool.ContextFixer;
 import com.answer.launcher.core.tool.HotFix;
 import com.answer.launcher.core.tool.Reflector;
-import com.answer.launcher.core.env.AlterEnvironment;
-import com.answer.launcher.core.env.AlterInstrumentation;
+import com.answer.launcher.core.tool.SystemUtil;
 import dalvik.system.DexClassLoader;
+import java.io.File;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 
 /**
- * @Author AnswerDev 
+ * @Author AnswerDev
  * @Date 2024/04/05 08:34
  */
 public class Alternative {
@@ -45,31 +48,39 @@ public class Alternative {
 
   public Context mContext;
 
+  private PackageInfo packageInfo;
   private ApplicationInfo applicationInfo;
   private Object boundApplication;
   private Context packageContext;
   private Application application;
   private LoadedApk loadedApk;
   private AppBindData bindData;
-    public static String nativepath;
-    
-    public static native long findLibBaseAddress(String library);
-    public static native long loadLibrary(String libPath);
-    public static native void unloadLibrary(long handle);
+  public static String nativepath;
+  private boolean isSupport = false;
 
-    public static native void initAssets(AssetManager manager);
-    public static native void hookDlopen();
-    public static native void loadManager();
+  public static native long findLibBaseAddress(String library);
+
+  public static native long loadLibrary(String libPath);
+
+  public static native void unloadLibrary(long handle);
+
+  public static native void initAssets(AssetManager manager);
+
+  public static native void hookDlopen();
+
+  public static native void loadManager();
 
   public void init(Context context) {
     this.mContext = context;
-    try{
-        createLoadedApk();
-        createApplication();
-        initEnv();
-       }catch(Exception e){
-           e.printStackTrace();
-       }
+
+    try {
+      initPackage();
+      createLoadedApk();
+      createApplication();
+      initEnv();
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
   }
 
   private Alternative() {}
@@ -84,18 +95,41 @@ public class Alternative {
     }
     return manager;
   }
-    
-    public static void LaunchMinecraft(Activity activity) {
-    	try {
-            Class<?> clazz =
-                Class.forName("com.answer.launcher.ui.activity.LauncherActivity", false, activity.getClassLoader());
-            Intent intent = new Intent(activity, clazz);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            if(SystemUtil.checkClass(Constants.MINECRAFTACTIVITY)) AlterInstrumentation.get().startActivity(intent);
-          } catch (Exception e) {
-            e.printStackTrace();
-          }
+
+  public static void LaunchMinecraft(Activity activity) {
+    try {
+      Class<?> clazz =
+          Class.forName(
+              "com.answer.launcher.ui.activity.LauncherActivity", false, activity.getClassLoader());
+      Intent intent = new Intent(activity, clazz);
+      intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      if (SystemUtil.checkClass(Constants.MINECRAFTACTIVITY))
+        AlterInstrumentation.get().startActivity(intent);
+    } catch (Exception e) {
+      e.printStackTrace();
     }
+  }
+
+  @SuppressWarnings("unchecked")
+  private void initPackage() throws Exception {
+    // Get package info for the target application
+    packageInfo =
+        mContext
+            .getApplicationContext()
+            .getPackageManager()
+            .getPackageInfo(Constants.MINECRAFTPACKAGE, PackageManager.GET_PROVIDERS);
+    applicationInfo = packageInfo.applicationInfo;
+
+    // init info
+    Constants.MINECRAFT_VERSION = packageInfo.versionName;
+    nativepath = packageInfo.applicationInfo.nativeLibraryDir;
+    isSupport = new AbiUtils(new File(applicationInfo.publicSourceDir)).is64Bit();
+        
+    System.loadLibrary("alternative_core");
+    
+        //1722306097.520 10915  1789  1789 E AndroidRuntime: java.lang.RuntimeException: Unable to start activity ComponentInfo{com.answer.launcher/com.microsoft.xbox.idp.ui.AuthFlowActivity}: android.content.res.Resources$NotFoundException: Resource ID #0x7f0d0000
+        
+  }
 
   @SuppressWarnings("unchecked")
   private void createLoadedApk() throws Exception {
@@ -105,18 +139,6 @@ public class Alternative {
     // Get mBoundApplication field
     boundApplication =
         Reflector.on(ActivityThread.class).field("mBoundApplication").get(currentActivityThread);
-
-    // Get package info for the target application
-    PackageInfo packageInfo =
-        mContext
-            .getApplicationContext()
-            .getPackageManager()
-            .getPackageInfo(Constants.MINECRAFTPACKAGE, PackageManager.GET_PROVIDERS);
-    applicationInfo = packageInfo.applicationInfo;
-
-    // init info
-    Constants.MINECRAFT_VERSION = packageInfo.versionName;
-        nativepath = packageInfo.applicationInfo.nativeLibraryDir;
 
     // Add providers to mProviders list
     if (packageInfo.providers == null) {
@@ -194,78 +216,78 @@ public class Alternative {
 
     // Fix context if necessary
     ContextFixer.fix(application);
-
     IOManager.get().enableRedirect(application.getBaseContext());
-
     // Hook Instrumentation
     AlterInstrumentation.get().initHook();
-
     // Call Application
     AlterInstrumentation.get().callApplicationOnCreate(application);
-
     // Establish AlterEnvironment
     AlterEnvironment.establishEnv(mContext, application.getBaseContext());
-
     // Establish Minecraft Env
     MinecraftEnv.establishEnv(application.getBaseContext());
-
     // hook
     XboxHook.init();
-
-    System.loadLibrary("alternative_core");
-        
+    
     ActivityThreadHook.init();
-
     // init assets
     initAssets(loadedApk.getAssets());
-        
-    
 
     // Establish VM Runtime
     VirtualRuntime.setupRuntime(bindData.processName, bindData.appInfo);
   }
-    
-    public Service createService(String name) {
-        try {
-            // 使用反射实例化Service对象
-            Service service = (Service) MinecraftManager.getManager().getContext().getClassLoader().loadClass(name).newInstance();
 
-            // 通过反射获取ContextImpl的setOuterContext方法并设置为可访问
-            Method setOuterContext = Class.forName("android.app.ContextImpl").getDeclaredMethod("setOuterContext", Context.class);
-            setOuterContext.setAccessible(true);
+  public Service createService(String name) {
+    try {
+      // 使用反射实例化Service对象
+      Service service =
+          (Service)
+              MinecraftManager.getManager()
+                  .getContext()
+                  .getClassLoader()
+                  .loadClass(name)
+                  .newInstance();
 
-            // 通过反射获取Service类的attach方法并设置为可访问
-            Method attach = Service.class.getDeclaredMethod("attach",
-                                                            android.content.Context.class, 
-                                                            android.app.ActivityThread.class,
-                                                            String.class, 
-                                                            android.os.IBinder.class, 
-                                                            android.app.Application.class, 
-                                                            Object.class);
-            attach.setAccessible(true);
+      // 通过反射获取ContextImpl的setOuterContext方法并设置为可访问
+      Method setOuterContext =
+          Class.forName("android.app.ContextImpl")
+              .getDeclaredMethod("setOuterContext", Context.class);
+      setOuterContext.setAccessible(true);
+      setOuterContext.invoke(MinecraftManager.getManager().getContext(), service);
 
-            // 调用attach方法进行初始化
-            attach.invoke(service, 
-                          MinecraftManager.getManager().getContext(), 
-                          ActivityThread.currentActivityThread(),
-                          name,
-                          getActivityThread(),
-                          MinecraftManager.getManager().getApplication(),
-                          ActivityManagerNative.getDefault());
-            return service;
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException("Service class not found: " + name, e);
-        } catch (InstantiationException | IllegalAccessException e) {
-            throw new RuntimeException("Unable to instantiate service: " + name, e);
-        } catch (NoSuchMethodException | InvocationTargetException e) {
-            throw new RuntimeException("Error setting up service: " + name, e);
-        }
+      // 通过反射获取Service类的attach方法并设置为可访问
+      Method attach =
+          Service.class.getDeclaredMethod(
+              "attach",
+              android.content.Context.class,
+              android.app.ActivityThread.class,
+              String.class,
+              android.os.IBinder.class,
+              android.app.Application.class,
+              Object.class);
+      attach.setAccessible(true);
+
+      // 调用attach方法进行初始化
+      attach.invoke(
+          service,
+          MinecraftManager.getManager().getContext(),
+          ActivityThread.currentActivityThread(),
+          name,
+          getActivityThread(),
+          MinecraftManager.getManager().getApplication(),
+          ActivityManagerNative.getDefault());
+      return service;
+    } catch (ClassNotFoundException e) {
+      throw new RuntimeException("Service class not found: " + name, e);
+    } catch (InstantiationException | IllegalAccessException e) {
+      throw new RuntimeException("Unable to instantiate service: " + name, e);
+    } catch (NoSuchMethodException | InvocationTargetException e) {
+      throw new RuntimeException("Error setting up service: " + name, e);
     }
+  }
 
-
-    public IBinder getActivityThread() {
-        return(IBinder) ActivityThread.currentActivityThread().getApplicationThread();
-    }
+  public IBinder getActivityThread() {
+    return (IBinder) ActivityThread.currentActivityThread().getApplicationThread();
+  }
 
   public static class AppBindData {
     int vpid;

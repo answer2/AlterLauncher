@@ -6,6 +6,8 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import android.os.Bundle;
+import com.answer.launcher.core.Constants;
+import com.answer.launcher.core.MinecraftLoader;
 import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.core.manager.MinecraftManager;
 import com.answer.launcher.core.manager.NativePluginManager;
@@ -37,7 +39,11 @@ public class MainActivity extends AppCompatActivity {
         
         binding.loadNative.setOnClickListener(v->NativePluginManager.getManager(this).addNativePlugin(binding.edit.getText().toString()));
         binding.loadDex.setOnClickListener(v->PluginManager.getManager(this).addPlugin(binding.edit.getText().toString() + ""));
-
+        
+        binding.set.setOnClickListener(v->{
+            Constants.MINECRAFTPACKAGE = binding.edit.getText().toString();
+                MinecraftLoader.load(getApplication().getBaseContext());
+        });
     binding.please.setOnClickListener(
         v -> {
           XXPermissions.with(this)

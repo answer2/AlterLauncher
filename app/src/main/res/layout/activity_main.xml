@@ -40,7 +40,6 @@
         android:layout_marginTop="5dp"
         app:layout_constraintTop_toBottomOf="@id/load"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
         android:id="@+id/load_native"
         android:text="加载Native" />
 
@@ -51,9 +50,19 @@
         android:layout_marginStart="5dp"
         app:layout_constraintTop_toBottomOf="@id/load"
         app:layout_constraintStart_toEndOf="@id/load_native"
-        app:layout_constraintEnd_toEndOf="parent"
         android:id="@+id/load_dex"
         android:text="加载Dex" />
+    
+        <Button
+        android:layout_height="wrap_content"
+        android:layout_width="wrap_content"
+        android:layout_marginTop="5dp"
+        android:layout_marginStart="5dp"
+        app:layout_constraintTop_toBottomOf="@id/load"
+        app:layout_constraintStart_toEndOf="@id/load_dex"
+        android:id="@+id/set"
+        android:text="设定包名" />
 
+    
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -4,52 +4,117 @@ import android.app.ActivityThread;
 import android.app.ActivityThread.ActivityClientRecord;
 import android.app.LoadedApk;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.util.Log;
 import com.answer.launcher.core.Constants;
+import com.answer.launcher.core.manager.Alternative;
 import java.lang.reflect.Field;
 import top.canyie.pine.Pine;
 import top.canyie.pine.callback.MethodHook;
 import com.answer.launcher.core.manager.MinecraftManager;
 
 /**
- * @Author AnswerDev
+ * @Author AnswerDev 
  * @Date 2024/07/08 16:48
  */
 public class ActivityThreadHook {
 
-    public static void init() {
-        try {
-            Pine.hook(ActivityThread.class.getDeclaredMethod("createBaseContextForActivity", Class.forName("android.app.ActivityThread$ActivityClientRecord")),
-                new MethodHook(){
-                    @Override
-                    public void beforeCall(Pine.CallFrame callFrame) throws Throwable {
+  public static void init() {
+    try {
+      /*
+      Pine.hook(ActivityThread.class.getDeclaredMethod("createBaseContextForActivity", Class.forName("android.app.ActivityThread$ActivityClientRecord")),
+          new MethodHook(){
+              @Override
+              public void afterCall(Pine.CallFrame callFrame) throws Throwable {
 
-                        ActivityClientRecord record = (ActivityClientRecord) callFrame.args[0];
-                        
-                        Field intentF = Class.forName("android.app.ActivityThread$ActivityClientRecord").getDeclaredField("intent");
-                        intentF.setAccessible(true);
+                  ActivityClientRecord record = (ActivityClientRecord) callFrame.args[0];
 
-                        Intent intent= (Intent) intentF.get(record); 
-                        String name = intent.getComponent().getClassName();
-                        
-                        LoadedApk loadedApk = MinecraftManager.getManager().getLoadedApk();
-                        if (name.contains(Constants.MINECRAFTACTIVITY)) {
-                            LoadedApk loadedApkP = record.packageInfo;
-                            setValue(loadedApkP, "mResources", loadedApk.getResources());
-                            setValue(loadedApkP, "mResDir", loadedApk.getResDir());
-                            setValue(loadedApkP, "mLibDir", loadedApk.getLibDir());
-                            callFrame.args[0]  = record;
-                        }
+                  Field intentF = Class.forName("android.app.ActivityThread$ActivityClientRecord").getDeclaredField("intent");
+                  intentF.setAccessible(true);
 
-                    }
-                });
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+                  Intent intent= (Intent) intentF.get(record);
+                  String name = intent.getComponent().getClassName();
+                  Log.i("createBaseContextForActivity", name);
+                  LoadedApk loadedApk = MinecraftManager.getManager().getLoadedApk();
+                  if ( name.contains("xbox") || name.contains("microsoft")){
+                      Log.i("performLaunchActivity", "true");
+                      callFrame.setResult(Alternative.getManager().mContext);
+                      Reflector
+                      .on("android.app.ContextImpl")
+                      .method("setResources", Resources.class)
+                      .callByCaller(callFrame.getResult(), MinecraftManager.getManager().getContext().getResources());
+
+                  }
+
+              }
+          });*/
+
+      //  public final LoadedApk getPackageInfo(ApplicationInfo ai, CompatibilityInfo compatInfo,
+      //  int flags) {
+      // com.mojang.minecraftpf
+      Pine.hook(
+          ActivityThread.class.getDeclaredMethod(
+              "getPackageInfo",
+              ApplicationInfo.class,
+              Class.forName("android.content.res.CompatibilityInfo"),
+              int.class),
+          new MethodHook() {
+            @Override
+            public void beforeCall(Pine.CallFrame callFrame) throws Throwable {
+              ApplicationInfo info = (ApplicationInfo) callFrame.args[0];
+
+              LoadedApk loadedApk = MinecraftManager.getManager().getLoadedApk();
+              if (info.packageName.contains(Constants.MINECRAFTPACKAGE)) {
+                Log.i("performLaunchActivity", "true");
+                loadedApk.getApplicationInfo().uid =
+                    Alternative.getManager().mContext.getApplicationInfo().uid;
+                callFrame.setResult(loadedApk);
+              }
+            }
+          });
+
+      Pine.hook(
+          ActivityThread.class.getDeclaredMethod(
+              "performLaunchActivity",
+              Class.forName("android.app.ActivityThread$ActivityClientRecord"),
+              Intent.class),
+          new MethodHook() {
+            @Override
+            public void beforeCall(Pine.CallFrame callFrame) throws Throwable {
+              ActivityClientRecord record = (ActivityClientRecord) callFrame.args[0];
+
+              Field intentF =
+                  Class.forName("android.app.ActivityThread$ActivityClientRecord")
+                      .getDeclaredField("intent");
+              intentF.setAccessible(true);
+
+              Intent intent = (Intent) intentF.get(record);
+              String name = intent.getComponent().getClassName();
+
+              LoadedApk loadedApk = MinecraftManager.getManager().getLoadedApk();
+              Log.i("performLaunchActivity", name);
+              if (name.contains(Constants.MINECRAFTACTIVITY)
+                  || name.contains("xbox")
+                  || name.contains("microsoft")) {
+                Log.i("performLaunchActivity", "true");
+                loadedApk.getApplicationInfo().uid =
+                    Alternative.getManager().mContext.getApplicationInfo().uid;
+                record.packageInfo = loadedApk;
+                /*
+                setValue(loadedApkP, "mResources", loadedApk.getResources());
+                setValue(loadedApkP, "mResDir", loadedApk.getResDir());
+                setValue(loadedApkP, "mLibDir", loadedApk.getLibDir());*/
+              }
+            }
+          });
+    } catch (Exception e) {
+      e.printStackTrace();
     }
-    
-    private static void setValue(LoadedApk loadedApk, String field, Object value) throws Exception{
-        Field mClassLoaderField = LoadedApk.class.getDeclaredField(field);
-        mClassLoaderField.setAccessible(true);
-        mClassLoaderField.set(loadedApk, value);
-    }
+  }
+
+  private static void setValue(LoadedApk loadedApk, String field, Object value) throws Exception {
+    Field mClassLoaderField = LoadedApk.class.getDeclaredField(field);
+    mClassLoaderField.setAccessible(true);
+    mClassLoaderField.set(loadedApk, value);
+  }
 }

@@ -66,7 +66,7 @@ public class LauncherActivity extends MainActivity {
   public void startThread() {
     mThread = new DrawGameSurface(0, 0, width, height, mHolder.getSurface());
     mThread.setName("DrawGameSurface");
-    mThread.start();
+    //mThread.start();
   }
 
   private class DrawGameSurface extends Thread {

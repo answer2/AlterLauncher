@@ -19,7 +19,7 @@ public class AlterApplication extends Application{
         super.onCreate();
         // TODO: Implement this method
         
-        HiddenApiBypass.setHiddenApiExemptions("/");
+        HiddenApiBypass.setHiddenApiExemptions("L");
         
         //initial Hook Framework
         PineConfig.debug = false;
@@ -30,16 +30,9 @@ public class AlterApplication extends Application{
         //init Environment
         PluginManager.getManager(getBaseContext());
         NativePluginManager.getManager(getBaseContext());
-        EnvironmentHook.init();
-			
+        
+        // load Web
         new WebView(this);
-
-        //Init Alternative Core
-        Alternative.getManager().init(getBaseContext());
-            
-        //Hook Init
-        LoadLibraryHook.init(this);
-        UnixFileSystemHook.init();
 
     }
     

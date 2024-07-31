@@ -1,5 +1,6 @@
 package com.answer.launcher.core.hook;
 
+import com.answer.launcher.core.tool.SystemUtil;
 import top.canyie.pine.Pine;
 import top.canyie.pine.callback.MethodHook;
 import top.canyie.pine.callback.MethodReplacement;
@@ -17,6 +18,7 @@ public class LoadedAfterHook {
 
     public static void init() {
         try {
+            if(SystemUtil.checkMethod(MainActivity.class,"isBrazeEnabled", null)){
             Pine.hook(MainActivity.class.getDeclaredMethod("isBrazeEnabled"),
                 new MethodReplacement(){
                     @Override
@@ -24,11 +26,12 @@ public class LoadedAfterHook {
                         return false;
                     }
                 });
-
-            Alternative.getManager().createService(NotificationListenerService.class.getName());
+            }
+        
+           if (SystemUtil.checkClass("com.mojang.minecraftpe.NotificationListenerService")) Alternative.getManager().createService("com.mojang.minecraftpe.NotificationListenerService");
             
             // Get libminecraftpe.so
-            Alternative.load();
+           // Alternative.loadManager();
         } catch (Exception e) {
             e.printStackTrace();
         }

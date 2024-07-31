@@ -51,6 +51,8 @@
     <!-- 查看网络连接 -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     
+    <uses-feature android:glEsVersion="0x00030001" android:required="true" />
+    
     <application
         android:name="com.answer.launcher.AlterApplication"
         android:allowBackup="true"
@@ -204,6 +206,13 @@
             android:launchMode="singleTask"
             android:configChanges="keyboardHidden|orientation|screenSize|uiMode"
             android:alwaysRetainTaskState="true" />
+        
+        <activity
+            android:name="com.answer.launcher.ui.activity.LoginStubActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:configChanges="keyboardHidden|orientation|screenSize|uiMode"
+            android:alwaysRetainTaskState="true"/>
 
     </application>
 </manifest>
