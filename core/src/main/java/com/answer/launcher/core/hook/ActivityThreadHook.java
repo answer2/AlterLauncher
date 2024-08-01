@@ -100,10 +100,6 @@ public class ActivityThreadHook {
                 loadedApk.getApplicationInfo().uid =
                     Alternative.getManager().mContext.getApplicationInfo().uid;
                 record.packageInfo = loadedApk;
-                /*
-                setValue(loadedApkP, "mResources", loadedApk.getResources());
-                setValue(loadedApkP, "mResDir", loadedApk.getResDir());
-                setValue(loadedApkP, "mLibDir", loadedApk.getLibDir());*/
               }
             }
           });
