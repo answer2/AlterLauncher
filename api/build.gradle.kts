@@ -1,22 +1,16 @@
 
 plugins {
-    id("com.android.application")
+    id("com.android.library")
     
 }
 
 android {
-    namespace = "com.answer.launcher"
+    namespace = "com.answer.api"
     compileSdk = 33
     defaultConfig {
-        applicationId = "com.answer.launcher.api"
         minSdk = 24
         targetSdk = 33
-        versionCode = 1
-        versionName = "1.0"
         
-        vectorDrawables { 
-            useSupportLibrary = true
-        }
     }
     
     compileOptions {
@@ -31,12 +25,9 @@ android {
         }
     }
 
-    buildFeatures {
-        viewBinding = true
-    }
     
 }
 
 dependencies {
-    compileOnly(project(":core"))
+    compileOnly(project(":stub"))
 }

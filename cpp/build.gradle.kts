@@ -1,23 +1,16 @@
 
 plugins {
-    id("com.android.application")
+    id("com.android.library")
     
 }
 
 android {
-    namespace = "com.answer.launcher"
+    namespace = "com.answer.launcher.cpp"
     compileSdk = 33
     ndkVersion = "24.0.8215888"
     defaultConfig {
-        applicationId = "com.answer.launcher.api"
         minSdk = 24
         targetSdk = 33
-        versionCode = 1
-        versionName = "1.0"
-        
-        vectorDrawables { 
-            useSupportLibrary = true
-        }
     }
     
     compileOptions {
@@ -45,10 +38,6 @@ android {
             path = file("src/main/cpp/CMakeLists.txt")
             version = "3.18.1"
         }
-    }
-
-    buildFeatures {
-        viewBinding = true
     }
 }
 

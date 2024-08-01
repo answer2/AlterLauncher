@@ -29,19 +29,25 @@ public class LauncherActivity extends MainActivity {
   }
 
   @Override
+  protected void onResume() {
+    super.onResume();
+    // TODO: Implement this method
+        Log.d("LauncherActivity", "onResume");
+  }
+
+  @Override
   public void surfaceCreated(SurfaceHolder holder) {
     super.surfaceCreated(holder);
     this.mHolder = holder;
     this.mIsRunning = true;
     this.width = holder.getSurfaceFrame().width();
     this.height = holder.getSurfaceFrame().height();
-    if(mHolder!=null) startThread();
+    if (mHolder != null) startThread();
   }
 
   @Override
   public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
     super.surfaceChanged(holder, format, width, height);
-       
   }
 
   // 需要重新绘制表面
@@ -60,13 +66,13 @@ public class LauncherActivity extends MainActivity {
   public void surfaceDestroyed(SurfaceHolder holder) {
     super.surfaceDestroyed(holder);
     mIsRunning = false;
-        mThread.interrupt();
+    mThread.interrupt();
   }
 
   public void startThread() {
     mThread = new DrawGameSurface(0, 0, width, height, mHolder.getSurface());
     mThread.setName("DrawGameSurface");
-    //mThread.start();
+    // mThread.start();
   }
 
   private class DrawGameSurface extends Thread {

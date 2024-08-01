@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10.1)
+cmake_minimum_required(VERSION 3.18.1)
 
 # 设置项目名称和版本
 project(alternative_core C CXX)

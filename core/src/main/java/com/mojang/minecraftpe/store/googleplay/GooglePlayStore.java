@@ -20,7 +20,7 @@ public class GooglePlayStore implements Store {
         activity.runOnUiThread(new Runnable(){
                 @Override
                 public void run() {
-                    SplashScreenHook.finishUI();
+                   // SplashScreenHook.finishUI();
                 }
             });
     }

@@ -1,6 +1,7 @@
 package com.answer.launcher.api;
+
 import android.util.Log;
-import com.answer.launcher.core.manager.MinecraftManager;
+import java.lang.reflect.Method;
 
 /**
  * @Author AnswerDev
@@ -52,6 +53,15 @@ public class AlternativeApi {
     }
 
     public static void addCallback(SurfaceCallback callback) {
-        if(callback != null) MinecraftManager.getManager().addCallbacks(callback);
+        if(callback != null){
+            try{
+            Class<?> clazz = Class.forName("com.answer.launcher.core.manager.MinecraftManager");
+            Method manager = clazz.getDeclaredMethod("getManager");
+            Method add = clazz.getDeclaredMethod("addCallbacks", SurfaceCallback.class);
+            add.invoke(manager.invoke(null), callback);
+         }catch(Exception e){
+             e.printStackTrace();
+         }
+        } 
     }
 }

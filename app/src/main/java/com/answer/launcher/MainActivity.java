@@ -1,19 +1,15 @@
 package com.answer.launcher;
 
-import android.app.ActivityThread;
-import android.content.Intent;
+import android.os.Bundle;
 import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import android.os.Bundle;
 import com.answer.launcher.core.Constants;
 import com.answer.launcher.core.MinecraftLoader;
 import com.answer.launcher.core.manager.Alternative;
-import com.answer.launcher.core.manager.MinecraftManager;
 import com.answer.launcher.core.manager.NativePluginManager;
 import com.answer.launcher.core.manager.PluginManager;
 import com.answer.launcher.databinding.ActivityMainBinding;
-import com.answer.launcher.core.env.AlterInstrumentation;
 import com.hjq.permissions.OnPermissionCallback;
 import com.hjq.permissions.Permission;
 import com.hjq.permissions.XXPermissions;

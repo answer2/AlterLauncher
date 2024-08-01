@@ -1,7 +1,6 @@
 
 plugins {
     id("com.android.application")
-    id("kotlin-android")
 }
 
 android {
@@ -35,9 +34,6 @@ android {
         viewBinding = true
     }
     
-    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-        kotlinOptions.jvmTarget = "11"
-    }
 }
 
 dependencies {
@@ -49,8 +45,13 @@ dependencies {
     implementation ("com.github.getActivity:XXPermissions:20.0")
     
     implementation(project(":core"))
-    implementation(project(":native"))
+    implementation(project(":cpp"))
     implementation(project(":api"))
     
+    implementation(libs.lsp.hiddenpass)
+    implementation (libs.pine.core)
+    implementation (libs.weishu.reflection)
+    
+    compileOnly(fileTree(mapOf("dir" to "compile_only", "include" to listOf("*.jar"))))
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
 }

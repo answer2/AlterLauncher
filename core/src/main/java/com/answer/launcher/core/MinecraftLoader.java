@@ -9,21 +9,19 @@ import com.answer.launcher.core.hook.EnvironmentHook;
 import com.answer.launcher.core.hook.LoadLibraryHook;
 import com.answer.launcher.core.hook.UnixFileSystemHook;
 import com.answer.launcher.core.manager.Alternative;
-import com.answer.launcher.core.Test;
 
 public class MinecraftLoader {
+    
+    
 
   public static void load(Context context) {
     // init env
     EnvironmentHook.init(context);
     UnixFileSystemHook.init();
-        
     // Init Alternative Core
     Alternative.getManager().init(context);
         
     LoadLibraryHook.init(context);
-    Test.a("666");
-        
   }
     
     private static String getProcessName(Context context) {

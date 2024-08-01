@@ -29,4 +29,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "AlterLauncher"
 
-include(":app", ":core", ":native", ":api")
+include(":app", ":core", ":cpp", ":api", "stub")
