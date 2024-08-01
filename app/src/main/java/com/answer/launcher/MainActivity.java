@@ -1,6 +1,7 @@
 package com.answer.launcher;
 
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -37,7 +38,7 @@ public class MainActivity extends AppCompatActivity {
         binding.loadDex.setOnClickListener(v->PluginManager.getManager(this).addPlugin(binding.edit.getText().toString() + ""));
         
         binding.set.setOnClickListener(v->{
-            Constants.MINECRAFTPACKAGE = binding.edit.getText().toString();
+                if(!TextUtils.isEmpty( binding.edit.getText())) Constants.MINECRAFTPACKAGE = binding.edit.getText().toString();
                 MinecraftLoader.load(getApplication().getBaseContext());
         });
     binding.please.setOnClickListener(

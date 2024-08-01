@@ -44,9 +44,10 @@ dependencies {
     
     implementation ("com.github.getActivity:XXPermissions:20.0")
     
+    implementation(project(":api"))
     implementation(project(":core"))
     implementation(project(":cpp"))
-    implementation(project(":api"))
+    
     
     implementation(libs.lsp.hiddenpass)
     implementation (libs.pine.core)
