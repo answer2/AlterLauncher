@@ -46,9 +46,6 @@ public class AlterEnvironment {
                     f.set(plugin,f.get(app));
                 }
             }
-           
-            //SplashScreen
-            SplashScreenHook.init();
 
         } catch (Exception e) {
             e.printStackTrace();

@@ -29,5 +29,5 @@ android {
 }
 
 dependencies {
-    compileOnly(project(":stub"))
+    compileOnly(project(":constants"))
 }

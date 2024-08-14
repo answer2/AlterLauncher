@@ -15,6 +15,7 @@ set(SRC_FILES
     util/stringUtil.cpp
     hook/manager_minecraft.cpp
     hook/fake_asset.cpp
+    hook/fake_file.cpp
     util/Utils.cpp
     util/FindSignature.cpp
 )

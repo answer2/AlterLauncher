@@ -1,5 +1,6 @@
 package com.answer.launcher.core.hook;
 
+import android.content.Context;
 import com.answer.launcher.core.tool.SystemUtil;
 import top.canyie.pine.Pine;
 import top.canyie.pine.callback.MethodHook;
@@ -14,9 +15,9 @@ import com.mojang.minecraftpe.NotificationListenerService;
  * @Author AnswerDev
  * @Date 2024/07/07 09:26
  */
-public class LoadedAfterHook {
+public class LoadedAfterHook extends BaseHook {
 
-    public static void init() {
+    public void init() {
         try {
             if(SystemUtil.checkMethod(MainActivity.class,"isBrazeEnabled", null)){
             Pine.hook(MainActivity.class.getDeclaredMethod("isBrazeEnabled"),

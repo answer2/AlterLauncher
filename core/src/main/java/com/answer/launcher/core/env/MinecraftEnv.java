@@ -3,6 +3,8 @@ package com.answer.launcher.core.env;
 import android.content.Context;
 import android.util.Log;
 import com.answer.launcher.core.manager.Alternative;
+import com.answer.launcher.core.tool.ContentProviderCompat;
+import com.answer.launcher.core.tool.ProviderCall;
 import static com.answer.launcher.core.tool.SystemUtil.checkClass;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.components.ComponentDiscoveryService;
@@ -21,9 +23,9 @@ public class MinecraftEnv {
 
     try {
       // setup FirebaseInitProvider
-      if (checkClass("com.google.firebase.FirebaseApp")
-          && FirebaseApp.initializeApp(context) == null) {
-        Log.i(TAG, "FirebaseApp initialization unsuccessful");
+      if (checkClass("com.google.android.gms.common.R$string")&&checkClass("com.google.firebase.FirebaseApp")) {
+           if(FirebaseApp.initializeApp(context) ==null) return;
+        Log.i(TAG, "FirebaseApp initialization successful");
       }
 
       // setup ComponentDiscoveryService

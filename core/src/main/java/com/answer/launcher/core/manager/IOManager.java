@@ -88,6 +88,8 @@ public class IOManager {
             rule.put("/data/data/" + packageName, packageInfo.dataDir);
             rule.put("/data/user/0/" + packageName, packageInfo.dataDir);
 
+            rule.put("/data/user/0/" + packageName +"/app_ntp0", packageInfo.dataDir + "/app_ntp0");
+            
             if (Alternative.getManager().mContext.getExternalCacheDir() != null && context.getExternalCacheDir() != null) {
                 File external = context.getExternalCacheDir().getParentFile();
 

@@ -15,36 +15,49 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ProviderInfo;
 import android.content.res.AssetManager;
+import android.content.res.Resources;
 import android.os.IBinder;
+import android.util.Log;
+import android.webkit.WebView;
 import com.answer.launcher.core.Constants;
 import com.answer.launcher.core.env.AlterEnvironment;
 import com.answer.launcher.core.env.AlterInstrumentation;
 import com.answer.launcher.core.env.MinecraftEnv;
 import com.answer.launcher.core.env.VirtualRuntime;
 import com.answer.launcher.core.hook.ActivityThreadHook;
+import com.answer.launcher.core.hook.BaseHook;
+import com.answer.launcher.core.hook.NeteaseHook;
+import com.answer.launcher.core.hook.SplashScreenHook;
 import com.answer.launcher.core.hook.XboxHook;
 import com.answer.launcher.core.tool.AbiUtils;
+import com.answer.launcher.core.tool.AssetOverrideManager;
 import com.answer.launcher.core.tool.ContextFixer;
 import com.answer.launcher.core.tool.HotFix;
 import com.answer.launcher.core.tool.Reflector;
 import com.answer.launcher.core.tool.SystemUtil;
 import dalvik.system.DexClassLoader;
 import java.io.File;
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.security.Security;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+import top.canyie.pine.Pine;
+import top.canyie.pine.callback.MethodHook;
 
 /**
- * @Author AnswerDev
- * @Date 2024/04/05 08:34
+ * @Author AnswerDev @Date 2024/04/05 08:34
  */
 public class Alternative {
   private static volatile Alternative manager;
-  private static List<ProviderInfo> mProviders = new ArrayList<>();
+  public static List<ProviderInfo> mProviders = new ArrayList<>();
 
   public Context mContext;
 
@@ -55,20 +68,11 @@ public class Alternative {
   private Application application;
   private LoadedApk loadedApk;
   private AppBindData bindData;
+  private DexClassLoader classLoader;
   public static String nativepath;
+
   private boolean isSupport = false;
-
-  public static native long findLibBaseAddress(String library);
-
-  public static native long loadLibrary(String libPath);
-
-  public static native void unloadLibrary(long handle);
-
-  public static native void initAssets(AssetManager manager);
-
-  public static native void hookDlopen();
-
-  public static native void loadManager();
+  private boolean isNetease = false;
 
   public void init(Context context) {
     this.mContext = context;
@@ -96,15 +100,27 @@ public class Alternative {
     return manager;
   }
 
-  public static void LaunchMinecraft(Activity activity) {
+  public Context getContext() {
+    return mContext;
+  }
+    
+    public boolean isNeteaseTest(){
+        return "com.netease.mctest".equals(Constants.MINECRAFTPACKAGE);
+    }
+
+    public boolean isNetease() {
+    	return isNetease;
+    }
+  public void LaunchMinecraft(Activity activity) {
     try {
-      Class<?> clazz =
-          Class.forName(
-              "com.answer.launcher.ui.activity.LauncherActivity", false, activity.getClassLoader());
+      String LauncherClass =
+          isNetease
+              ? "com.netease.ntunisdk.external.protocol.ProtocolLauncher"
+              : Constants.MINECRAFTACTIVITY;
+      Class<?> clazz = Class.forName(LauncherClass, true, mContext.getClassLoader());
       Intent intent = new Intent(activity, clazz);
       intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-      if (SystemUtil.checkClass(Constants.MINECRAFTACTIVITY))
-        AlterInstrumentation.get().startActivity(intent);
+      if (clazz != null) AlterInstrumentation.get().startActivity(intent);
     } catch (Exception e) {
       e.printStackTrace();
     }
@@ -124,11 +140,9 @@ public class Alternative {
     Constants.MINECRAFT_VERSION = packageInfo.versionName;
     nativepath = packageInfo.applicationInfo.nativeLibraryDir;
     isSupport = new AbiUtils(new File(applicationInfo.publicSourceDir)).is64Bit();
-        
+    isNetease =( "com.netease.x19".equals(Constants.MINECRAFTPACKAGE) || "com.netease.mctest".equals(Constants.MINECRAFTPACKAGE) )? true : false;
+
     System.loadLibrary("alternative_core");
-    
-        //1722306097.520 10915  1789  1789 E AndroidRuntime: java.lang.RuntimeException: Unable to start activity ComponentInfo{com.answer.launcher/com.microsoft.xbox.idp.ui.AuthFlowActivity}: android.content.res.Resources$NotFoundException: Resource ID #0x7f0d0000
-        
   }
 
   @SuppressWarnings("unchecked")
@@ -152,10 +166,23 @@ public class Alternative {
             Constants.MINECRAFTPACKAGE,
             Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
 
+    // Hook
+    BaseHook.setContext(packageContext);
+    HookManager.getManager().inject();
+    AlterInstrumentation.get().initHook();
+
     // Get LoadedApk instance
     loadedApk =
         (LoadedApk)
             Reflector.on("android.app.ContextImpl").field("mPackageInfo").get(packageContext);
+
+    // Replace Data Dir
+    Reflector.on(LoadedApk.class).field("mDataDirFile").set(loadedApk, mContext.getDataDir());
+    Reflector.on(LoadedApk.class)
+        .field("mDataDir")
+        .set(loadedApk, mContext.getDataDir().getAbsolutePath());
+
+    if(isNetease)Reflector.on(LoadedApk.class).field("mPackageName").set(loadedApk, Constants.PACKAGE);
 
     // Set necessary fields in loadedApk
     Reflector.on(LoadedApk.class).field("mSecurityViolation").set(loadedApk, false);
@@ -167,7 +194,7 @@ public class Alternative {
     // Create AppBindData instance
     bindData = new AppBindData();
     bindData.appInfo = applicationInfo;
-    bindData.processName = "Minecraft-AlterCore";
+    bindData.processName = Constants.MINECRAFTPACKAGE;
     bindData.info = loadedApk;
     bindData.providers = mProviders;
 
@@ -183,56 +210,84 @@ public class Alternative {
             bindData.processName,
             bindData.providers);
 
-    // create application
-    application = loadedApk.makeApplication(false, AlterInstrumentation.get());
-
     // load apk
     String optimizedDirectory = mContext.getDir("plugin", Context.MODE_PRIVATE).getAbsolutePath();
-    DexClassLoader classLoader =
+    classLoader =
         new DexClassLoader(
             applicationInfo.sourceDir,
             optimizedDirectory,
-            loadedApk.getLibDir(),
+            applicationInfo.nativeLibraryDir,
             mContext.getClassLoader());
-    // hotfix
-    HotFix.hotFix(mContext, classLoader);
 
     // set ClassLoader
-    Reflector.on(LoadedApk.class).field("mClassLoader").set(loadedApk, mContext.getClassLoader());
+    Reflector.on(LoadedApk.class).field("mClassLoader").set(loadedApk, classLoader);
+
+    // Hotfix
+    HotFix.hotFix(mContext, classLoader);
+    HotFix.HotFixNative(mContext, nativepath);
+    AssetOverrideManager.addAssetOverride(mContext.getAssets(), applicationInfo.publicSourceDir);
+
+    IOManager.get().enableRedirect(packageContext);
+    if (isNetease) NeteaseHook.init(mContext, loadedApk);
+
+    // create application
+    // 网易我的世界 事故多发地
+    application = loadedApk.makeApplication(false, AlterInstrumentation.get());
+        
+    Map<String, WeakReference> mPackages =
+        (Map)
+            Reflector.on(ActivityThread.class)
+                .field("mPackages")
+                .get(ActivityThread.currentActivityThread());
+    WeakReference weakReference = new WeakReference<>(loadedApk);
+    // 根据插件包名加入缓存
+    mPackages.put(applicationInfo.packageName, weakReference);
   }
 
   private void initEnv() throws Exception {
+        
+        
 
     MinecraftManager.getManager()
         .setLoadedApk(loadedApk)
         .setApplication(application)
         .setContext(packageContext)
         .init();
+        
+        // SSL适配
+        Security.removeProvider("AndroidNSSP");
+        Reflector.on("android.security.net.config.NetworkSecurityConfigProvider").method("install", Context.class).call(packageContext);
 
-    // Replace mInitialApplication
-    Reflector.on(ActivityThread.class)
-        .field("mInitialApplication")
-        .set(ActivityThread.currentActivityThread(), application);
+    if (!isNetease) {
+      // private void installContentProviders(Context context, List<ProviderInfo> list) {
+      Reflector.on(ActivityThread.class)
+          .method("installContentProviders", Context.class, List.class)
+          .callByCaller(ActivityThread.currentActivityThread(), mContext, mProviders);
+      // Init WebView
+     // new WebView(mContext);
+
+      // Replace mInitialApplication
+      Reflector.on(ActivityThread.class)
+          .field("mInitialApplication")
+          .set(ActivityThread.currentActivityThread(), application);
+
+      new SplashScreenHook().init();
+      new XboxHook().init();
+    }
 
     // Fix context if necessary
     ContextFixer.fix(application);
-    IOManager.get().enableRedirect(application.getBaseContext());
-    // Hook Instrumentation
-    AlterInstrumentation.get().initHook();
-    // Call Application
-    AlterInstrumentation.get().callApplicationOnCreate(application);
+
     // Establish AlterEnvironment
     AlterEnvironment.establishEnv(mContext, application.getBaseContext());
-    // Establish Minecraft Env
-    MinecraftEnv.establishEnv(application.getBaseContext());
-    // hook
-    XboxHook.init();
-    
-    ActivityThreadHook.init();
-    // init assets
-    initAssets(loadedApk.getAssets());
 
-    // Establish VM Runtime
+    // Call Application
+    if (!isNetease) {
+  //    AlterInstrumentation.get().callApplicationOnCreate(application);
+      // Establish Minecraft Env
+      MinecraftEnv.establishEnv(application.getBaseContext());
+    }
+        
     VirtualRuntime.setupRuntime(bindData.processName, bindData.appInfo);
   }
 
@@ -252,7 +307,56 @@ public class Alternative {
           Class.forName("android.app.ContextImpl")
               .getDeclaredMethod("setOuterContext", Context.class);
       setOuterContext.setAccessible(true);
-      setOuterContext.invoke(MinecraftManager.getManager().getContext(), service);
+      setOuterContext.invoke(packageContext, service);
+
+      // 通过反射获取Service类的attach方法并设置为可访问
+      Method attach =
+          Service.class.getDeclaredMethod(
+              "attach",
+              android.content.Context.class,
+              android.app.ActivityThread.class,
+              String.class,
+              android.os.IBinder.class,
+              android.app.Application.class,
+              Object.class);
+      attach.setAccessible(true);
+
+      // 调用attach方法进行初始化
+      attach.invoke(
+          service,
+          MinecraftManager.getManager().getContext(),
+          ActivityThread.currentActivityThread(),
+          name,
+          getActivityThread(),
+          MinecraftManager.getManager().getApplication(),
+          ActivityManagerNative.getDefault());
+      return service;
+    } catch (ClassNotFoundException e) {
+      throw new RuntimeException("Service class not found: " + name, e);
+    } catch (InstantiationException | IllegalAccessException e) {
+      throw new RuntimeException("Unable to instantiate service: " + name, e);
+    } catch (NoSuchMethodException | InvocationTargetException e) {
+      throw new RuntimeException("Error setting up service: " + name, e);
+    }
+  }
+
+  public Service createService(Context context, String name) {
+    try {
+      // 使用反射实例化Service对象
+      Service service =
+          (Service)
+              MinecraftManager.getManager()
+                  .getContext()
+                  .getClassLoader()
+                  .loadClass(name)
+                  .newInstance();
+
+      // 通过反射获取ContextImpl的setOuterContext方法并设置为可访问
+      Method setOuterContext =
+          Class.forName("android.app.ContextImpl")
+              .getDeclaredMethod("setOuterContext", Context.class);
+      setOuterContext.setAccessible(true);
+      setOuterContext.invoke(context, service);
 
       // 通过反射获取Service类的attach方法并设置为可访问
       Method attach =

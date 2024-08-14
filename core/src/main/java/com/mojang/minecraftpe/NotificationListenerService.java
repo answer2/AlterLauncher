@@ -19,7 +19,7 @@ public class NotificationListenerService extends FirebaseMessagingService {
     private static String sDeviceRegistrationToken = "";
 
     public NotificationListenerService() {
-        retrieveDeviceToken();
+      //  retrieveDeviceToken();
         System.out.println("NotificationListenerService 被注册");
     }
 
@@ -31,7 +31,7 @@ public class NotificationListenerService extends FirebaseMessagingService {
     }
 
     private static void retrieveDeviceToken() {
-        if (Thread.currentThread().equals(Looper.getMainLooper().getThread())) {
+      /*  if (Thread.currentThread().equals(Looper.getMainLooper().getThread())) {
             Log.e("Alternative", "NotificationListenerService.retrieveDeviceToken() should not run on main thread.");
         }
         if (sDeviceRegistrationToken.isEmpty()) {
@@ -50,32 +50,33 @@ public class NotificationListenerService extends FirebaseMessagingService {
                         Log.e("Alternative", "Unable to get Firebase Messaging token, trying again...");
                     }
                 });
-        }
+        }*/
     }
 
     @Override
     public void onNewToken(String string) {
         super.onNewToken(string);
-        Log.i("Minecraft", "New Device Push Token: " + string);
+        /*Log.i("Minecraft", "New Device Push Token: " + string);
         sDeviceRegistrationToken = string;
-        Braze.getInstance(FirebaseApp.getInstance().getApplicationContext()).setRegisteredPushToken(sDeviceRegistrationToken);
+        Braze.getInstance(FirebaseApp.getInstance().getApplicationContext()).setRegisteredPushToken(sDeviceRegistrationToken);*/
     }
 
     native void nativePushNotificationReceived(final int type, String title, String description, String data);
 
+    
     @Override
     public void onMessageReceived(RemoteMessage remoteMessage) {
-        NotificationResult tryParseXboxLiveNotification = NotificationHelper.tryParseXboxLiveNotification(remoteMessage, this);
-        nativePushNotificationReceived(tryParseXboxLiveNotification.notificationType.ordinal(), tryParseXboxLiveNotification.title, tryParseXboxLiveNotification.body, tryParseXboxLiveNotification.data);
+       // NotificationResult tryParseXboxLiveNotification = NotificationHelper.tryParseXboxLiveNotification(remoteMessage, this);
+       // nativePushNotificationReceived(tryParseXboxLiveNotification.notificationType.ordinal(), tryParseXboxLiveNotification.title, tryParseXboxLiveNotification.body, tryParseXboxLiveNotification.data);
     }
     
     public static void token(String token){
-        try{
+        /*try{
             Method method = Class.forName("com.mojang.minecraftpe.MainActivity", false, NotificationListenerService.class.getClassLoader()).getDeclaredMethod("requestIntegrityToken", String.class);
             method.setAccessible(true);
             method.invoke(MinecraftManager.getManager().getActivity(), token);
         }catch(Exception e){
             e.printStackTrace();
-        }
+        }*/
     }
 }

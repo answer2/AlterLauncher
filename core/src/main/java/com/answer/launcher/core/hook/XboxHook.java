@@ -14,9 +14,9 @@ import static com.answer.launcher.core.tool.SystemUtil.checkClass;
  * @Author AnswerDev
  * @Date 2024/07/06 19:39
  */
-public class XboxHook {
+public class XboxHook extends BaseHook{
 
-    public static void init() {
+    public void init() {
 
         try {
             if(checkClass("com.microsoft.xal.browser.BrowserSelector")){
@@ -42,7 +42,9 @@ public class XboxHook {
                     }
                 });
                 }
-            //1721275547.882 10896  1272  2335 F answer.launche: java_vm_ext.cc:577]   at java.lang.String com.microsoft.xbox.idp.interop.Interop.ReadConfigFile(android.content.Context) (Interop.java:158)
+            
+            //F answer.launche: java_vm_ext.cc:577]   at java.lang.String com.microsoft.xbox.idp.interop.Interop.ReadConfigFile(android.content.Context) (Interop.java:158)
+            // For 1.14 xbox resources bug
             if(checkClass("com.microsoft.xbox.idp.interop.Interop")){
                 Log.d("XboxHook", "ReadConfigFile");
             Pine.hook(Class.forName("com.microsoft.xbox.idp.interop.Interop").getDeclaredMethod("ReadConfigFile", Context.class),

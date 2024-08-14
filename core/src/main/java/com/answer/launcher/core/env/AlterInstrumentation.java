@@ -10,6 +10,8 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
+import com.answer.launcher.core.Constants;
+import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.core.tool.Reflector;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -25,6 +27,7 @@ import com.answer.launcher.core.manager.MinecraftManager;
 public class AlterInstrumentation extends Instrumentation {
 
   private static AlterInstrumentation instrumentation;
+  private Instrumentation mBase;
 
   public static AlterInstrumentation get() {
     if (instrumentation == null) {
@@ -70,6 +73,40 @@ public class AlterInstrumentation extends Instrumentation {
 
     super.callApplicationOnCreate(app);
   }
+    
+    @Override
+    public void callActivityOnCreate(Activity activity, Bundle arg1) {
+        super.callActivityOnCreate(activity, arg1);
+        // TODO: Implement this method
+        if(activity!=null&&(!activity.getClass().getName().contains(Constants.PACKAGE))){
+             exchangeResourcesOfActivity(activity);
+        }
+    }
+    
+    @Override
+    public void callActivityOnNewIntent(Activity arg0, Intent arg1) {
+        super.callActivityOnNewIntent(arg0, arg1);
+        // TODO: Implement this method
+    }
+    
+    @Override
+    public boolean onException(Object arg0, Throwable arg1) {
+        // TODO: Implement this method
+        Log.d("onException",  arg0+"");
+        arg1.printStackTrace();
+        return super.onException(arg0, arg1);
+    }
+    
+    @Override
+    public Activity newActivity(ClassLoader arg0, String arg1, Intent arg2) throws
+            ClassNotFoundException, IllegalAccessException, InstantiationException {
+        // TODO: Implement this method
+        Activity newActivity = super.newActivity(arg0, arg1, arg2);
+        if(newActivity!=null&&!newActivity.getClass().getName().contains(Constants.PACKAGE)){
+             exchangeResourcesOfActivity(newActivity);
+        }
+        return newActivity;
+    }
 
   public void initHook() {
     try {
@@ -131,4 +168,21 @@ public class AlterInstrumentation extends Instrumentation {
     return false;
   }
     
+    /**
+     * 反射 Activity , 并设置 Activity 中 Resources 成员变量
+     * @param activity
+     * @param intent
+     */
+    private void exchangeResourcesOfActivity(Activity activity) {
+        try {
+            Class<?> contextThemeWrapperClass = Class.forName("android.view.ContextThemeWrapper");
+            Reflector.on(contextThemeWrapperClass)
+            .field("mResources").set(activity, Alternative.getManager().getContext().getResources());
+            
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
 }

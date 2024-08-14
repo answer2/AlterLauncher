@@ -3,6 +3,7 @@ package com.answer.launcher.core.hook;
 import android.app.ActivityThread;
 import android.app.ActivityThread.ActivityClientRecord;
 import android.app.LoadedApk;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.util.Log;
@@ -17,9 +18,9 @@ import com.answer.launcher.core.manager.MinecraftManager;
  * @Author AnswerDev 
  * @Date 2024/07/08 16:48
  */
-public class ActivityThreadHook {
+public class ActivityThreadHook extends BaseHook{
 
-  public static void init() {
+  public void init() {
     try {
       /*
       Pine.hook(ActivityThread.class.getDeclaredMethod("createBaseContextForActivity", Class.forName("android.app.ActivityThread$ActivityClientRecord")),
@@ -52,6 +53,7 @@ public class ActivityThreadHook {
       //  public final LoadedApk getPackageInfo(ApplicationInfo ai, CompatibilityInfo compatInfo,
       //  int flags) {
       // com.mojang.minecraftpf
+            /*
       Pine.hook(
           ActivityThread.class.getDeclaredMethod(
               "getPackageInfo",
@@ -71,8 +73,9 @@ public class ActivityThreadHook {
                 callFrame.setResult(loadedApk);
               }
             }
-          });
-
+          });*/
+            
+            
       Pine.hook(
           ActivityThread.class.getDeclaredMethod(
               "performLaunchActivity",
@@ -97,12 +100,11 @@ public class ActivityThreadHook {
                   || name.contains("xbox")
                   || name.contains("microsoft")) {
                 Log.i("performLaunchActivity", "true");
-                loadedApk.getApplicationInfo().uid =
-                    Alternative.getManager().mContext.getApplicationInfo().uid;
                 record.packageInfo = loadedApk;
               }
             }
           });
+            
     } catch (Exception e) {
       e.printStackTrace();
     }

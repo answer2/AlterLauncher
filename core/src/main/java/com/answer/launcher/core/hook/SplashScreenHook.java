@@ -1,5 +1,6 @@
 package com.answer.launcher.core.hook;
 
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
@@ -18,12 +19,13 @@ import top.canyie.pine.callback.MethodHook;
  * @Author AnswerDev
  * @Date 2024/07/07 08:20
  */
-public class SplashScreenHook {
+public class SplashScreenHook extends BaseHook {
     
 
-    public static void init() {
+    public void init() {
         try {
-            Class<?> minecraftClass = Class.forName("com.mojang.minecraftpe.MainActivity", false, SplashScreenHook.class.getClassLoader());
+            if(SystemUtil.checkClass(Constants.MINECRAFTACTIVITY)){
+            Class<?> minecraftClass = Class.forName(Constants.MINECRAFTACTIVITY, false, SplashScreenHook.class.getClassLoader());
             Pine.hook(minecraftClass.getDeclaredMethod("onCreate", Bundle.class),
                 new MethodHook(){
                     @Override
@@ -42,7 +44,7 @@ public class SplashScreenHook {
                             processIntent.invoke(minecraft, minecraft.getIntent());
                         }
                         
-                        LoadedAfterHook.init();
+                        new LoadedAfterHook().init();
 
                         //Load Native
                         for (String path : NativePluginManager.getManager(Alternative.getManager().mContext).getNativeFiles()) {
@@ -56,6 +58,7 @@ public class SplashScreenHook {
                     }
 
                 });
+                }
         } catch (Exception e) {
             e.printStackTrace();
         }

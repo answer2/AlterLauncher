@@ -16,15 +16,9 @@ import com.answer.launcher.core.tool.Reflector;
 
 public class VirtualRuntime {
 
-    private static final Handler sUIHandler = new Handler(Looper.getMainLooper());
-
     private static String sInitialPackageName;
     private static String sProcessName;
-
-    public static Handler getUIHandler() {
-        return sUIHandler;
-    }
-
+    
     public static String getProcessName() {
         return sProcessName;
     }
@@ -32,6 +26,7 @@ public class VirtualRuntime {
     public static String getInitialPackageName() {
         return sInitialPackageName;
     }
+
 
     public static void setupRuntime(String processName, ApplicationInfo appInfo) {
         if (sProcessName != null) {
@@ -56,20 +51,4 @@ public class VirtualRuntime {
             e.printStackTrace();
         }
     }
-
-    public static <T> T crash(Throwable e) throws RuntimeException {
-        e.printStackTrace();
-        throw new RuntimeException("transact remote server failed", e);
-    }
-
-
-    public static void exit() {
-        Process.killProcess(android.os.Process.myPid());
-    }
-
-
-    public static boolean isArt() {
-        return System.getProperty("java.vm.version").startsWith("2");
-    }
-
 }

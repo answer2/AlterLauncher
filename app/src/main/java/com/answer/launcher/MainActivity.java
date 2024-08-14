@@ -31,15 +31,23 @@ public class MainActivity extends AppCompatActivity {
 
     binding.load.setOnClickListener(
         v -> {
-          Alternative.LaunchMinecraft(this);
+          Alternative.getManager().LaunchMinecraft(this);
         });
-        
-        binding.loadNative.setOnClickListener(v->NativePluginManager.getManager(this).addNativePlugin(binding.edit.getText().toString()));
-        binding.loadDex.setOnClickListener(v->PluginManager.getManager(this).addPlugin(binding.edit.getText().toString() + ""));
-        
-        binding.set.setOnClickListener(v->{
-                if(!TextUtils.isEmpty( binding.edit.getText())) Constants.MINECRAFTPACKAGE = binding.edit.getText().toString();
-                MinecraftLoader.load(getApplication().getBaseContext());
+
+    binding.loadNative.setOnClickListener(
+        v ->
+            NativePluginManager.getManager(this)
+                .addNativePlugin(binding.edit.getText().toString()));
+    binding.loadDex.setOnClickListener(
+        v -> PluginManager.getManager(this).addPlugin(binding.edit.getText().toString() + ""));
+
+    binding.set.setOnClickListener(
+        v -> {
+          if (!TextUtils.isEmpty(binding.edit.getText()))
+            Constants.MINECRAFTPACKAGE = binding.edit.getText().toString();
+          
+                    MinecraftLoader.load(getApplication().getBaseContext());
+                  
         });
     binding.please.setOnClickListener(
         v -> {
@@ -48,27 +56,28 @@ public class MainActivity extends AppCompatActivity {
               .permission(Permission.Group.STORAGE)
               // 设置不触发错误检测机制（局部设置）
               .unchecked()
-                .request(new OnPermissionCallback() {
-            @Override
-            public void onGranted(@NonNull List<String> permissions, boolean allGranted) {
-                if (!allGranted) {
-                    Log.d("Main","获取部分权限成功，但部分权限未正常授予");
-                    return;
-                }
-                Log.d("Main","获取存储成功");
-            }
+              .request(
+                  new OnPermissionCallback() {
+                    @Override
+                    public void onGranted(@NonNull List<String> permissions, boolean allGranted) {
+                      if (!allGranted) {
+                        Log.d("Main", "获取部分权限成功，但部分权限未正常授予");
+                        return;
+                      }
+                      Log.d("Main", "获取存储成功");
+                    }
 
-            @Override
-            public void onDenied(@NonNull List<String> permissions, boolean doNotAskAgain) {
-                if (doNotAskAgain) {
-                    Log.d("Main","被永久拒绝授权，请手动授予存储权限");
-                    // 如果是被永久拒绝就跳转到应用权限系统设置页面
-                    XXPermissions.startPermissionActivity(MainActivity.this, permissions);
-                } else {
-                    Log.d("Main","获取录音和日历权限失败");
-                }
-            }
-        });
+                    @Override
+                    public void onDenied(@NonNull List<String> permissions, boolean doNotAskAgain) {
+                      if (doNotAskAgain) {
+                        Log.d("Main", "被永久拒绝授权，请手动授予存储权限");
+                        // 如果是被永久拒绝就跳转到应用权限系统设置页面
+                        XXPermissions.startPermissionActivity(MainActivity.this, permissions);
+                      } else {
+                        Log.d("Main", "获取录音和日历权限失败");
+                      }
+                    }
+                  });
         });
   }
 

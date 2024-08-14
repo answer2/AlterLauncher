@@ -2,11 +2,26 @@ package com.answer.launcher.core.tool;
 
 import android.content.Context;
 import com.answer.launcher.core.Constants;
+import java.io.File;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 
+/**
+ * This class provides methods for applying hotfixes by merging dex elements and native library
+ * directories from a patch ClassLoader into the application's ClassLoader.
+ */
 public class HotFix {
-  /** 插桩修复 */
+
+  /**
+   * Applies hotfix by merging dex elements and native library directories from the patch
+   * ClassLoader into the application's ClassLoader.
+   *
+   * @param context the application context
+   * @param patchClassLoader the ClassLoader containing the patch
+   */
   public static void hotFix(Context context, ClassLoader loader) {
     try {
       // 获取自有类加载器中的 dexElements 对象
@@ -27,89 +42,111 @@ public class HotFix {
       setDexElements(pathList, newDexElements);
       // 将合并后的 nativeLibraryDirectories 数组赋值给系统的类加载器 pathList 对象的 nativeLibraryDirectories 属性
       setNativeLibraryDirectories(pathList, newNativeLibraryDirs);
+            
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+  }
+    
+    public static void HotFixNative(Context origin, String plugin){
+        try {
+        	Object pathList = getPathList(origin.getClassLoader());
+        Reflector.on(pathList.getClass())
+          .method("addNativePath", Collection.class)
+          .callByCaller(
+              pathList, Collections.singletonList(plugin));
+        } catch(Exception err) {
+        	err.printStackTrace();
+        }
+    }
+    
+    
+  /**
+   * Gets the value of a field from an object using reflection.
+   *
+   * @param obj the object containing the field
+   * @param clazz the class of the object
+   * @param fieldName the name of the field
+   * @return the value of the field
+   */
+  private static Object getField(Object obj, Class<?> clazz, String fieldName) {
+    try {
+      return Reflector.on(clazz).field(fieldName).get(obj);
+    } catch (Exception e) {
+      e.printStackTrace();
+      return null;
+    }
+  }
+
+  /**
+   * Sets the value of a field in an object using reflection.
+   *
+   * @param obj the object containing the field
+   * @param clazz the class of the object
+   * @param fieldName the name of the field
+   * @param value the new value to set
+   */
+  private static void setField(Object obj, Class<?> clazz, String fieldName, Object value) {
+    try {
+      Reflector.on(clazz).field(fieldName).set(obj, value);
     } catch (Exception e) {
       e.printStackTrace();
     }
   }
 
   /**
-   * 获取某个属性对象
+   * Gets the pathList object from a BaseDexClassLoader.
    *
-   * @param obj 该属性所属类的对象
-   * @param clazz 该属性的所属类
-   * @param field 属性名
+   * @param classLoader the BaseDexClassLoader
+   * @return the pathList object
    */
-  public static Object getField(Object obj, Class<?> clazz, String field) {
+  private static Object getPathList(ClassLoader classLoader) {
     try {
-      return Reflector.on(clazz).field(field).get(obj);
-    } catch (Exception e) {
-      e.printStackTrace();
-    }
-    return null;
-  }
-
-  /**
-   * 给某个属性赋值
-   *
-   * @param obj 该属性所属类的对象
-   * @param clazz 该属性的所属类
-   * @param field 属性名
-   * @param value 值
-   */
-  public static void setField(Object obj, Class<?> clazz, String field, Object value) {
-    try {
-       Reflector.on(clazz).field(field).set(obj, value);
-    } catch (Exception e) {
-      e.printStackTrace();
-    }
-  }
-
-  /**
-   * 获取BaseDexClassLoader对象中的pathList对象
-   *
-   * @param baseDexClassLoader baseDexClassLoader对象
-   */
-  public static Object getPathList(Object baseDexClassLoader) {
-    try {
-      return getField(
-          baseDexClassLoader, Class.forName(Constants.BASE_DEX_CLASS_LOADER), Constants.PATH_LIST);
+      return getField(classLoader, Class.forName("dalvik.system.BaseDexClassLoader"), "pathList");
     } catch (ClassNotFoundException e) {
       e.printStackTrace();
+      return null;
     }
-    return null;
   }
 
   /**
-   * 获取PathList对象中的dexElements对象
-   * @param pathList pathList对象
+   * Gets the dexElements array from a ClassLoader.
+   *
+   * @param classLoader the ClassLoader
+   * @return the dexElements array
    */
-  public static Object getDexElements(ClassLoader classloader) {
-        Object pathList = getPathList(classloader);
-    return getField(pathList, pathList.getClass(), Constants.DEX_ELEMENTS);
+  private static Object getDexElements(ClassLoader classLoader) {
+    Object pathList = getPathList(classLoader);
+    return getField(pathList, pathList.getClass(), "dexElements");
+  }
+
+  /**
+   * Gets the nativeLibraryDirectories list from a ClassLoader.
+   *
+   * @param classLoader the ClassLoader
+   * @return the nativeLibraryDirectories list
+   */
+  private static Object getNativeLibraryDirectories(ClassLoader classLoader) {
+    Object pathList = getPathList(classLoader);
+    return getField(pathList, pathList.getClass(), "nativeLibraryDirectories");
   }
 
   private static void setDexElements(Object pathList, Object newElements) throws Exception {
     setField(pathList, pathList.getClass(), Constants.DEX_ELEMENTS, newElements);
   }
     
-  private static Object getNativeLibraryDirectories(ClassLoader classLoader) throws Exception {
-    Object pathList = getPathList(classLoader);
-    return getField(pathList, pathList.getClass(), Constants.NATIVE_LIBRARY_DIRECTORIES);
-  }
-
   private static void setNativeLibraryDirectories(Object pathList, Object newDirs)
       throws Exception {
     setField(pathList, pathList.getClass(), Constants.NATIVE_LIBRARY_DIRECTORIES, newDirs);
   }
-
   /**
-   * 数组合并或列表合并
+   * Merges two arrays or ArrayLists.
    *
-   * @param patchArray 补丁包数组或列表
-   * @param oldArray 应用原数组或列表
-   * @return 合并后的新数组或列表
+   * @param array1 the first array or ArrayList
+   * @param array2 the second array or ArrayList
+   * @return the merged array or ArrayList
    */
-@SuppressWarnings("unchecked")
+  @SuppressWarnings("unchecked")
   public static Object merge(Object patchArray, Object oldArray) {
     if (patchArray instanceof Object[] && oldArray instanceof Object[]) {
       int patchLength = Array.getLength(patchArray);
