@@ -1,5 +1,6 @@
 package com.answer.launcher.api;
-import com.answer.launcher.core.Constants;
+
+import core.Constants;
 
 /**
  * @Author AnswerDev
@@ -10,6 +11,7 @@ public class PluginInfo {
     private String author  = "undefined";
     private String version  = "undefined";
     private String description  = "undefined";
+
     private String supportVersion = Constants.MINECRAFT_VERSION;
     
     public PluginInfo(String name, String author, String version, String description) {

@@ -31,11 +31,7 @@ public class LoadLibraryHook extends BaseHook {
               String path = minecraft_info.nativeLibraryDir + "/lib" + lib + ".so";
               if (lib.contains("c++_shared") && checkExist(path)) {
                 String path_ = minecraft_info.nativeLibraryDir + "/libMediaDecoders_Android.so";
-                if (checkExist(path_)) {
-                  System.load(path_);
-                  Log.d("AlterNativeCore", "MediaDecoders_Android");
-                  
-                }
+                if (checkExist(path_)) System.load(path_);
                 return path;
               }
               return Pine.invokeOriginalMethod(param.method, param.thisObject, param.args);

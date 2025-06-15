@@ -41,8 +41,8 @@ std::string Utils::analyzeAppPlatformVTable( uintptr_t readAssetFileAddr) {
     //std::vector<VirtualFunction> functions = getVirtualFunctions(estimatedVTable);
     std::string result = "";
     LOGD( "AppPlatform VTable Analysis:");
-    LOGD("Estimated vtable address: %p" ,reinterpret_cast<uintptr_t>(estimatedVTable));
-    LOGD("readAssetFile address: %p", readAssetFileAddr);
+    LOGD("Estimated vtable address: %lu" ,reinterpret_cast<uintptr_t>(estimatedVTable));
+    LOGD("readAssetFile address: %lu", readAssetFileAddr);
 
     /*
     // Define the known function names based on the AppPlatform class definition

@@ -32,9 +32,11 @@ import top.canyie.pine.PineConfig;
 public class MinecraftLoader {
 
   static {
-    HiddenApiBypass.setHiddenApiExemptions("L");
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+          HiddenApiBypass.setHiddenApiExemptions("L");
+      }
 
-    // initial Hook Framework
+      // initial Hook Framework
     PineConfig.debug = false;
     PineConfig.debuggable = true;
   }

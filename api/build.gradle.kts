@@ -6,13 +6,8 @@ plugins {
 
 android {
     namespace = "com.answer.api"
-    compileSdk = 33
-    defaultConfig {
-        minSdk = 24
-        targetSdk = 33
-        
-    }
-    
+    compileSdk = 35
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -24,10 +19,11 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
+    buildToolsVersion = "35.0.1"
 
-    
+
 }
 
 dependencies {
-    compileOnly(project(":constants"))
+    compileOnly(project(":stub"))
 }

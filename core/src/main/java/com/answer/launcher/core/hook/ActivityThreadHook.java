@@ -74,8 +74,8 @@ public class ActivityThreadHook extends BaseHook{
               }
             }
           });*/
-            
-            
+            /*
+
       Pine.hook(
           ActivityThread.class.getDeclaredMethod(
               "performLaunchActivity",
@@ -96,7 +96,7 @@ public class ActivityThreadHook extends BaseHook{
 
               LoadedApk loadedApk = MinecraftManager.getManager().getLoadedApk();
               Log.i("performLaunchActivity", name);
-              if (name.contains(Constants.MINECRAFTACTIVITY)
+            /*  if (name.contains(Constants.MINECRAFTACTIVITY)
                   || name.contains("xbox")
                   || name.contains("microsoft")) {
                 Log.i("performLaunchActivity", "true");
@@ -104,7 +104,7 @@ public class ActivityThreadHook extends BaseHook{
               }
             }
           });
-            
+            */
     } catch (Exception e) {
       e.printStackTrace();
     }

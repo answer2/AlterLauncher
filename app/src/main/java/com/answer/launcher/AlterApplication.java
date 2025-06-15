@@ -1,7 +1,6 @@
 package com.answer.launcher;
 
 import android.app.Application;
-import com.iexin.common.CrashHelper;
 
 public class AlterApplication extends Application{
     

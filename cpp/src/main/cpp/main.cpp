@@ -26,7 +26,7 @@
 JavaVM *Main::vm = nullptr;
 long Main::baseAddress = 0L;
 AAssetManager *Main::manager = nullptr;
-const char* corePath = "com/answer/launcher/core/manager/NativeCore";
+const char *corePath = "com/answer/launcher/core/manager/NativeCore";
 
 // Function declarations
 void initAssets(JNIEnv *env, jobject obj, jobject assetManager);
@@ -38,15 +38,15 @@ void loadManager(JNIEnv *env, jobject obj);
 
 // JNI methods array
 static JNINativeMethod MethodCalled[] = {
-    {"initAssets", "(Landroid/content/res/AssetManager;)V", (void*)initAssets},
-    {"loadLibrary", "(Ljava/lang/String;)J", (void*)loadLibrary_java},
-    {"unloadLibrary", "(J)V", (void*)unloadLibrary_java},
-    {"findLibBaseAddress", "(Ljava/lang/String;)J", (void*)findLibBaseAddress_java},
-    {"loadManager", "()V", (void*)load}
+        {"initAssets",         "(Landroid/content/res/AssetManager;)V", (void *) initAssets},
+        {"loadLibrary",        "(Ljava/lang/String;)J",                 (void *) loadLibrary_java},
+        {"unloadLibrary",      "(J)V",                                  (void *) unloadLibrary_java},
+        {"findLibBaseAddress", "(Ljava/lang/String;)J",                 (void *) findLibBaseAddress_java},
+        {"loadManager",        "()V",                                   (void *) loadManager}
 };
 
 // JNI OnLoad
-JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
+JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
     Main::vm = vm;
     JNIEnv *env = nullptr;
     if (vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) != JNI_OK) {
@@ -54,7 +54,8 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
         return JNI_ERR;
     }
 
-    if (!Utils::registerNativeMethods(env, corePath, MethodCalled, sizeof(MethodCalled) / sizeof(MethodCalled[0]))) {
+    if (!Utils::registerNativeMethods(env, corePath, MethodCalled,
+                                      sizeof(MethodCalled) / sizeof(MethodCalled[0]))) {
         LOGD("Register Failed");
     }
 
@@ -77,49 +78,52 @@ void loadManager(JNIEnv *env, jobject obj) {
 }
 
 void unloadLibrary_java(JNIEnv *env, jobject obj, jlong handle) {
-    Utils::unloadLibrary((void*)handle);
+    Utils::unloadLibrary((void *) handle);
 }
 
 long findLibBaseAddress_java(JNIEnv *env, jobject obj, jstring library) {
     return Main::findLibBaseAddress(jstringToCharArr(env, library));
 }
 
-void dumpAdder(void** handle) {
-    FILE* fp = fopen("/sdcard/1.txt", "w");
+void dumpAdder(void **handle) {
+    FILE *fp = fopen("/sdcard/1.txt", "w");
 
-    auto appPlat = (void**)handle;
+    auto appPlat = (void **) handle;
     auto raw = &appPlat[2];
 
     fprintf(fp, "AppPlatform : \n");
 
-    for (int i = 0; raw[i] && raw[i] != (void*)0xffffffffffffffe8; i++) {
+    for (int i = 0; raw[i] && raw[i] != (void *) 0xffffffffffffffe8; i++) {
         Dl_info data;
-        fprintf(fp, "%p (%s)    :    %p\n", raw[i], dladdr(raw[i], &data) ? data.dli_sname : "(unknown)", ((uintptr_t)raw[i] - (uintptr_t)data.dli_fbase));
+        fprintf(fp, "%p (%s)    :    %lu\n", raw[i],
+                dladdr(raw[i], &data) ? data.dli_sname : "(unknown)",
+                ((uintptr_t) raw[i] - (uintptr_t) data.dli_fbase));
     }
 
     fclose(fp);
 }
 
-void* SetHook(void *handle, uintptr_t address) {
-    uintptr_t baseAddr = ((soinfo2*)handle)->base;
-    return (void*)(baseAddr + address);
+void *SetHook(void *handle, uintptr_t address) {
+    uintptr_t baseAddr = ((soinfo2 *) handle)->base;
+    return (void *) (baseAddr + address);
 }
 
 
 // 定义目标函数指针类型
-typedef int (*target_func_t)(int*, int*);
+typedef int (*target_func_t)(int *, int *);
 
 // 保存目标函数的原始地址
-int (*target_func_real)(int*, int*);
+int (*target_func_real)(int *, int *);
+
 // Hook函数实现
 int hook_func(int *x0, int *x1) {
     LOGD("Alternative : Hook section_75063296 success");
     if (x0 == NULL) {
         LOGD("Warning: x0 is NULL, assigning default value.\n");
         // 修复x0，给它分配内存或赋予默认值
-        x0 = (int*)malloc(sizeof(int));
+        x0 = (int *) malloc(sizeof(int));
         if (x0 == NULL) {
-            LOGD( "Error: Memory allocation failed\n");
+            LOGD("Error: Memory allocation failed\n");
             return -1;
         }
         *x0 = 0x16; // 根据需要设置默认值
@@ -130,16 +134,16 @@ int hook_func(int *x0, int *x1) {
 
 void load(JNIEnv *env, jobject obj) {
     // Example commented code, left for future implementation if needed
-    
-    void* handle = dlopen("libminecraftpe.so", RTLD_LAZY);
+
+    void *handle = dlopen("libminecraftpe.so", RTLD_LAZY);
     if (handle == nullptr) {
         LOGE("open error %s", dlerror());
         return;
     }
-    
-    uintptr_t handleBase = ((soinfo2*)handle)->base;
 
-    LOGD("Minecraft Handle : %p", handleBase);
+    uintptr_t handleBase = ((soinfo2 *) handle)->base;
+
+    LOGD("Minecraft Handle : %lu", handleBase);
 
     Main::baseAddress = Main::findLibBaseAddress("libminecraftpe.so");
     if (Main::baseAddress <= 0L) {
@@ -147,6 +151,9 @@ void load(JNIEnv *env, jobject obj) {
     }
 
     LOGD("Minecraft Handle : %lx", Main::baseAddress);
+
+    initManagers();
+
 
 /*
     uintptr_t p = FindSignature::findSignatureInModule("libminecraftpe.so", "60 3E 04 F0 00 00 00 91 2E 40 FF 15 C0 03 5F D6 59 50 44 15 40 00 00 B4 00 ");
@@ -159,8 +166,8 @@ void load(JNIEnv *env, jobject obj) {
     // void* EnchantVT = SetHook(handle, p);
     // dumpAdder((void**)Main::baseAddress);
     */
-    
-   // shadowhook_hook_sym_addr((void*)original_func, (void*)hook_func, (void**)&target_func_real);
+
+    // shadowhook_hook_sym_addr((void*)original_func, (void*)hook_func, (void**)&target_func_real);
     /*
     LOGD("SO Handle : %s", Utils::analyzeAppPlatformVTable(p).c_str());
     */
@@ -208,18 +215,24 @@ long Main::findLibBaseAddress(std::string libName) {
 jobject Main::getApplication() {
     JNIEnv *env = currentEnv();
     jclass activityThreadClass = env->FindClass("android/app/ActivityThread");
-    jmethodID currentActivityThreadMethod = env->GetStaticMethodID(activityThreadClass, "currentActivityThread", "()Landroid/app/ActivityThread;");
-    jobject activityThread = env->CallStaticObjectMethod(activityThreadClass, currentActivityThreadMethod);
-    jmethodID getApplicationMethod = env->GetMethodID(activityThreadClass, "getApplication", "()Landroid/app/Application;");
+    jmethodID currentActivityThreadMethod = env->GetStaticMethodID(activityThreadClass,
+                                                                   "currentActivityThread",
+                                                                   "()Landroid/app/ActivityThread;");
+    jobject activityThread = env->CallStaticObjectMethod(activityThreadClass,
+                                                         currentActivityThreadMethod);
+    jmethodID getApplicationMethod = env->GetMethodID(activityThreadClass, "getApplication",
+                                                      "()Landroid/app/Application;");
     return env->CallObjectMethod(activityThread, getApplicationMethod);
 }
 
 void Main::showToast(std::string message) {
     JNIEnv *env = currentEnv();
     jclass toastClass = env->FindClass("android/widget/Toast");
-    jmethodID makeTextMethod = env->GetStaticMethodID(toastClass, "makeText", "(Landroid/content/Context;Ljava/lang/CharSequence;I)Landroid/widget/Toast;");
+    jmethodID makeTextMethod = env->GetStaticMethodID(toastClass, "makeText",
+                                                      "(Landroid/content/Context;Ljava/lang/CharSequence;I)Landroid/widget/Toast;");
     jstring messageStr = env->NewStringUTF(message.c_str());
-    jobject toast = env->CallStaticObjectMethod(toastClass, makeTextMethod, getApplication(), messageStr, 0);
+    jobject toast = env->CallStaticObjectMethod(toastClass, makeTextMethod, getApplication(),
+                                                messageStr, 0);
     jmethodID showMethod = env->GetMethodID(toastClass, "show", "()V");
     env->CallVoidMethod(toast, showMethod);
 }

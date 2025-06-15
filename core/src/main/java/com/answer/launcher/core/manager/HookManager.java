@@ -17,9 +17,9 @@ public class HookManager {
         hooks.add(new ActivityThreadHook());
         hooks.add(new EnvironmentHook());
         hooks.add(new LoadLibraryHook());
-        //hooks.add(new SplashScreenHook());
+        hooks.add(new SplashScreenHook());
         hooks.add(new UnixFileSystemHook());
-        //hooks.add(new XboxHook());
+        hooks.add(new XboxHook());
     }
 
     private HookManager() {

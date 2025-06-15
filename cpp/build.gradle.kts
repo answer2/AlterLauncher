@@ -6,11 +6,11 @@ plugins {
 
 android {
     namespace = "com.answer.launcher.cpp"
-    compileSdk = 33
+    compileSdk = 35
     ndkVersion = "24.0.8215888"
     defaultConfig {
         minSdk = 24
-        targetSdk = 33
+        lint.targetSdk  = 35
     }
     
     compileOptions {
@@ -36,9 +36,10 @@ android {
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.18.1"
+            version = "3.22.1"
         }
     }
+    buildToolsVersion = "35.0.1"
 }
 
 dependencies {

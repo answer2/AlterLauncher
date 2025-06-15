@@ -17,4 +17,5 @@ public class Constants {
     //
     public static final String MOJANG_RED = "#ef323d";
     public static final boolean isDebug = true;
+
 }

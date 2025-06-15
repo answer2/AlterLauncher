@@ -16,13 +16,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
-    buildTypes {
-        release {
-            isMinifyEnabled = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-        }
-    }
-    
+    buildToolsVersion = "35.0.1"
+
 }
 
 dependencies {

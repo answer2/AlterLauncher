@@ -1,6 +1,8 @@
 package com.answer.launcher.ui.activity;
 
 import android.annotation.TargetApi;
+import android.content.res.AssetManager;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.os.Build;
@@ -12,8 +14,14 @@ import android.util.Log;
 import android.view.PixelCopy;
 import android.view.Surface;
 import android.view.SurfaceHolder;
+
+import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.core.manager.MinecraftManager;
 import com.mojang.minecraftpe.MainActivity;
+
+import java.lang.reflect.Field;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 public class LauncherActivity extends MainActivity {
 
@@ -26,6 +34,27 @@ public class LauncherActivity extends MainActivity {
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+  }
+
+  @Override
+  public Resources getResources() {
+    return Alternative.getManager().getContext().getResources();
+  }
+
+  @Override
+  public AssetManager getAssets() {
+    return Alternative.getManager().getContext().getAssets();
+  }
+
+  @Override
+  protected void onDestroy() {
+    // TODO fix unregisterReceiver error
+    if (Arrays.stream(MainActivity.class.getDeclaredFields()).map(Field::getName).collect(Collectors.toList()).contains("mBatteryMonitor")){
+      Log.d("LauncherActivity", " Success removed receivers.");
+      unregisterReceiver(getBatteryMonitor());
+      unregisterReceiver(getThermalMonitor());
+    }
+    super.onDestroy();
   }
 
   @Override
@@ -78,19 +107,16 @@ public class LauncherActivity extends MainActivity {
   private class DrawGameSurface extends Thread {
 
     private final Handler.Callback mCallback =
-        new Handler.Callback() {
-          @Override
-          public boolean handleMessage(Message msg) {
-            if (null != msg) {
-              if (msg.what == 1) {
-                MinecraftManager.getManager()
-                    .getCallbacks()
-                    .forEach(callback -> callback.onRedraw((Bitmap) msg.obj));
+            msg -> {
+              if (null != msg) {
+                if (msg.what == 1) {
+                  MinecraftManager.getManager()
+                      .getCallbacks()
+                      .forEach(callback -> callback.onRedraw((Bitmap) msg.obj));
+                }
               }
-            }
-            return true;
-          }
-        };
+              return true;
+            };
 
     private Handler mHandler = new Handler(Looper.getMainLooper(), mCallback);
     private final int left;
@@ -129,16 +155,13 @@ public class LauncherActivity extends MainActivity {
             surface,
             tempRect,
             mScreenBitmap,
-            new PixelCopy.OnPixelCopyFinishedListener() {
-              @Override
-              public void onPixelCopyFinished(int copyResult) {
-                if (PixelCopy.SUCCESS == copyResult) {
-                  sendMessage(mScreenBitmap);
-                } else {
-                  Log.d("drawGameSurface", "request scapy mapview failed");
-                }
-              }
-            },
+                copyResult -> {
+                  if (PixelCopy.SUCCESS == copyResult) {
+                    sendMessage(mScreenBitmap);
+                  } else {
+                    Log.d("drawGameSurface", "request scapy mapview failed");
+                  }
+                },
             mHandler);
 
         try {

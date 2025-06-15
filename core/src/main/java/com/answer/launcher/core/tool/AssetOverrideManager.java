@@ -68,7 +68,7 @@ public class AssetOverrideManager {
         }
     }
 
-    AssetManager getAssetManager() {
+    public AssetManager getAssetManager() {
         return mLocalAssetManager;
     }
 }

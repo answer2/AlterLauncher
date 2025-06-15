@@ -3,6 +3,11 @@ cmake_minimum_required(VERSION 3.18.1)
 # 设置项目名称和版本
 project(alternative_core C CXX)
 
+# 添加 OpenGL ES 2.0 和 EGL 的链接
+find_library(EGL_LIB EGL)
+find_library(GLESv2_LIB GLESv2)
+
+
 
 # 指定 C++ 标准
 set(CMAKE_CXX_STANDARD 11)
@@ -11,6 +16,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # 添加源文件
 set(SRC_FILES
     main.cpp
+        OpenGLRenderer.cpp
     util/fake_dlfcn.cpp
     util/stringUtil.cpp
     hook/manager_minecraft.cpp
@@ -32,12 +38,15 @@ include_directories(
 # 添加库
 add_library(alternative_core SHARED ${SRC_FILES})
 
+
 # 链接必要的系统库
 target_link_libraries(alternative_core
     dl
     log
     android
-    GLESv2
+       # native_app_glue
+        ${EGL_LIB}
+        ${GLESv2_LIB}
     shadowhook
 )
 

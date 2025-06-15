@@ -1,6 +1,8 @@
 package com.answer.launcher.core.hook;
 
 import android.content.Context;
+
+import com.answer.launcher.core.manager.NativeCore;
 import com.answer.launcher.core.tool.SystemUtil;
 import top.canyie.pine.Pine;
 import top.canyie.pine.callback.MethodHook;
@@ -32,7 +34,7 @@ public class LoadedAfterHook extends BaseHook {
            if (SystemUtil.checkClass("com.mojang.minecraftpe.NotificationListenerService")) Alternative.getManager().createService("com.mojang.minecraftpe.NotificationListenerService");
             
             // Get libminecraftpe.so
-           // Alternative.loadManager();
+            NativeCore.loadManager();
         } catch (Exception e) {
             e.printStackTrace();
         }

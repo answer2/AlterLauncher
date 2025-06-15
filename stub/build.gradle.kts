@@ -5,24 +5,18 @@ plugins {
 
 android {
     namespace = "com.answer.launcher.stub"
-    compileSdk = 33
+    compileSdk = 35
     defaultConfig {
         minSdk = 24
-        targetSdk = 33
+        lint.targetSdk  = 35
     }
     
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    buildToolsVersion = "35.0.1"
 
-    buildTypes {
-        release {
-            isMinifyEnabled = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-        }
-    }
-    
 }
 
 dependencies {

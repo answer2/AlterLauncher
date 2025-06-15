@@ -94,8 +94,8 @@ inline uintptr_t FindSigs(uintptr_t moduleBase, size_t moduleSize, const std::ve
 // 在模块中查找单个签名
 uintptr_t FindSignature::findSignatureInModule(const char* moduleName, const char* signature) {
     ModuleInfo info = getModuleInfo(moduleName);
-    LOGD("TEST %p", info.base);
-    LOGD("TEST %p", info.size);
+    LOGD("TEST %lu", info.base);
+    LOGD("TEST %zu", info.size);
     if (info.base != 0 && info.size != 0) {
         return FindSig(info.base, info.size, signature);
     }

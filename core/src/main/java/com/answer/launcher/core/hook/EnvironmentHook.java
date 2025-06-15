@@ -1,5 +1,6 @@
 package com.answer.launcher.core.hook;
 
+import android.annotation.SuppressLint;
 import android.app.NativeActivity;
 import android.content.res.AssetManager;
 import android.os.MessageQueue;
@@ -21,6 +22,7 @@ public class EnvironmentHook extends BaseHook{
   public static final int EXECUTE_TRANSACTION = 159;
   public static final int LAUNCH_ACTIVITY = 100;
 
+  @SuppressLint("BlockedPrivateApi")
   public void init() {
 
     try {

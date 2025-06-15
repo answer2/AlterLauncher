@@ -4,6 +4,8 @@ hiddenpass = "4.3"
 pine = "0.2.9"
 freeReflection = "3.0.1"
 xCrash = "3.0.0"
+coreKtx = "1.16.0"
+kotlin = "1.9.24"
 
 [libraries]
 androidx-annotation = { module = "androidx.annotation:annotation", version.ref = "androidxAnnotation" }
@@ -11,4 +13,7 @@ lsp-hiddenpass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", versi
 pine-core = { module = "top.canyie.pine:core", version.ref = "pine" }
 weishu-reflection = { module = "me.weishu:free_reflection", version.ref = "freeReflection" }
 iqiyi-xcrash = { module = "com.iqiyi.xcrash:xcrash-android-lib", version.ref = "xCrash" }
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+[plugins]
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 

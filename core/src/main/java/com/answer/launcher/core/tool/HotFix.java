@@ -48,7 +48,7 @@ public class HotFix {
     }
   }
     
-    public static void HotFixNative(Context origin, String plugin){
+    public static void hotFixNative(Context origin, String plugin){
         try {
         	Object pathList = getPathList(origin.getClassLoader());
         Reflector.on(pathList.getClass())
@@ -59,7 +59,20 @@ public class HotFix {
         	err.printStackTrace();
         }
     }
-    
+
+
+  public static boolean addDexPath(ClassLoader classLoader, String dexPath, File optimizedDirectory){
+    try {
+      Object pathList = getPathList(classLoader);
+      Reflector.on(pathList.getClass())
+              .method("addDexPath", String.class, File.class)
+              .callByCaller(pathList, dexPath, optimizedDirectory);
+      return true;
+    } catch (Exception e) {
+      e.printStackTrace();
+      return false;
+    }
+  }
     
   /**
    * Gets the value of a field from an object using reflection.
@@ -142,8 +155,8 @@ public class HotFix {
   /**
    * Merges two arrays or ArrayLists.
    *
-   * @param array1 the first array or ArrayList
-   * @param array2 the second array or ArrayList
+   * @param patchArray the first array or ArrayList
+   * @param oldArray the second array or ArrayList
    * @return the merged array or ArrayList
    */
   @SuppressWarnings("unchecked")

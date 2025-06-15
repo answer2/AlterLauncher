@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Alter启动器</string>
+    <string name="name">AlterLauncher</string>
+    <string name="title_launch">启动</string>
+    <string name="title_download">下载</string>
+    <string name="title_setting">设置</string>
 
 </resources>
