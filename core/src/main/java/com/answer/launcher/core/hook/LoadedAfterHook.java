@@ -4,6 +4,8 @@ import android.content.Context;
 
 import com.answer.launcher.core.manager.NativeCore;
 import com.answer.launcher.core.tool.SystemUtil;
+
+import dev.answer.pinetool.Pina;
 import top.canyie.pine.Pine;
 import top.canyie.pine.callback.MethodHook;
 import top.canyie.pine.callback.MethodReplacement;
@@ -12,6 +14,8 @@ import android.view.ContextThemeWrapper;
 import android.content.ContextWrapper;
 import com.answer.launcher.core.manager.Alternative;
 import com.mojang.minecraftpe.NotificationListenerService;
+
+import java.util.stream.Stream;
 
 /**
  * @Author AnswerDev
@@ -35,6 +39,8 @@ public class LoadedAfterHook extends BaseHook {
             
             // Get libminecraftpe.so
             NativeCore.loadManager();
+
+
         } catch (Exception e) {
             e.printStackTrace();
         }

@@ -14,4 +14,6 @@ public class NativeCore {
 
   public static native void loadManager();
 
+  public static native void sendMessage(String msg);
+
 }

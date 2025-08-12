@@ -8,8 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import com.answer.launcher.core.Constants;
-import com.answer.launcher.core.hook.SplashScreenHook;
+import com.answer.launcher.core.LauncherConstants;
 
 /**
  * @Author AnswerDev
@@ -40,7 +39,7 @@ public class AlterEnvironment {
             // Context
             List fields = Arrays.asList("mDatabasesDir", "mPreferencesDir", "mFilesDir", "mCratesDir", "mNoBackupFilesDir", "mCacheDir", "mCodeCacheDir");
             for ( Field f : Class.forName("android.app.ContextImpl").getDeclaredFields() ) {
-                replaceSharedPrefsPackageName(plugin, f, Constants.MINECRAFTPACKAGE, Constants.PACKAGE);
+                replaceSharedPrefsPackageName(plugin, f, LauncherConstants.MINECRAFTPACKAGE, LauncherConstants.PACKAGE);
                 if ( fields.contains(f.getName()) ) {
                     f.setAccessible(true);
                     f.set(plugin,f.get(app));

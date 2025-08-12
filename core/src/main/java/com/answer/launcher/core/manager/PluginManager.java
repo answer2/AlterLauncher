@@ -1,7 +1,7 @@
 package com.answer.launcher.core.manager;
 
 import android.content.Context;
-import com.answer.launcher.core.Constants;
+import com.answer.launcher.core.LauncherConstants;
 import com.answer.launcher.api.AlternativeApi;
 import com.answer.launcher.api.LauncherInfo;
 import com.answer.launcher.api.PluginInfo;
@@ -83,7 +83,7 @@ public class PluginManager {
                 Class<?> alternativeApiClass = Class.forName(AlternativeApi.class.getName(), true, classLoader);
                 Class<?> launcherInfoClass = Class.forName(LauncherInfo.class.getName(), false, classLoader);
 
-                LauncherInfo launcherInfoInstance = new LauncherInfo(MinecraftManager.getManager().getActivity(), Constants.LAUNCHER_VERSION, Constants.MINECRAFT_VERSION, plugin.getName().replace(".dex", "").replace(".apk", ""), classLoader);
+                LauncherInfo launcherInfoInstance = new LauncherInfo(MinecraftManager.getManager().getActivity(), LauncherConstants.LAUNCHER_VERSION, LauncherConstants.MINECRAFT_VERSION, plugin.getName().replace(".dex", "").replace(".apk", ""), classLoader);
                 
                 Method initMethod = alternativeApiClass.getDeclaredMethod("init", launcherInfoClass);
                 initMethod.setAccessible(true);

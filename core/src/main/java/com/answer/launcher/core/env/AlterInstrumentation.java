@@ -2,7 +2,6 @@ package com.answer.launcher.core.env;
 
 import android.app.Activity;
 import android.app.ActivityThread;
-import android.app.AppComponentFactory;
 import android.app.Application;
 import android.app.Instrumentation;
 import android.content.Context;
@@ -10,13 +9,11 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
-import com.answer.launcher.core.Constants;
+import com.answer.launcher.core.LauncherConstants;
 import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.core.tool.Reflector;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 
-import org.lsposed.hiddenapibypass.HiddenApiBypass;
 import com.answer.launcher.core.manager.MinecraftManager;
 
 /**
@@ -78,7 +75,7 @@ public class AlterInstrumentation extends Instrumentation {
     public void callActivityOnCreate(Activity activity, Bundle arg1) {
         super.callActivityOnCreate(activity, arg1);
         // TODO: Implement this method
-        if(activity!=null&&(!activity.getClass().getName().contains(Constants.PACKAGE))){
+        if(activity!=null&&(!activity.getClass().getName().contains(LauncherConstants.PACKAGE))){
              exchangeResourcesOfActivity(activity);
         }
     }
@@ -102,7 +99,7 @@ public class AlterInstrumentation extends Instrumentation {
             ClassNotFoundException, IllegalAccessException, InstantiationException {
         // TODO: Implement this method
         Activity newActivity = super.newActivity(arg0, arg1, arg2);
-        if(newActivity!=null&&!newActivity.getClass().getName().contains(Constants.PACKAGE)){
+        if(newActivity!=null&&!newActivity.getClass().getName().contains(LauncherConstants.PACKAGE)){
              exchangeResourcesOfActivity(newActivity);
         }
         return newActivity;
@@ -171,7 +168,6 @@ public class AlterInstrumentation extends Instrumentation {
     /**
      * 反射 Activity , 并设置 Activity 中 Resources 成员变量
      * @param activity
-     * @param intent
      */
     private void exchangeResourcesOfActivity(Activity activity) {
         try {

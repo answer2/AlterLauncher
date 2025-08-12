@@ -25,13 +25,7 @@ public class GameSplash {
     popupWindow = new PopupWindow();
     loadingOverlay = new LoadingOverlay(activity);
     loadingOverlay.setKeepScreenOn(true);
-    loadingOverlay.setOnFadeOutListener(
-        new LoadingOverlay.OnFadeOutListener() {
-          @Override
-          public void onFadeOutComplete() {
-            popupWindow.dismiss();
-          }
-        });
+    loadingOverlay.setOnFadeOutListener(() -> popupWindow.dismiss());
 
     popupWindow.setContentView(loadingOverlay);
     popupWindow.setWidth(LayoutParams.MATCH_PARENT);

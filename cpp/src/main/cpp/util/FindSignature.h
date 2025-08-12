@@ -18,7 +18,7 @@ public:
 
     static ModuleInfo getModuleInfo(const char* moduleName);
     
-    static uintptr_t findSignature(uintptr_t moduleBase, size_t moduleSize, const std::string& signature);
+    //static uintptr_t findSignature(uintptr_t moduleBase, size_t moduleSize, const std::string& signature);
 
     static uintptr_t findSignatureInModule(const char* moduleName, const char* signature);
 
@@ -27,6 +27,8 @@ public:
     static jlong findSignatureInModule(JNIEnv* env, jstring moduleName, jstring signature);
     
     static jlong findSignaturesInModule(JNIEnv* env, jstring moduleName, jobjectArray signatures);
+
+    static uintptr_t findSignatureInModule(ModuleInfo info, const char *signature);
 };
 
 #endif //ALTER_NATIVE_FINDSIGNATURE_H

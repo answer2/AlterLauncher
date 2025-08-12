@@ -28,6 +28,7 @@ public class NativeStoreListener implements StoreListener {
     public native void onStoreInitialized(long j, boolean z);
 
     public void onStoreInitialized(boolean available) {
+        System.out.println("测试是否加载");
         onStoreInitialized(mStoreListener, available);
     }
 

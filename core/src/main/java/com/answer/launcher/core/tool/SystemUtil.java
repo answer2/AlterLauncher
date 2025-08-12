@@ -1,5 +1,9 @@
 package com.answer.launcher.core.tool;
 
+import android.content.Context;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+
 import java.util.AbstractMap;
 import java.util.Map;
 import java.lang.reflect.Method;
@@ -56,6 +60,16 @@ public class SystemUtil {
             }
         }
         return Collections.unmodifiableMap(hashMap);
+    }
+
+
+    public static PackageInfo getApkInfo(Context context, String path) {
+        PackageManager pm = context.getPackageManager();
+        PackageInfo pi = pm.getPackageArchiveInfo(path, PackageManager.GET_ACTIVITIES);
+        if (pi != null) {
+            return pi;
+        }
+        return null;
     }
 
 }

@@ -14,8 +14,9 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ProviderInfo;
 import android.os.IBinder;
+import android.util.Log;
 
-import com.answer.launcher.core.Constants;
+import com.answer.launcher.core.LauncherConstants;
 import com.answer.launcher.core.env.AlterEnvironment;
 import com.answer.launcher.core.env.AlterInstrumentation;
 import com.answer.launcher.core.env.MinecraftEnv;
@@ -109,15 +110,16 @@ public class Alternative {
     @SuppressWarnings("unchecked")
     private void initPackage() throws Exception {
         // Get package info for the target application
+
         packageInfo =
                 mContext
                         .getApplicationContext()
                         .getPackageManager()
-                        .getPackageInfo(Constants.MINECRAFTPACKAGE, PackageManager.GET_PROVIDERS);
+                        .getPackageInfo(LauncherConstants.MINECRAFTPACKAGE, PackageManager.GET_PROVIDERS);
         applicationInfo = packageInfo.applicationInfo;
 
         // init info
-        Constants.MINECRAFT_VERSION = packageInfo.versionName;
+        LauncherConstants.MINECRAFT_VERSION = packageInfo.versionName;
         nativepath = packageInfo.applicationInfo.nativeLibraryDir;
         isSupport = new AbiUtils(new File(applicationInfo.publicSourceDir)).is64Bit();
 
@@ -140,9 +142,10 @@ public class Alternative {
         mProviders.addAll(Arrays.asList(packageInfo.providers));
 
         // Create package context
+        // 待解决
         packageContext =
                 mContext.createPackageContext(
-                        Constants.MINECRAFTPACKAGE,
+                        LauncherConstants.MINECRAFTPACKAGE,
                         Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
 
         // Hook
@@ -157,7 +160,7 @@ public class Alternative {
                         Reflector.on("android.app.ContextImpl").field("mPackageInfo").get(packageContext);
 
 
-        Reflector.on(LoadedApk.class).field("mPackageName").set(loadedApk, Constants.PACKAGE);
+        Reflector.on(LoadedApk.class).field("mPackageName").set(loadedApk, LauncherConstants.PACKAGE);
 
         // Replace Data Dir
         Reflector.on(LoadedApk.class).field("mDataDirFile").set(loadedApk, mContext.getDataDir());
@@ -170,7 +173,16 @@ public class Alternative {
         Reflector.on(LoadedApk.class).field("mSecurityViolation").set(loadedApk, false);
         Reflector.on(LoadedApk.class).field("mApplicationInfo").set(loadedApk, applicationInfo);
 
-        NativeCore.initAssets(loadedApk.getAssets());
+        if (AssestPackageManager.getManager().getPackagePath()!=null){
+//            var path = AssestManager.getManager().getPackagePath();
+//            AssetOverrideManager assetOverrideManager = AssetOverrideManager.getInstance();
+//            assetOverrideManager.addAssetOverride(path);
+            Log.e("Testt", AssetOverrideManager.getInstance().getAssetManager()+"");
+            NativeCore.initAssets(AssetOverrideManager.getInstance().getAssetManager());
+        }else {
+            AssetOverrideManager.addAssetOverride(mContext.getAssets(), applicationInfo.publicSourceDir);
+            NativeCore.initAssets(loadedApk.getAssets());
+        }
     }
 
     private void createApplication() throws Exception {
@@ -178,7 +190,7 @@ public class Alternative {
         // Create AppBindData instance
         bindData = new AppBindData();
         bindData.appInfo = applicationInfo;
-        bindData.processName = Constants.MINECRAFTPACKAGE;
+        bindData.processName = LauncherConstants.MINECRAFTPACKAGE;
         bindData.info = loadedApk;
         bindData.providers = mProviders;
 
@@ -206,12 +218,13 @@ public class Alternative {
         // set ClassLoader
         Reflector.on(LoadedApk.class).field("mClassLoader").set(loadedApk, mContext.getClassLoader());
         Reflector.on(LoadedApk.class).field("mDefaultClassLoader").set(loadedApk, mContext.getClassLoader());
+
         // Hotfix
+        //HotFix.addDexPath(classLoader, applicationInfo.sourceDir, new File(optimizedDirectory));
         HotFix.hotFix(mContext, classLoader);
         HotFix.hotFixNative(mContext, nativepath);
-        //HotFix.addDexPath(classLoader, applicationInfo.sourceDir, new File(optimizedDirectory));
-        AssetOverrideManager.addAssetOverride(mContext.getAssets(), applicationInfo.publicSourceDir);
 
+        // 路径hook 为后续的版本隔离
         IOManager.get().enableRedirect(packageContext);
 
         // create application
@@ -224,7 +237,7 @@ public class Alternative {
                         .get(ActivityThread.currentActivityThread());
         WeakReference<LoadedApk> weakReference = new WeakReference<>(loadedApk);
         // 根据插件包名加入缓存
-        mPackages.put(Constants.MINECRAFTPACKAGE, weakReference);
+        mPackages.put(LauncherConstants.MINECRAFTPACKAGE, weakReference);
     }
 
     private void initEnv() throws Exception {
@@ -242,9 +255,11 @@ public class Alternative {
 
             // private void installContentProviders(Context context, List<ProviderInfo> list) {
         //    private void installContentProviders(Context var1, List<ProviderInfo> var2) {
-            Reflector.on(ActivityThread.class)
-                    .method("installContentProviders", Context.class, List.class)
-                    .callByCaller(ActivityThread.currentActivityThread(), mContext, mProviders);
+
+
+//            Reflector.on(ActivityThread.class)
+//                    .method("installContentProviders", Context.class, List.class)
+//                    .callByCaller(ActivityThread.currentActivityThread(), mContext, mProviders);
 
             // Init WebView
             // new WebView(mContext);

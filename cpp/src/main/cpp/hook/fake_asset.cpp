@@ -12,13 +12,13 @@ JNIEnv* Jnienv;
 
 AAsset* (*AAssetManager_open_real)(AAssetManager* assetManager,const char *filename, int mode);
 AAsset* AAssetManager_open_hook(AAssetManager* assetManager,const char *filename, int mode){
-    LOGD( "Directory Name: %s",filename);
+    //LOGD( "Directory Name: %s",filename);
     return AAssetManager_open_real(Application_AssetManager,filename,mode);
 }
 
 AAssetDir* (*AAssetManager_open_Dir_real)(AAssetManager* assetManager,const char *filename);
 AAssetDir* AAssetManager_open_Dir_hook(AAssetManager* assetManager,const char* dirName){
-    LOGD( "Directory Name: %s",dirName);
+    //LOGD( "Directory Name: %s",dirName);
     return AAssetManager_open_Dir_real(Application_AssetManager,dirName);
 }
 

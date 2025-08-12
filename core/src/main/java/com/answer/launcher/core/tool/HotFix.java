@@ -1,11 +1,10 @@
 package com.answer.launcher.core.tool;
 
 import android.content.Context;
-import com.answer.launcher.core.Constants;
+import com.answer.launcher.core.LauncherConstants;
 import java.io.File;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -14,35 +13,32 @@ import java.util.Collections;
  * directories from a patch ClassLoader into the application's ClassLoader.
  */
 public class HotFix {
+  public static final String DEX_ELEMENTS = "dexElements";
+  public static final String NATIVE_LIBRARY_DIRECTORIES = "nativeLibraryDirectories";
 
   /**
    * Applies hotfix by merging dex elements and native library directories from the patch
    * ClassLoader into the application's ClassLoader.
    *
    * @param context the application context
-   * @param patchClassLoader the ClassLoader containing the patch
+   * @param loader the ClassLoader containing the patch
    */
   public static void hotFix(Context context, ClassLoader loader) {
     try {
-      // 获取自有类加载器中的 dexElements 对象
       Object patchDexElements = getDexElements(loader);
-      // 获取系统类加载器中的 dexElements 对象
       Object oldDexElements = getDexElements(context.getClassLoader());
-      // 合并 dexElements 数组
       Object newDexElements = merge(patchDexElements, oldDexElements);
-      // 获取自有类加载器中的 nativeLibraryDirectories 对象
-      Object patchNativeLibraryDirs = getNativeLibraryDirectories(loader);
-      // 获取系统类加载器中的 nativeLibraryDirectories 对象
-      Object oldNativeLibraryDirs = getNativeLibraryDirectories(context.getClassLoader());
-      // 合并 nativeLibraryDirectories 数组
-      Object newNativeLibraryDirs = merge(patchNativeLibraryDirs, oldNativeLibraryDirs);
-      // 获取系统类加载器中的 pathList 对象
+
       Object pathList = getPathList(context.getClassLoader());
-      // 将合并后的 dexElements 数组赋值给系统的类加载器 pathList 对象的 dexElements 属性
       setDexElements(pathList, newDexElements);
-      // 将合并后的 nativeLibraryDirectories 数组赋值给系统的类加载器 pathList 对象的 nativeLibraryDirectories 属性
+
+      // 获取原始和补丁 native so 路径
+      Object patchNativeLibraryDirs = getNativeLibraryDirectories(loader);
+      Object oldNativeLibraryDirs = getNativeLibraryDirectories(context.getClassLoader());
+      Object newNativeLibraryDirs = mergeBefore(patchNativeLibraryDirs, oldNativeLibraryDirs); // patch 优先
+
       setNativeLibraryDirectories(pathList, newNativeLibraryDirs);
-            
+
     } catch (Exception e) {
       e.printStackTrace();
     }
@@ -145,12 +141,12 @@ public class HotFix {
   }
 
   private static void setDexElements(Object pathList, Object newElements) throws Exception {
-    setField(pathList, pathList.getClass(), Constants.DEX_ELEMENTS, newElements);
+    setField(pathList, pathList.getClass(), DEX_ELEMENTS, newElements);
   }
     
   private static void setNativeLibraryDirectories(Object pathList, Object newDirs)
       throws Exception {
-    setField(pathList, pathList.getClass(), Constants.NATIVE_LIBRARY_DIRECTORIES, newDirs);
+    setField(pathList, pathList.getClass(), NATIVE_LIBRARY_DIRECTORIES, newDirs);
   }
   /**
    * Merges two arrays or ArrayLists.
@@ -180,6 +176,37 @@ public class HotFix {
     } else {
       throw new IllegalArgumentException(
           "Both parameters must be of the same type and either arrays or ArrayLists.");
+    }
+  }
+
+
+  /**
+   * 合并两个数组或 ArrayList，patch 元素优先（放在前面）
+   *
+   * @param patchArray patch 补丁数据（优先加载）
+   * @param oldArray   原始数据
+   * @return 合并后的新数组或列表
+   */
+  @SuppressWarnings("unchecked")
+  public static Object mergeBefore(Object patchArray, Object oldArray) {
+    if (patchArray instanceof Object[] && oldArray instanceof Object[]) {
+      int patchLength = Array.getLength(patchArray);
+      int oldLength = Array.getLength(oldArray);
+      Object newArray = Array.newInstance(patchArray.getClass().getComponentType(), patchLength + oldLength);
+
+      // patch 放前面，优先加载
+      System.arraycopy(patchArray, 0, newArray, 0, patchLength);
+      System.arraycopy(oldArray, 0, newArray, patchLength, oldLength);
+
+      return newArray;
+
+    } else if (patchArray instanceof ArrayList && oldArray instanceof ArrayList) {
+      ArrayList<Object> newList = new ArrayList<>((ArrayList<Object>) patchArray);
+      newList.addAll((ArrayList<Object>) oldArray);
+      return newList;
+
+    } else {
+      throw new IllegalArgumentException("Both parameters must be of the same type and either arrays or ArrayLists.");
     }
   }
 }

@@ -19,7 +19,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
+            isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -37,6 +37,8 @@ dependencies {
     compileOnly(project(":stub"))
     
     implementation(libs.androidx.annotation)
-   
+
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
+
     compileOnly(fileTree(mapOf("dir" to "compile_only", "include" to listOf("*.jar"))))
 }

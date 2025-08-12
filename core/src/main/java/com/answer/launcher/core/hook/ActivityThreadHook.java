@@ -1,18 +1,8 @@
 package com.answer.launcher.core.hook;
 
-import android.app.ActivityThread;
-import android.app.ActivityThread.ActivityClientRecord;
 import android.app.LoadedApk;
-import android.content.Context;
-import android.content.Intent;
-import android.content.pm.ApplicationInfo;
-import android.util.Log;
-import com.answer.launcher.core.Constants;
-import com.answer.launcher.core.manager.Alternative;
+
 import java.lang.reflect.Field;
-import top.canyie.pine.Pine;
-import top.canyie.pine.callback.MethodHook;
-import com.answer.launcher.core.manager.MinecraftManager;
 
 /**
  * @Author AnswerDev 

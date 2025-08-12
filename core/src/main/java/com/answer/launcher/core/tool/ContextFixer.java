@@ -3,7 +3,7 @@ package com.answer.launcher.core.tool;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.ContextWrapper;
-import com.answer.launcher.core.Constants;
+import com.answer.launcher.core.LauncherConstants;
 
 public class ContextFixer {
     public static void fix(Context context) {
@@ -25,7 +25,7 @@ public class ContextFixer {
                 e.printStackTrace();
             }
 
-            String packageName = Constants.PACKAGE;
+            String packageName = LauncherConstants.PACKAGE;
 
             Reflector.on(contextImpl_c).field("mBasePackageName").set(context, packageName);
             Reflector.on(Class.forName("android.app.ContextImpl")).field("mOpPackageName").set(context, packageName);

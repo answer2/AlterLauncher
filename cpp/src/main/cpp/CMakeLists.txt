@@ -1,3 +1,4 @@
+
 cmake_minimum_required(VERSION 3.18.1)
 
 # 设置项目名称和版本
@@ -19,6 +20,7 @@ set(SRC_FILES
         OpenGLRenderer.cpp
     util/fake_dlfcn.cpp
     util/stringUtil.cpp
+        util/tranceUtils.cpp
     hook/manager_minecraft.cpp
     hook/fake_asset.cpp
     hook/fake_file.cpp

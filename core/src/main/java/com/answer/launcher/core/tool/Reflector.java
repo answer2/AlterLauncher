@@ -78,6 +78,36 @@ public class Reflector {
         }
     }
 
+    public Reflector constructorNoHidden(Class<?>... parameterTypes) throws Exception {
+        try {
+            mConstructor =
+                    mType.getDeclaredConstructor(parameterTypes);
+
+            mConstructor.setAccessible(true);
+
+            mField = null;
+            mMethod = null;
+            return this;
+        } catch (Throwable e) {
+            throw new Exception("Oops!", e);
+        }
+    }
+
+    public Reflector constructor(Constructor constructor) throws Exception {
+        try {
+            mConstructor = constructor;
+
+            mConstructor.setAccessible(true);
+
+            mField = null;
+            mMethod = null;
+            return this;
+        } catch (Throwable e) {
+            throw new Exception("Oops!", e);
+        }
+    }
+
+
     @SuppressWarnings("unchecked")
     public <R> R newInstance(Object... initargs) throws Exception {
         if (mConstructor == null) {

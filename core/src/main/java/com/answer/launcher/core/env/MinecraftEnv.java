@@ -4,7 +4,6 @@ import android.content.Context;
 import android.util.Log;
 import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.core.tool.ContentProviderCompat;
-import com.answer.launcher.core.tool.ProviderCall;
 import static com.answer.launcher.core.tool.SystemUtil.checkClass;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.components.ComponentDiscoveryService;

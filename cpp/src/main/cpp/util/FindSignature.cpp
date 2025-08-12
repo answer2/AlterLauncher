@@ -16,6 +16,7 @@
 
 // 获取模块信息
 ModuleInfo FindSignature::getModuleInfo(const char* moduleName) {
+    LOGD("TEST 开始");
     ModuleInfo info = {0, 0};
     char filename[32];
     sprintf(filename, "/proc/%d/maps", Main::myPid());
@@ -96,6 +97,14 @@ uintptr_t FindSignature::findSignatureInModule(const char* moduleName, const cha
     ModuleInfo info = getModuleInfo(moduleName);
     LOGD("TEST %lu", info.base);
     LOGD("TEST %zu", info.size);
+    if (info.base != 0 && info.size != 0) {
+        return FindSig(info.base, info.size, signature);
+    }
+    return 0;
+}
+
+
+uintptr_t FindSignature::findSignatureInModule(ModuleInfo info, const char* signature) {
     if (info.base != 0 && info.size != 0) {
         return FindSig(info.base, info.size, signature);
     }

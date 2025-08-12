@@ -21,20 +21,31 @@
 #include <dl_internal.h>
 
 #include <shadowhook/shadowhook.h>
+#include <mcpe/client/MinecraftGame.h>
+#include <util/tranceUtils.h>
+#include <util/NativeInvoker.h>
 
 // Initialize variables
 JavaVM *Main::vm = nullptr;
 long Main::baseAddress = 0L;
 AAssetManager *Main::manager = nullptr;
 const char *corePath = "com/answer/launcher/core/manager/NativeCore";
+static MinecraftGame *minecraftGame = nullptr;
 
 // Function declarations
 void initAssets(JNIEnv *env, jobject obj, jobject assetManager);
+
 void loadLibrary_java(JNIEnv *env, jobject obj, jstring libraryPath);
+
 void unloadLibrary_java(JNIEnv *env, jobject obj, jlong handle);
+
 long findLibBaseAddress_java(JNIEnv *env, jobject obj, jstring library);
+
 void load(JNIEnv *env, jobject obj);
+
 void loadManager(JNIEnv *env, jobject obj);
+
+void sendMessage(JNIEnv *env, jobject obj, jstring msg);
 
 // JNI methods array
 static JNINativeMethod MethodCalled[] = {
@@ -42,7 +53,8 @@ static JNINativeMethod MethodCalled[] = {
         {"loadLibrary",        "(Ljava/lang/String;)J",                 (void *) loadLibrary_java},
         {"unloadLibrary",      "(J)V",                                  (void *) unloadLibrary_java},
         {"findLibBaseAddress", "(Ljava/lang/String;)J",                 (void *) findLibBaseAddress_java},
-        {"loadManager",        "()V",                                   (void *) loadManager}
+        {"loadManager",        "()V",                                   (void *) loadManager},
+        {"sendMessage",        "(Ljava/lang/String;)V",                 (void *) sendMessage}
 };
 
 // JNI OnLoad
@@ -74,7 +86,7 @@ void loadLibrary_java(JNIEnv *env, jobject obj, jstring libraryPath) {
 }
 
 void loadManager(JNIEnv *env, jobject obj) {
-    initManagers();
+    load(env, obj);
 }
 
 void unloadLibrary_java(JNIEnv *env, jobject obj, jlong handle) {
@@ -110,40 +122,103 @@ void *SetHook(void *handle, uintptr_t address) {
 
 
 // 定义目标函数指针类型
-typedef int (*target_func_t)(int *, int *);
+typedef int (*Minecraft_update)(MinecraftGame *minecraftGame);
 
 // 保存目标函数的原始地址
-int (*target_func_real)(int *, int *);
+void *(*Minecraft_update_real)(MinecraftGame *minecraftGame);
 
 // Hook函数实现
-int hook_func(int *x0, int *x1) {
-    LOGD("Alternative : Hook section_75063296 success");
-    if (x0 == NULL) {
-        LOGD("Warning: x0 is NULL, assigning default value.\n");
-        // 修复x0，给它分配内存或赋予默认值
-        x0 = (int *) malloc(sizeof(int));
-        if (x0 == NULL) {
-            LOGD("Error: Memory allocation failed\n");
-            return -1;
-        }
-        *x0 = 0x16; // 根据需要设置默认值
+void *Minecraft_update_hook(MinecraftGame *minecraftGame_) {
+    //LOGD("Minecraft Hook Update : %lx",(void*) minecraftGame->sub_method3() );
+    minecraftGame = minecraftGame_;
+    Minecraft_update_real(minecraftGame_);
+    return nullptr;//
+}
+
+// 保存目标函数的原始地址
+void *(*GuiData_addMessage_real)(void *unknow, int type,
+                                 const std::string &sender,
+                                 const std::string &message,
+                                 void *uuid,
+                                 const std::string &ustring,
+                                 void *isSystem,
+                                 void *bbool,
+                                 float duration,
+                                 const std::string &senderTeam,
+                                 const std::string &senderXUID);
+
+// 保存目标函数的原始地址
+void (*GuiData_addMessage)(
+        void *unknow, int type,
+        const std::string &sender,
+        const std::string &message,
+        void *uuid,
+        const std::string &ustring,
+        void *isSystem,
+        void *bbool,
+        float duration,
+        const std::string &senderTeam,
+        const std::string &senderXUID);
+
+// 保存目标函数的原始地址
+void *
+(*GuiDate_sendClientMessage_real)(void *void1, const std::string &msg, const std::string &msg2);
+
+static bool isfrist = false;
+
+// Hook函数实现
+void *GuiData_addMessage_hook(void *guidate,
+                              int type,
+                              const std::string &sender,
+                              const std::string &message,
+                              void *uuid,
+                              const std::string &ustring,
+                              void *isSystem,
+                              void *bbool,
+                              float duration,
+                              const std::string &senderTeam,
+                              const std::string &senderXUID) {
+    LOGD("GuiData Address : %p", guidate);
+
+    LOGD("Minecraft Hook sendMessage %s -Type %d UUID %d isSystem %s is %s: %s", sender.c_str(),
+         type, uuid, senderTeam.c_str(), senderXUID.c_str(),
+         message.c_str());
+    //print_callstack_unwind();
+
+    GuiData_addMessage_real(guidate, type, sender, message, uuid, ustring, isSystem, bbool,
+                            duration,
+                            senderTeam, senderXUID);
+
+
+    return nullptr;//
+}
+
+
+// Hook函数实现
+void *GuiDate_sendClientMessage_hook(void *void1, const std::string &msg, const std::string &msg2) {
+    LOGD("Minecraft Hook GuiDate_sendClientMessage : %lx  %s %s", void1, msg.c_str(), msg2.c_str());
+
+    GuiDate_sendClientMessage_real(void1, msg, msg2);
+    return nullptr;//
+}
+
+
+void sendMessage(JNIEnv *env, jobject obj, jstring msg) {
+    //sendClientMessage(env->GetStringUTFChars(msg, 0));
+    if (minecraftGame == nullptr) {
+        LOGI("Got Fail");
+        return;
     }
-    return target_func_real(x0, x1);
+
+    void *addresss = NativeInvoker::callV<60, void *>
+            (minecraftGame);
+    LOGI("Got %d site at: %p", 60, &addresss);
+
 }
 
 
 void load(JNIEnv *env, jobject obj) {
-    // Example commented code, left for future implementation if needed
-
-    void *handle = dlopen("libminecraftpe.so", RTLD_LAZY);
-    if (handle == nullptr) {
-        LOGE("open error %s", dlerror());
-        return;
-    }
-
-    uintptr_t handleBase = ((soinfo2 *) handle)->base;
-
-    LOGD("Minecraft Handle : %lu", handleBase);
+    initManagers();
 
     Main::baseAddress = Main::findLibBaseAddress("libminecraftpe.so");
     if (Main::baseAddress <= 0L) {
@@ -152,25 +227,27 @@ void load(JNIEnv *env, jobject obj) {
 
     LOGD("Minecraft Handle : %lx", Main::baseAddress);
 
-    initManagers();
+    ModuleInfo info = FindSignature::getModuleInfo("libminecraftpe.so");
+    LOGD("TEST %lu", info.base);
+    LOGD("TEST %zu", info.size);
+
+    uintptr_t update = FindSignature::findSignatureInModule(info,
+                                                            "E8 0F ?? ?? FD 7B 01 A9 FD 43 00 91 FC 6F 02 A9 FA 67 03 A9 F8 5F 04 A9 F6 57 05 A9 F4 4F 06 A9 FF ?3 0D D1 5A ?? ?? ?? F3 03 00 AA 48 17 ?? ?? A8 03 ?? ?? 60 12 ?? ?? ?? ?? ?? ?? C0 ?? ?? ?? E0 03 13 AA 6B ?? ?? ?? ?8 ?? ?? ?? ?? ?? ?? ?? 08 FD ?? ?? 48 ?? ?? ?? 3B ?? ?? ?? ?1 ?? ?? ?? ?? ?? ?? ?? E0 E3 04 91 ?? ?? ?? ?? ?2 03 ?? ?? ?? ?? ?? ?? ?4 ?? ?? ?? FC 03 00 AA");
+    shadowhook_hook_func_addr((void *) update, (void *) Minecraft_update_hook,
+                              (void **) &Minecraft_update_real);
+
+    uintptr_t displayClientMessage = FindSignature::findSignatureInModule(info,
+                                                                          "FF C3 07 D1 FD 7B 1C A9 FD 03 07 91 FC 57 1D A9 F4 4F 1E A9 55 ?? ?? ?? F4 03 03 2A F3 03 00 AA A8 16 ?? ?? E4 03 02 AA E3 03 01 AA A8 83 ?? ?? FF 83 ?? ?? FF 53 ?? ?? FF 23 ?? ?? 45 ?? ?? ?? E6 03 1F 2A E7 03 1F 2A E8 43 00 91 E9 A3 00 91 A0 E3 02 D1 A5 ?? ?? ?? E2 03 01 91 00 ?? ?? ?? 41 ?? ?? ?? E9 23 00 A9 8F ?? ?? ??");
+    shadowhook_hook_func_addr((void *) displayClientMessage,
+                              (void *) GuiDate_sendClientMessage_hook,
+                              (void **) &GuiDate_sendClientMessage_real);
+
+    uintptr_t addMessage = FindSignature::findSignatureInModule(info,
+                                                                "E8 0F ?? ?? FD 7B 01 A9 FD 43 00 91 FA 67 02 A9 F8 5F 03 A9 F6 57 04 A9 F4 4F 05 A9 F5 03 00 AA 14 20 00 91 F3 03 00 AA E0 03 14 AA F7 03 07 2A F9 03 06 2A A1 06 ?? ?? E1 03 02 AA 08 40 20 1E FA 03 05 AA F8 03 04 AA F6 03 03 AA ?? ?? ?? ??");
+    shadowhook_hook_func_addr((void *) addMessage, (void *) GuiData_addMessage_hook,
+                              (void **) &GuiData_addMessage_real);
 
 
-/*
-    uintptr_t p = FindSignature::findSignatureInModule("libminecraftpe.so", "60 3E 04 F0 00 00 00 91 2E 40 FF 15 C0 03 5F D6 59 50 44 15 40 00 00 B4 00 ");
-    LOGD("SO Handle : %p", p);
-    
-    // 获取函数的地址，根据汇编的分析来确认函数的起始地址
-    target_func_t original_func = (target_func_t)((uintptr_t)handle + 0x5d72678);
-   
-    LOGD("SO Handle : %lu", original_func);
-    // void* EnchantVT = SetHook(handle, p);
-    // dumpAdder((void**)Main::baseAddress);
-    */
-
-    // shadowhook_hook_sym_addr((void*)original_func, (void*)hook_func, (void**)&target_func_real);
-    /*
-    LOGD("SO Handle : %s", Utils::analyzeAppPlatformVTable(p).c_str());
-    */
 }
 
 // Main functions

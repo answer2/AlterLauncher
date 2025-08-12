@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-
+    xmlns:tools="http://schemas.android.com/tools" >
     <!-- 拥有完全的网络访问权限 -->
     <uses-permission android:name="android.permission.INTERNET" /> <!-- 查看网络连接 -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" /> <!-- 查看WLAN连接 -->
@@ -31,9 +30,11 @@
     <uses-permission android:name="android.permission.USE_FINGERPRINT" /> <!-- 连接WLAN网络和断开连接 -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" /> <!-- 运行前台服务 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" /> <!-- 查询所有软件包 -->
+
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" /> <!-- 检索正在运行的应用 -->
+
     <uses-permission android:name="android.permission.GET_TASKS" /> <!-- 只能在前台获取精确的位置信息 -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" /> <!-- 此应用可显示在其他应用上方 -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" /> <!-- 展开/收拢状态栏 -->
@@ -48,6 +49,10 @@
     <uses-permission android:name="com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE" /> <!-- Google Play 结算服务 -->
     <uses-permission android:name="com.android.vending.BILLING" />
 
+    <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+
     <uses-feature
         android:glEsVersion="0x00030001"
         android:required="true" />
@@ -61,15 +66,17 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:preserveLegacyExternalStorage="true"
         android:requestLegacyExternalStorage="true"
+        android:screenOrientation="landscape"
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
-        tools:targetApi="r">
+        tools:targetApi="r"
+        tools:ignore="DiscouragedApi">
 
         <activity
-            android:name=".MainActivity"
-            android:configChanges="orientation|screenSize"
+            android:name=".ui.splash.SplashActivity"
             android:exported="true"
+            android:configChanges="orientation|screenSize"
             android:screenOrientation="landscape"
             tools:ignore="DiscouragedApi">
             <intent-filter>
@@ -77,14 +84,34 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity> <!-- GameBaseActivity -->
+        </activity>
+
+
+        <activity
+            android:name=".ui.activity.CrashActivity"
+            android:configChanges="orientation|screenSize"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/AppTheme"
+            tools:ignore="DiscouragedApi" />
+
+
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            tools:ignore="DiscouragedApi" />
+
+
+        <!-- GameBaseActivity -->
         <activity
             android:name=".core.manager.ProcessIntentManager"
             android:configChanges="orientation|screenSize"
             android:exported="true"
             android:label="@string/app_name"
             android:screenOrientation="landscape"
-            tools:ignore="DiscouragedApi">
+            tools:ignore="DiscouragedApi" >
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 
@@ -143,7 +170,7 @@
             android:launchMode="singleTask"
             android:screenOrientation="sensorLandscape"
             android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
-            tools:ignore="DiscouragedApi">
+            tools:ignore="DiscouragedApi" >
             <meta-data
                 android:name="android.app.lib_name"
                 android:value="minecraftpe" />
@@ -163,7 +190,7 @@
             android:alwaysRetainTaskState="true"
             android:configChanges="keyboardHidden|orientation|screenSize|uiMode"
             android:exported="true"
-            android:launchMode="singleTask">
+            android:launchMode="singleTask" >
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 
@@ -209,7 +236,7 @@
         <activity
             android:name="com.microsoft.onlineid.interop.singleaccount.SingleAccountActivity"
             android:exported="false"
-            android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen" >
             <intent-filter>
                 <action android:name="com.microsoft.onlineid.interop.singleaccount.SingleAccountActivity" />
 
@@ -232,7 +259,7 @@
             android:exported="false"
             android:icon="@mipmap/ic_launcher"
             android:label="Microsoft account"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize" >
             <intent-filter>
                 <action android:name="com.microsoft.onlineid.internal.ADD_ACCOUNT" />
                 <action android:name="com.microsoft.onlineid.internal.SIGN_UP_ACCOUNT" />
@@ -248,7 +275,7 @@
             android:name="com.microsoft.onlineid.internal.ui.AccountPickerActivity"
             android:exported="false"
             android:icon="@mipmap/ic_launcher"
-            android:label="Microsoft account">
+            android:label="Microsoft account" >
             <intent-filter>
                 <action android:name="com.microsoft.onlineid.internal.PICK_ACCOUNT" />
 
@@ -288,7 +315,7 @@
             android:screenOrientation="sensorLandscape"
             android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
             android:windowSoftInputMode="adjustResize"
-            tools:ignore="DiscouragedApi">
+            tools:ignore="DiscouragedApi" >
             <meta-data
                 android:name="android.app.lib_name"
                 android:value="minecraftpe" />

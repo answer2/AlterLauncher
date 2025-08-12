@@ -1,16 +1,13 @@
 package com.answer.launcher.core.hook;
 
-import android.content.Context;
 import java.io.File;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Member;
 import java.lang.reflect.Method;
-import java.util.Arrays;
+
 import org.lsposed.hiddenapibypass.HiddenApiBypass;
 import top.canyie.pine.Pine;
 import top.canyie.pine.callback.MethodHook;
-import android.util.Log;
-import com.answer.launcher.core.Constants;
+
 import com.answer.launcher.core.manager.IOManager;
 
 /**

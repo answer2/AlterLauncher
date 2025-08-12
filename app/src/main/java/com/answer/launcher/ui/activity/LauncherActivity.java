@@ -5,18 +5,26 @@ import android.content.res.AssetManager;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.Rect;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.PixelCopy;
 import android.view.Surface;
 import android.view.SurfaceHolder;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.PopupWindow;
 
 import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.core.manager.MinecraftManager;
+import com.answer.launcher.core.manager.NativeCore;
 import com.mojang.minecraftpe.MainActivity;
 
 import java.lang.reflect.Field;
@@ -34,6 +42,7 @@ public class LauncherActivity extends MainActivity {
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+
   }
 
   @Override

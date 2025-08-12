@@ -67,6 +67,13 @@
             android:layout_gravity="center"
             android:icon="@drawable/ic_action_setting"
             android:text="@string/title_setting" />
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:icon="@drawable/ic_action_about"
+            android:text="@string/title_about" />
     </com.google.android.material.tabs.TabLayout>
 
         <LinearLayout

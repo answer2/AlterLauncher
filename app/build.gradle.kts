@@ -39,7 +39,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
+            isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("release") // 使用相同的签名配置
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -59,10 +59,9 @@ android {
 }
 
 dependencies {
-
-    implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation("com.google.android.material:material:1.9.0")
-    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    implementation(libs.androidx.appcompat)
+    implementation(libs.material)
+    implementation(libs.androidx.constraintlayout)
     
     implementation ("com.github.getActivity:XXPermissions:20.0")
     
@@ -75,6 +74,9 @@ dependencies {
     implementation (libs.pine.core)
     implementation (libs.weishu.reflection)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.navigation.fragment)
+    implementation(libs.androidx.navigation.ui)
+    implementation(libs.androidx.activity)
 
     compileOnly(fileTree(mapOf("dir" to "compile_only", "include" to listOf("*.jar"))))
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))

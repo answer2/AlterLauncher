@@ -5,7 +5,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.net.Uri;
 import android.widget.Toast;
-import com.answer.launcher.core.Constants;
+import com.answer.launcher.core.LauncherConstants;
 import com.answer.launcher.core.MinecraftLoader;
 import com.answer.launcher.core.tool.SystemUtil;
 
@@ -55,7 +55,7 @@ public class ProcessIntentManager extends Activity {
 
             Class<?> clazz = Class.forName("com.answer.launcher.ui.activity.LauncherActivity", false, getClassLoader());
             intent.setClass(this, clazz);
-            if(SystemUtil.checkClass(Constants.MINECRAFTACTIVITY))startActivity(intent);
+            if(SystemUtil.checkClass(LauncherConstants.MINECRAFTACTIVITY))startActivity(intent);
             finish();
 
         } catch (Exception e) {

@@ -6,7 +6,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
-import com.answer.launcher.databinding.FragmentHomeBinding
 import com.answer.launcher.databinding.FragmentSettingBinding
 
 class SettingFragment : Fragment() {

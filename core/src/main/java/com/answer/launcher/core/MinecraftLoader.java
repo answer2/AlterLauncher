@@ -5,6 +5,8 @@ import android.app.ActivityThread;
 import android.app.Application;
 import android.content.Context;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.Process;
 import android.provider.Settings;
 import android.text.TextUtils;
@@ -45,15 +47,13 @@ public class MinecraftLoader {
     try {
             
       // Init WebView
-       new WebView(context);
+        new Handler(Looper.getMainLooper()).post(()->{
+            new WebView(context);
+        });
       Reflection.unseal(context);
       // init Environment
       PluginManager.getManager(context);
       NativePluginManager.getManager(context);
-
-      hookSystemProviderHolder(context);
-      hookGlobalProviderHolder(context);
-
       // Init Alternative Core
       Alternative.getManager().init(context);
             

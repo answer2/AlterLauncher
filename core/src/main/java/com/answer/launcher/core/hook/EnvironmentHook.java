@@ -5,7 +5,7 @@ import android.app.NativeActivity;
 import android.content.res.AssetManager;
 import android.os.MessageQueue;
 import android.util.Log;
-import com.answer.launcher.core.Constants;
+import com.answer.launcher.core.LauncherConstants;
 import com.answer.launcher.core.manager.IOManager;
 import java.io.File;
 import java.util.Arrays;
@@ -34,11 +34,11 @@ public class EnvironmentHook extends BaseHook{
             @Override
             public void beforeCall(Pine.CallFrame params) {
               File file = (File) params.args[0];
-              if (file != null && file.getAbsolutePath().contains(Constants.MINECRAFTPACKAGE)) {
+              if (file != null && file.getAbsolutePath().contains(LauncherConstants.MINECRAFTPACKAGE)) {
                 params.args[0] =
                     new File(
                         file.getAbsolutePath()
-                            .replace(Constants.MINECRAFTPACKAGE, Constants.PACKAGE));
+                            .replace(LauncherConstants.MINECRAFTPACKAGE, LauncherConstants.PACKAGE));
               }
             }
           });
@@ -49,7 +49,7 @@ public class EnvironmentHook extends BaseHook{
             @Override
             public void beforeCall(Pine.CallFrame params) {
               String path = (String) params.args[0];
-              if (path != null && path.contains(Constants.MINECRAFTPACKAGE)) {
+              if (path != null && path.contains(LauncherConstants.MINECRAFTPACKAGE)) {
                 params.args[0] = IOManager.get().redirectPath(path);
               }
             }
@@ -61,7 +61,7 @@ public class EnvironmentHook extends BaseHook{
             @Override
             public void beforeCall(Pine.CallFrame params) {
               String path = (String) params.args[0];
-              if (path != null && path.contains(Constants.MINECRAFTPACKAGE)) {
+              if (path != null && path.contains(LauncherConstants.MINECRAFTPACKAGE)) {
                 params.args[0] = IOManager.get().redirectPath(path);
               }
             }
