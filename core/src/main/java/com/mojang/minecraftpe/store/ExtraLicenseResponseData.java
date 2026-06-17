@@ -1,0 +1,29 @@
+package com.mojang.minecraftpe.store;
+
+/**
+ * @Author AnswerDev
+ * @Date 2024/07/12 21:48
+ */
+public class ExtraLicenseResponseData {
+    private long mRetryAttempts = 0;
+    private long mRetryUntilTime = 0;
+    private long mValidationTime = 0;
+
+    public ExtraLicenseResponseData(long validationTime, long retryUntilTime, long retryAttempts) {
+        mValidationTime = validationTime;
+        mRetryUntilTime = retryUntilTime;
+        mRetryAttempts = retryAttempts;
+    }
+
+    public long getValidationTime() {
+        return mValidationTime;
+    }
+
+    public long getRetryUntilTime() {
+        return mRetryUntilTime;
+    }
+
+    public long getRetryAttempts() {
+        return mRetryAttempts;
+    }
+}
