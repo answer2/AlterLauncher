@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Alter启动器</string>
+    <string name="app_info">AlterLauncher</string>
+    <string name="name">AlterLauncher</string>
+    <string name="title_launch">启动</string>
+    <string name="title_download">下载</string>
+    <string name="title_setting">设置</string>
+    <string name="title_about">关于</string>
+    <string name="warning_error">错误</string>
+    <string name="copy">复制</string>
+    <string name="restart">重启</string>
+    <string name="empty">这个是一个空信息( •̀ ω •́ )✧</string>
+    <string name="warning_content">你可以将错误信息复制并保存到文件中，发送到GitHub或交流群中获得问题解决的帮助。</string>
+
+</resources>

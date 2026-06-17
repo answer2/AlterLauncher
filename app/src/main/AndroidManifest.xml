@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools" >
+    <!-- 拥有完全的网络访问权限 -->
+    <uses-permission android:name="android.permission.INTERNET" /> <!-- 查看网络连接 -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" /> <!-- 查看WLAN连接 -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" /> <!-- 修改或删除您共享存储空间中的内容 -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" /> <!-- 读取您共享存储空间中的内容 -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" /> <!-- 控制振动 -->
+    <uses-permission android:name="android.permission.VIBRATE" /> <!-- 状态栏控制 -->
+    <uses-permission
+        android:name="android.permission.STATUS_BAR"
+        tools:ignore="ProtectedPermissions" /> <!-- 请求安装文件包 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" /> <!-- 读取手机状态和身份 -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" /> <!-- 更改您的音频设置 -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" /> <!-- 录音 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" /> <!-- 与蓝牙设备配对 -->
+    <uses-permission android:name="android.permission.BLUETOOTH" /> <!-- 发送持久广播 -->
+    <uses-permission android:name="android.permission.BROADCAST_STICKY" /> <!-- 拍摄照片和视频 -->
+    <uses-permission
+        android:name="android.permission.CAMERA"
+        tools:ignore="PermissionImpliesUnsupportedChromeOsHardware" /> <!-- Google Play 许可检查 -->
+    <uses-permission android:name="com.android.vending.CHECK_LICENSE" /> <!-- 防止手机休眠 -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" /> <!-- 更改网络连接性 -->
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" /> <!-- 只有在前台运行时才能获取大致位置信息 -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" /> <!-- 使用闪光灯 -->
+    <uses-permission android:name="android.permission.FLASHLIGHT" /> <!-- 读取共享存储空间中的图片文件 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" /> <!-- 对正在运行的应用重新排序 -->
+    <uses-permission android:name="android.permission.REORDER_TASKS" /> <!-- 使用指纹硬件 -->
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" /> <!-- 连接WLAN网络和断开连接 -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" /> <!-- 运行前台服务 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" /> <!-- 查询所有软件包 -->
+
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" /> <!-- 检索正在运行的应用 -->
+
+    <uses-permission android:name="android.permission.GET_TASKS" /> <!-- 只能在前台获取精确的位置信息 -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" /> <!-- 此应用可显示在其他应用上方 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" /> <!-- 展开/收拢状态栏 -->
+    <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" /> <!-- 开机启动 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" /> <!-- 请求忽略电池优化 -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" /> <!-- 停用屏幕锁定 -->
+    <uses-permission android:name="android.permission.DISABLE_KEYGUARD" /> <!-- 使用生物特征硬件 -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" /> <!-- MANAGE_EXTERNAL_STORAGE -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" /> <!-- 允许接收WLAN多播 -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" /> <!-- POST_NOTIFICATIONS -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" /> <!-- Play Install Referrer API -->
+    <uses-permission android:name="com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE" /> <!-- Google Play 结算服务 -->
+    <uses-permission android:name="com.android.vending.BILLING" />
+
+    <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+
+    <uses-feature
+        android:glEsVersion="0x00030001"
+        android:required="true" />
+
+    <application
+        android:name=".AlterApplication"
+        android:allowBackup="true"
+        android:extractNativeLibs="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:preserveLegacyExternalStorage="true"
+        android:requestLegacyExternalStorage="true"
+        android:screenOrientation="landscape"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme"
+        tools:targetApi="r"
+        tools:ignore="DiscouragedApi">
+
+        <activity
+            android:name=".ui.splash.SplashActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize"
+            android:screenOrientation="landscape"
+            tools:ignore="DiscouragedApi">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+
+        <activity
+            android:name=".ui.activity.CrashActivity"
+            android:configChanges="orientation|screenSize"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/AppTheme"
+            tools:ignore="DiscouragedApi" />
+
+
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            tools:ignore="DiscouragedApi" />
+
+
+        <!-- GameBaseActivity -->
+        <activity
+            android:name=".core.manager.ProcessIntentManager"
+            android:configChanges="orientation|screenSize"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:screenOrientation="landscape"
+            tools:ignore="DiscouragedApi" >
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:mimeType="*/*" />
+                <data android:host="*" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:pathPattern=".*\\.so" />
+                <data android:pathPattern=".*\\..*\\.so" />
+                <data android:pathPattern=".*\\..*\\..*\\.so" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.so" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.so" />
+                <data android:pathPattern=".*\\.dex" />
+                <data android:pathPattern=".*\\..*\\.dex" />
+                <data android:pathPattern=".*\\..*\\..*\\.dex" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.dex" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.dex" />
+                <data android:pathPattern=".*\\.mcworld" />
+                <data android:pathPattern=".*\\..*\\.mcworld" />
+                <data android:pathPattern=".*\\..*\\..*\\.mcworld" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.mcworld" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.mcworld" />
+                <data android:pathPattern=".*\\.mcpack" />
+                <data android:pathPattern=".*\\..*\\.mcpack" />
+                <data android:pathPattern=".*\\..*\\..*\\.mcpack" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.mcpack" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.mcpack" />
+                <data android:pathPattern=".*\\.mcaddon" />
+                <data android:pathPattern=".*\\..*\\.mcaddon" />
+                <data android:pathPattern=".*\\..*\\..*\\.mcaddon" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.mcaddon" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.mcaddon" />
+                <data android:pathPattern=".*\\.mctemplate" />
+                <data android:pathPattern=".*\\..*\\.mctemplate" />
+                <data android:pathPattern=".*\\..*\\..*\\.mctemplate" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.mctemplate" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.mctemplate" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="minecraft" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".ui.activity.LauncherActivity"
+            android:alwaysRetainTaskState="true"
+            android:configChanges="density|fontScale|keyboard|keyboardHidden|locale|mcc|mnc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|touchscreen|uiMode"
+            android:excludeFromRecents="false"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            tools:ignore="DiscouragedApi" >
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="minecraftpe" />
+
+            <intent-filter>
+                <action android:name="xbox_live_game_invite" />
+                <action android:name="xbox_live_achievement_unlock" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity> <!-- service -->
+        <service
+            android:name="com.mojang.minecraftpe.ImportService"
+            android:exported="true" /> <!-- 1.21 To 1.17.0.02(Just Now Test) -->
+        <activity
+            android:name="com.microsoft.xal.browser.IntentHandler"
+            android:alwaysRetainTaskState="true"
+            android:configChanges="keyboardHidden|orientation|screenSize|uiMode"
+            android:exported="true"
+            android:launchMode="singleTask" >
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <data
+                    android:host="auth"
+                    android:scheme="ms-xal-0000000048183522" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name="com.microsoft.xal.browser.BrowserLaunchActivity"
+            android:alwaysRetainTaskState="true"
+            android:configChanges="keyboardHidden|orientation|screenSize|uiMode"
+            android:exported="false"
+            android:launchMode="singleTask" />
+        <activity
+            android:name="com.microsoft.xal.browser.WebKitWebViewController"
+            android:alwaysRetainTaskState="true"
+            android:configChanges="keyboardHidden|orientation|screenSize|uiMode"
+            android:exported="false"
+            android:launchMode="singleTask" /> <!-- 1.14 -->
+        <activity
+            android:name="com.microsoft.xbox.idp.ui.AuthFlowActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustPan|stateUnchanged" />
+        <activity
+            android:name="com.microsoft.xbox.idp.ui.ErrorActivity"
+            android:exported="false" />
+        <activity
+            android:name="com.microsoft.onlineid.interop.xbox.ui.SignUpActivity"
+            android:exported="false" />
+        <activity
+            android:name="com.microsoft.onlineid.interop.xbox.ui.SignInErrorActivity"
+            android:exported="false" />
+        <activity
+            android:name="com.microsoft.onlineid.interop.xbox.ui.XUIDCreationErrorActivity"
+            android:exported="false" />
+        <activity
+            android:name="com.microsoft.onlineid.interop.xbox.ui.WelcomeActivity"
+            android:exported="false" />
+        <activity
+            android:name="com.microsoft.onlineid.interop.singleaccount.SingleAccountActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen" >
+            <intent-filter>
+                <action android:name="com.microsoft.onlineid.interop.singleaccount.SingleAccountActivity" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name="com.microsoft.onlineid.authenticator.AccountAddPendingActivity"
+            android:exported="false"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Microsoft account" />
+        <activity
+            android:name="com.microsoft.onlineid.internal.ui.WebFlowActivity"
+            android:configChanges="orientation|screenSize"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name="com.microsoft.onlineid.ui.AddAccountActivity"
+            android:configChanges="orientation|screenSize"
+            android:exported="false"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Microsoft account"
+            android:windowSoftInputMode="adjustResize" >
+            <intent-filter>
+                <action android:name="com.microsoft.onlineid.internal.ADD_ACCOUNT" />
+                <action android:name="com.microsoft.onlineid.internal.SIGN_UP_ACCOUNT" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name="com.microsoft.onlineid.ui.SignOutActivity"
+            android:configChanges="orientation|screenSize"
+            android:exported="false" />
+        <activity
+            android:name="com.microsoft.onlineid.internal.ui.AccountPickerActivity"
+            android:exported="false"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Microsoft account" >
+            <intent-filter>
+                <action android:name="com.microsoft.onlineid.internal.PICK_ACCOUNT" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <!--
+ Netease
+        
+    <activity
+            android:name="com.netease.ntunisdk.external.protocol.ProtocolLauncher"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="portrait">
+            <meta-data
+                android:name="gameLauncherActivity"
+                android:value="com.mojang.minecraftpe.MainActivity" />
+            <meta-data
+                android:name="protocolPublishArea"
+                android:value="0" />
+            <meta-data
+                android:name="protocolAppChannel"
+                android:value="netease" />
+            <meta-data
+                android:name="protocolJFGameId"
+                android:value="x19" />
+        </activity>
+        -->
+        <activity
+            android:name="com.mojang.minecraftpe.MainActivity"
+            android:alwaysRetainTaskState="true"
+            android:configChanges="fontScale|keyboard|keyboardHidden|locale|mcc|mnc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|touchscreen|uiMode"
+            android:excludeFromRecents="false"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:windowSoftInputMode="adjustResize"
+            tools:ignore="DiscouragedApi" >
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="minecraftpe" />
+
+            <intent-filter>
+                <action android:name="xbox_live_game_invite" />
+                <action android:name="xbox_live_achievement_unlock" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <meta-data
+            android:name="com.android.stamp.source"
+            android:value="https://play.google.com/store" />
+        <meta-data
+            android:name="com.android.stamp.type"
+            android:value="STAMP_TYPE_STANDALONE_APK" />
+        <meta-data
+            android:name="com.android.vending.splits"
+            android:resource="@xml/splits0" />
+        <meta-data
+            android:name="com.android.vending.derived.apk.id"
+            android:value="1" />
+        <meta-data
+            android:name="preloaded_fonts"
+            android:resource="@array/preloaded_fonts" />
+    </application>
+
+</manifest>
