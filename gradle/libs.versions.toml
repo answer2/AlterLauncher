@@ -1,0 +1,31 @@
+[versions]
+androidxAnnotation = "1.3.0"
+hiddenpass = "4.3"
+pine = "0.2.9"
+freeReflection = "3.0.1"
+xCrash = "3.0.0"
+coreKtx = "1.16.0"
+kotlin = "1.9.24"
+material = "1.12.0"
+appcompat = "1.7.1"
+constraintlayout = "2.2.1"
+navigationFragment = "2.9.0"
+navigationUi = "2.9.0"
+activity = "1.10.1"
+
+[libraries]
+androidx-annotation = { module = "androidx.annotation:annotation", version.ref = "androidxAnnotation" }
+lsp-hiddenpass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", version.ref = "hiddenpass" }
+pine-core = { module = "top.canyie.pine:core", version.ref = "pine" }
+weishu-reflection = { module = "me.weishu:free_reflection", version.ref = "freeReflection" }
+iqiyi-xcrash = { module = "com.iqiyi.xcrash:xcrash-android-lib", version.ref = "xCrash" }
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
+androidx-navigation-fragment = { group = "androidx.navigation", name = "navigation-fragment", version.ref = "navigationFragment" }
+androidx-navigation-ui = { group = "androidx.navigation", name = "navigation-ui", version.ref = "navigationUi" }
+androidx-activity = { group = "androidx.activity", name = "activity", version.ref = "activity" }
+[plugins]
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+
