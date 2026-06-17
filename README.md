@@ -1,1 +1,2 @@
 # AlterLauncher
+a MinecraftPE Launcher
