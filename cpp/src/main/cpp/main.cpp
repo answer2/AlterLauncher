@@ -241,6 +241,25 @@ void *MinecraftGame__joinMultiplayerGame_hook(void* minecraftGame, std::string c
 }
 
 
+// The signatures below are pinned to one Minecraft build. A build that does not
+// contain the pattern yields address 0, and handing that to shadowhook used to be
+// invisible because shadowhook itself could not initialise on Android 16 (errno 12)
+// and every call failed anyway. Now that inline hooking works, report each miss and
+// each failed install instead of pretending the function was patched.
+static void hookGameFunction(uintptr_t address, void *handler, void **real,
+                             const char *name) {
+    if (address == 0) {
+        LOGW("signature not found for %s: this Minecraft build is not covered, hook skipped", name);
+        return;
+    }
+    if (shadowhook_hook_func_addr((void *) address, handler, real) == nullptr) {
+        LOGE("failed to hook %s at 0x%lx: %s", name, (unsigned long) address,
+             shadowhook_to_errmsg(shadowhook_get_errno()));
+        return;
+    }
+    LOGD("hooked %s at 0x%lx", name, (unsigned long) address);
+}
+
 void load(JNIEnv *env, jobject obj) {
     initManagers();
 
@@ -258,29 +277,31 @@ void load(JNIEnv *env, jobject obj) {
 
     uintptr_t update = FindSignature::findSignatureInModule(info,
                                                             "E8 0F ?? ?? FD 7B 01 A9 FD 43 00 91 FC 6F 02 A9 FA 67 03 A9 F8 5F 04 A9 F6 57 05 A9 F4 4F 06 A9 FF 03 0C D1 5A ?? ?? ?? F3 03 00 AA 48 17");
-    shadowhook_hook_func_addr((void *) update, (void *) Minecraft_update_hook,
-                              (void **) &Minecraft_update_real);
+    hookGameFunction(update, (void *) Minecraft_update_hook,
+                     (void **) &Minecraft_update_real, "Minecraft::update");
 
     LOGD("update ： %p", update);
 
     uintptr_t displayClientMessage = FindSignature::findSignatureInModule(info,
                                                                           "FF C3 07 D1 FD 7B 1C A9 FD 03 07 91 FC 57 1D A9 F4 4F 1E A9 55 ?? ?? ?? F4 03 03 2A F3 03 00 AA A8 16 ?? ?? E4 03 02 AA E3 03 01 AA A8 83 ?? ?? FF 83 ?? ?? FF 53 ?? ?? FF 23 ?? ?? 45 ?? ?? ?? E6 03 1F 2A E7 03 1F 2A E8 43 00 91 E9 A3 00 91 A0 E3 02 D1 A5 ?? ?? ?? E2 03 01 91 00 ?? ?? ?? 41 ?? ?? ?? E9 23 00 A9 8F ?? ?? ??");
-    shadowhook_hook_func_addr((void *) displayClientMessage,
-                              (void *) GuiDate_sendClientMessage_hook,
-                              (void **) &GuiDate_sendClientMessage_real);
+    hookGameFunction(displayClientMessage, (void *) GuiDate_sendClientMessage_hook,
+                     (void **) &GuiDate_sendClientMessage_real,
+                     "GuiData::sendClientMessage");
 
     LOGD("displayClientMessage ： %p", displayClientMessage);
 
     uintptr_t addMessage = FindSignature::findSignatureInModule(info,
                                                                 "E8 0F ?? ?? FD 7B 01 A9 FD 43 00 91 FA 67 02 A9 F8 5F 03 A9 F6 57 04 A9 F4 4F 05 A9 F5 03 00 AA 14 20 00 91 F3 03 00 AA E0 03 14 AA F7 03 07 2A F9 03 06 2A A1 06 ?? ?? E1 03 02 AA 08 40 20 1E FA 03 05 AA F8 03 04 AA F6 03 03 AA ?? ?? ?? ??");
-    shadowhook_hook_func_addr((void *) addMessage, (void *) GuiData_addMessage_hook,
-                              (void **) &GuiData_addMessage_real);
+    hookGameFunction(addMessage, (void *) GuiData_addMessage_hook,
+                     (void **) &GuiData_addMessage_real, "GuiData::addMessage");
     LOGD("addMessage ： %p", addMessage);
 
     uintptr_t MinecraftGame__joinMultiplayerGame = FindSignature::findSignatureInModule(info,
                                                                                         "FD 7B BA A9 FC 6F 01 A9 FD 03 00 91 FA 67 02 A9 F8 5F 03 A9 F6 57 04 A9 F4 4F 05 A9 FF 43 17 D1 53 ?? ?? ?? F8 03 08 AA 68 16 ?? ?? F7 03 02 AA F4 03 01 AA F5 03 00 AA A8 83");
-    shadowhook_hook_func_addr((void *) MinecraftGame__joinMultiplayerGame, (void *) MinecraftGame__joinMultiplayerGame_hook,
-                              (void **) &MinecraftGame__joinMultiplayerGame_real);
+    hookGameFunction(MinecraftGame__joinMultiplayerGame,
+                     (void *) MinecraftGame__joinMultiplayerGame_hook,
+                     (void **) &MinecraftGame__joinMultiplayerGame_real,
+                     "MinecraftGame::joinMultiplayerGame");
 
     LOGD("MinecraftGame__joinMultiplayerGame ： %p", MinecraftGame__joinMultiplayerGame);
 

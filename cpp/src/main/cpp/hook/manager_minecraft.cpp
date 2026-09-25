@@ -125,24 +125,41 @@ EGLAPI EGLContext EGLAPIENTRY eglCreateContext_hook (EGLDisplay dpy, EGLConfig c
 
 
 void initManagers() {
+    // libminecraftpe.so sits in the game APK's native library dir, which is only on
+    // the search path of the guest class loader's linker namespace. Resolving it by
+    // bare SONAME from this library therefore fails in the :game process, and used to
+    // abort the whole function - silently, because shadowhook itself could not
+    // initialise on Android 16. The lookups below feed only the (still disabled)
+    // onCreate / android_main hooks, so they are best effort now.
     void *handle = dlopen("libminecraftpe.so", RTLD_LAZY);
-    if (handle == 0) return;
+    if (handle == nullptr) {
+        LOGW("libminecraftpe.so not reachable from this namespace (%s): game entry points unresolved",
+             dlerror());
+    } else {
+        mOnCreateFunc = (void (*)(ANativeActivity *, void *, size_t)) dlsym(handle,
+                                                                            "ANativeActivity_onCreate");
+        mFinishFunc = (void (*)(ANativeActivity *)) dlsym(handle, "ANativeActivity_finish");
+        mMainFunc = (void (*)(struct android_app *)) dlsym(handle, "android_main");
 
-
-    mOnCreateFunc = (void (*)(ANativeActivity *, void *, size_t)) dlsym(handle,
-                                                                        "ANativeActivity_onCreate");
-    mFinishFunc = (void (*)(ANativeActivity *)) dlsym(handle, "ANativeActivity_finish");
-    mMainFunc = (void (*)(struct android_app *)) dlsym(handle, "android_main");
-
-    LOGD("Minecraft Handle * : %p", handle);
-    LOGD("Minecraft Finish * : %p", mMainFunc);
+        LOGD("Minecraft Handle * : %p", handle);
+        LOGD("Minecraft Main * : %p", (void *) mMainFunc);
+    }
 
     //shadowhook_hook_sym_addr((void *) ANativeActivity_onCreate, (void *) mOnCreate_hook,
       //                      (void **) &mOnCreate_real);
 
     //shadowhook_hook_sym_addr((void *) mMainFunc, (void *) mMain_hook, (void **) &mMain_real);
 
-    shadowhook_hook_sym_addr((void *) ANativeActivity_finish, (void *) ANativeActivity_finish_hook,
-                             (void **) &ANativeActivity_finish_real);
+    // ANativeActivity_finish is exported by libandroid.so, which this library is
+    // linked against, so it does not depend on the handle above.
+    void *stub = shadowhook_hook_sym_addr((void *) ANativeActivity_finish,
+                                          (void *) ANativeActivity_finish_hook,
+                                          (void **) &ANativeActivity_finish_real);
+    if (stub == nullptr) {
+        LOGE("failed to hook ANativeActivity_finish: %s",
+             shadowhook_to_errmsg(shadowhook_get_errno()));
+    } else {
+        LOGD("hooked ANativeActivity_finish");
+    }
 
 }
