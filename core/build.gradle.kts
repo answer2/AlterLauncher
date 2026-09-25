@@ -25,6 +25,10 @@ android {
     }
     buildToolsVersion = "36.1.0"
 
+    // The :game <-> UI bridge (IGameBridge.aidl / IGameBridgeCallback.aidl).
+    buildFeatures {
+        aidl = true
+    }
 
 }
 

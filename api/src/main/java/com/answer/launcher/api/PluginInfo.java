@@ -1,7 +1,5 @@
 package com.answer.launcher.api;
 
-import core.Constants;
-
 /**
  * @Author AnswerDev
  * @Date 2024/07/11 21:16
@@ -12,7 +10,14 @@ public class PluginInfo {
     private String version  = "undefined";
     private String description  = "undefined";
 
-    private String supportVersion = Constants.MINECRAFT_VERSION;
+    /*
+     * Was Constants.MINECRAFT_VERSION, imported from core.Constants — a class that
+     * only exists in the compileOnly :stub module. Any process that constructed a
+     * PluginInfo without the stub on its classpath died with NoClassDefFoundError
+     * from this initialiser, which is exactly what the plugin bridge does when it
+     * reports loaded plugins. The stub value was the same literal anyway.
+     */
+    private String supportVersion = "undefined";
     
     public PluginInfo(String name, String author, String version, String description) {
         this.name = name;

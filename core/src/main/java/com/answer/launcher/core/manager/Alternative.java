@@ -18,6 +18,7 @@ import android.os.Process;
 import android.util.Log;
 
 import com.answer.launcher.core.LauncherConstants;
+import com.answer.launcher.core.bridge.GameBridgeClient;
 import com.answer.launcher.core.env.AlterEnvironment;
 import com.answer.launcher.core.env.AlterInstrumentation;
 import com.answer.launcher.core.env.MinecraftEnv;
@@ -1372,9 +1373,36 @@ public class Alternative {
 
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
-            AlterInstrumentation
-                    .get()
-                    .startActivity(intent);
+            /*
+             * The user has asked to play, so this is one of the few places allowed to
+             * cold-boot :game. Doing it before the start means the bridge exists by the
+             * time the UI reads it; the activity start would spin the process up a
+             * moment later anyway.
+             */
+            if (activity != null) {
+
+                GameBridgeClient.get().wake(activity);
+
+            }
+
+            /*
+             * Plain Activity.startActivity(). The proxy now lives in :game, so this
+             * call is what cold-boots that process, and it has to work from a process
+             * that never assembled the runtime. AlterInstrumentation.startActivity()
+             * routes through MinecraftManager's Application and ActivityThread, which
+             * only exist in the process that ran the assembly — from the UI process it
+             * would NPE into its own catch and launch nothing.
+             */
+            if (activity != null) {
+
+                activity.startActivity(intent);
+
+            } else {
+
+                AlterInstrumentation
+                        .get()
+                        .startActivity(intent);
+            }
 
         } catch (Throwable e) {
 

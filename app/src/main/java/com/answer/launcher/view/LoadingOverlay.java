@@ -56,7 +56,13 @@ public class LoadingOverlay extends View {
     }
 
     private void init() {
-        logoDrawable = Alternative.getManager().mContext.getDrawable( R.drawable.mojangstudios);
+        /*
+         * The view's own context. This draws the launcher's R.drawable.mojangstudios
+         * in the UI process, while Alternative's context is the guest context and only
+         * exists in :game — reading it here used to work only because the runtime was
+         * assembled in the same process as the UI.
+         */
+        logoDrawable = getContext().getDrawable(R.drawable.mojangstudios);
         backgroundPaint = new Paint();
         backgroundPaint.setColor(LOGO_BACKGROUND_COLOR);
         progressPaint = new Paint();

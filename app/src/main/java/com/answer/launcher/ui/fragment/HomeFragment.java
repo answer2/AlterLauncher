@@ -84,8 +84,13 @@ public class HomeFragment extends Fragment {
 //                    e.printStackTrace();
 //                }
 
-               MinecraftLoader.load(requireActivity().getApplication().getBaseContext());
-                Alternative.getManager().LaunchMinecraft(requireActivity());
+               /*
+                 * The runtime is assembled inside :game by that process' Application,
+                 * so this side only asks for the window: LaunchMinecraft() starts the
+                 * launcher-owned proxy, which is the cold-boot trigger.
+                 */
+                requireActivity().runOnUiThread(
+                        () -> Alternative.getManager().LaunchMinecraft(requireActivity()));
             }).start();
         });
 

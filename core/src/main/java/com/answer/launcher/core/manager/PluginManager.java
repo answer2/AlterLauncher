@@ -31,7 +31,20 @@ public class PluginManager {
         this.mContext = context;
         this.pluginPath = new File(context.getFilesDir().getAbsolutePath() + "/plugin");
         if (!this.pluginPath.exists()) this.pluginPath.mkdir();
-        for (File file : pluginPath.listFiles()) {
+        rescan();
+    }
+
+    /**
+     * Re-read the plugin directory into {@link #plugins}.
+     *
+     * <p>The directory lives in shared app storage, so the UI process can drop a
+     * file there at any time; this is how {@code :game} notices without a restart.
+     */
+    public void rescan() {
+        plugins.clear();
+        File[] files = pluginPath.listFiles();
+        if (files == null) return;
+        for (File file : files) {
 
             if (!file.isDirectory() && (file.getName().contains(".dex") || file.getName().contains(".apk")))plugins.add(file.getAbsolutePath());
         }

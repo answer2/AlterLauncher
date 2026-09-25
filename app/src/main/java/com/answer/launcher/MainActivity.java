@@ -154,7 +154,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void loadGame(View view){
-        MinecraftLoader.load(getApplication().getBaseContext());
+        /*
+         * Nothing to assemble here any more: the runtime lives in :game and
+         * starting the proxy is what cold-boots that process. Calling
+         * MinecraftLoader.load() in this process would build a second guest
+         * LoadedApk in a process that never shows a game window.
+         */
         Alternative.getManager().LaunchMinecraft(this);
     }
 

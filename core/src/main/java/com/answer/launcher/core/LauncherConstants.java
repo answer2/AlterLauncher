@@ -21,4 +21,21 @@ public class LauncherConstants {
     public static final String MOJANG_RED = "#ef323d";
     public static final boolean isDebug = true;
 
+    /**
+     * Suffix of the isolated process that hosts the Minecraft runtime. The whole
+     * assembly chain (guest LoadedApk, guest loader, hooks, native libraries)
+     * lives there; the default process only draws UI and reads that runtime
+     * through {@link #GAME_BRIDGE_ACTION}.
+     */
+    public static final String GAME_PROCESS_SUFFIX = ":game";
+
+    /**
+     * Explicit action of the in-app bridge service, declared in the manifest with
+     * {@code android:process=":game"}. Not exported: both sides run under the same
+     * application UID, so an implicit or exported service would only let other apps
+     * poke at the runtime.
+     */
+    public static final String GAME_BRIDGE_ACTION =
+            "com.answer.launcher.core.bridge.GameBridgeService";
+
 }

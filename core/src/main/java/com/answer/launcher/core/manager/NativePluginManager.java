@@ -23,8 +23,19 @@ public class NativePluginManager {
         this.mContext = context;
         this.nativePath = new File(context.getFilesDir().getAbsolutePath() + "/nativePlugin");
         if (!this.nativePath.exists()) this.nativePath.mkdir();
-        
-        for(File file : nativePath.listFiles()){
+        rescan();
+    }
+
+    /**
+     * Re-read the native plugin directory. Same reason as
+     * {@code PluginManager.rescan()}: the UI process can import into shared storage
+     * at any time and {@code :game} has to notice.
+     */
+    public void rescan() {
+        nativeFiles.clear();
+        File[] files = nativePath.listFiles();
+        if (files == null) return;
+        for(File file : files){
            if(!file.isDirectory()&&file.getName().contains(".so")) nativeFiles.add(file.getAbsolutePath());
         }
     }

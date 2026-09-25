@@ -1,6 +1,7 @@
 package com.answer.launcher.utils;
 
 
+import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
@@ -130,6 +131,8 @@ public class CrashHandler {
         public String buildCrashLog(Throwable ex) {
             LinkedHashMap<String, String> deviceInfo = new LinkedHashMap<>();
             deviceInfo.put("Time", DATE_FORMAT.format(new Date()));
+            deviceInfo.put("Process", processName());
+            deviceInfo.put("Pid", String.valueOf(android.os.Process.myPid()));
             deviceInfo.put("Device", Build.MANUFACTURER + ", " + Build.MODEL);
             deviceInfo.put("Android", Build.VERSION.RELEASE + " (SDK " + Build.VERSION.SDK_INT + ")");
             deviceInfo.put("ABIs", Build.SUPPORTED_ABIS != null
@@ -145,13 +148,42 @@ public class CrashHandler {
         }
 
         public void saveCrashLog(String log) {
-            String fileName = "crash_" + DATE_FORMAT.format(new Date()) + ".txt";
+            /*
+             * Process-tagged: the UI process and :game share this directory and can
+             * crash inside the same second, and one timestamped name would let the
+             * second write clobber the first.
+             */
+            String fileName = "crash_" + processTag() + "_"
+                    + DATE_FORMAT.format(new Date()) + ".txt";
             File file = new File(crashDir, fileName);
             try {
                 write(file, log.getBytes("UTF-8"));
             } catch (Throwable e) {
                 e.printStackTrace();
             }
+        }
+
+        /** Full process name, e.g. "com.answer.launcher:game". Best effort. */
+        private static String processName() {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    return Application.getProcessName();
+                }
+            } catch (Throwable ignored) {
+                // Pre-28 or a hidden-API hiccup: fall back to "unknown".
+            }
+            return "unknown";
+        }
+
+        /** ":game" becomes "game", the default process becomes "main". */
+        private static String processTag() {
+            String name = processName();
+            int colon = name.lastIndexOf(':');
+            if (colon < 0) {
+                return "main";
+            }
+            String tag = name.substring(colon + 1);
+            return tag.isEmpty() ? "process" : tag;
         }
 
         public static void write(File file, byte[] data) throws IOException {
