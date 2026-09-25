@@ -35,7 +35,7 @@ static MinecraftGame *minecraftGame = nullptr;
 // Function declarations
 void initAssets(JNIEnv *env, jobject obj, jobject assetManager);
 
-void loadLibrary_java(JNIEnv *env, jobject obj, jstring libraryPath);
+jlong loadLibrary_java(JNIEnv *env, jobject obj, jstring libraryPath);
 
 void unloadLibrary_java(JNIEnv *env, jobject obj, jlong handle);
 
@@ -47,6 +47,8 @@ void loadManager(JNIEnv *env, jobject obj);
 
 void sendMessage(JNIEnv *env, jobject obj, jstring msg);
 
+void hookDlopen_java(JNIEnv *env, jobject obj);
+
 // JNI methods array
 static JNINativeMethod MethodCalled[] = {
         {"initAssets",         "(Landroid/content/res/AssetManager;)V", (void *) initAssets},
@@ -54,7 +56,10 @@ static JNINativeMethod MethodCalled[] = {
         {"unloadLibrary",      "(J)V",                                  (void *) unloadLibrary_java},
         {"findLibBaseAddress", "(Ljava/lang/String;)J",                 (void *) findLibBaseAddress_java},
         {"loadManager",        "()V",                                   (void *) loadManager},
-        {"sendMessage",        "(Ljava/lang/String;)V",                 (void *) sendMessage}
+        {"sendMessage",        "(Ljava/lang/String;)V",                 (void *) sendMessage},
+        // NativeCore.hookDlopen was declared on the Java side but never
+        // registered here, so any call threw UnsatisfiedLinkError.
+        {"hookDlopen",         "()V",                                   (void *) hookDlopen_java}
 };
 
 // JNI OnLoad
@@ -81,8 +86,20 @@ void initAssets(JNIEnv *env, jobject obj, jobject assetManager) {
     initFakeAssets(env, Main::manager);
 }
 
-void loadLibrary_java(JNIEnv *env, jobject obj, jstring libraryPath) {
-    Utils::loadLibrary(env, libraryPath);
+// NativeCore.loadLibrary is declared `public static native long` and its JNI
+// signature is "(Ljava/lang/String;)J", but the implementation was `void`: the
+// Java caller read whatever x0 happened to hold after the call and handed that
+// to unloadLibrary. Return the real handle.
+jlong loadLibrary_java(JNIEnv *env, jobject obj, jstring libraryPath) {
+    // NativeCore.loadLibrary is declared `public static native long` and this
+    // entry's signature is "(Ljava/lang/String;)J"; returning void here left
+    // the Java caller reading whatever x0 happened to hold after the call and
+    // handing that value to unloadLibrary.
+    return reinterpret_cast<jlong>(Utils::loadLibrary(env, libraryPath));
+}
+
+void hookDlopen_java(JNIEnv *env, jobject obj) {
+    initFakeDlopen();
 }
 
 void loadManager(JNIEnv *env, jobject obj) {

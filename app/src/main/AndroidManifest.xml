@@ -162,6 +162,30 @@
                 <data android:scheme="minecraft" />
             </intent-filter>
         </activity>
+        <!--
+            Launcher-owned anchor for the game window. AlterInstrumentation.newActivity()
+            substitutes com.mojang.minecraftpe.MainActivity for this component, so the
+            game's classes are defined by the DexClassLoader built over the Minecraft APK
+            (whose library search path is the game's native lib dir) instead of the
+            launcher's loader. Framework theme on purpose: after the swap the activity's
+            resources are the game's, so a launcher resource id would not resolve.
+        -->
+        <activity
+            android:name=".ui.activity.GameHostActivity"
+            android:alwaysRetainTaskState="true"
+            android:configChanges="density|fontScale|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|touchscreen|uiMode"
+            android:excludeFromRecents="false"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:windowSoftInputMode="adjustResize"
+            tools:ignore="DiscouragedApi" >
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="minecraftpe" />
+        </activity>
         <activity
             android:name=".ui.activity.LauncherActivity"
             android:alwaysRetainTaskState="true"

@@ -101,9 +101,23 @@ public class SplashScreenHook extends BaseHook {
 
     /** Routes a created activity to the active instance, if any. */
     public static void dispatch(android.app.Activity game) {
+        if (game == null) {
+            return;
+        }
         SplashScreenHook target = active;
-        if (target != null && isGameActivity(game.getClass())) {
+        if (target == null || !isGameActivity(game.getClass())) {
+            return;
+        }
+        try {
             target.onGameActivityCreated(game);
+        } catch (Throwable t) {
+            // Everything this hook does is cosmetic (splash teardown, replaying the
+            // launch intent, loading plugins) or best-effort (creating the notification
+            // service, whose super-class com.google.firebase.messaging.* the launcher
+            // never ships). None of it may abort activity creation: an exception here
+            // used to escape through Instrumentation.callActivityOnCreate.
+            Log.e(TAG, "game activity create work failed for "
+                    + game.getClass().getName() + ": " + t);
         }
     }
 

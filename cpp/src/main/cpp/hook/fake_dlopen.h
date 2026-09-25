@@ -48,34 +48,55 @@ void dlopen_hook(const char* filename, int flag){
     dlopen_real(filename,flag);
 };
 
-void (*android_dlopen_ext_real)(const char* filename, int flags, const android_dlextinfo* info);
-void android_dlopen_ext_hook(const char* filename, int flags, const android_dlextinfo* info){
-    LOGD("So FileName : %s", filename);
-    android_dlopen_ext_real(filename, flags, info);
+// These shims used to be declared `void` and called the real function through a
+// `void (*)(...)` pointer, which throws away the handle the loader returns in
+// x0: every dlopen routed through them gave its caller a garbage pointer.
+// Forward the real prototype and pass the result back.
+typedef void *(*android_dlopen_ext_t)(const char *, int,
+                                      const android_dlextinfo *);
+android_dlopen_ext_t android_dlopen_ext_real = nullptr;
+void *android_dlopen_ext_hook(const char *filename, int flags,
+                              const android_dlextinfo *info) {
+  LOGD("So FileName : %s", filename);
+  return android_dlopen_ext_real(filename, flags, info);
 };
 
-
-void* (*NativeBridgeLoadLibraryExt_real)(const char* libpath, int flag, android::native_bridge_namespace_t* ns);
-void NativeBridgeLoadLibraryExt_hook(const char* libpath, int flag, android::native_bridge_namespace_t* ns){
-    LOGD("So FileName : %s", libpath);
-    NativeBridgeLoadLibraryExt_real(libpath, flag, ns);
+typedef void *(*NativeBridgeLoadLibraryExt_t)(
+    const char *, int, android::native_bridge_namespace_t *);
+NativeBridgeLoadLibraryExt_t NativeBridgeLoadLibraryExt_real = nullptr;
+void *NativeBridgeLoadLibraryExt_hook(
+    const char *libpath, int flag, android::native_bridge_namespace_t *ns) {
+  LOGD("So FileName : %s", libpath);
+  return NativeBridgeLoadLibraryExt_real(libpath, flag, ns);
 };
 
+void initFakeDlopen() {
+  handle = dlopen("libnativeloader.so", RTLD_LAZY);
+  void *handle_ld = dlopen_ex("libdl_android.so", RTLD_LAZY);
+  void *android_dlopen_ext = dlsym(handle, "android_dlopen_ext");
+  void *NativeBridgeLoadLibraryExt_ =
+      dlsym(handle, "NativeBridgeLoadLibraryExt");
 
-void initFakeDlopen(){
-    handle = dlopen("libnativeloader.so", RTLD_LAZY);
-    void* handle_ld = dlopen_ex("libdl_android.so", RTLD_LAZY);
-    void* android_dlopen_ext = dlsym(handle, "android_dlopen_ext");
-    void* NativeBridgeLoadLibraryExt_ = dlsym(handle, "NativeBridgeLoadLibraryExt");
-    
-    LOGD("initFakeDlopen");
-    
-    real_dlopen = (dlopen_t)dlsym(RTLD_NEXT, "dlopen");
+  LOGD("initFakeDlopen");
 
-    shadowhook_hook_sym_addr((void*)android_dlopen_ext, (void*)android_dlopen_ext_hook, (void**)&android_dlopen_ext_real);
-    
-    shadowhook_hook_sym_addr((void*)dlopen, (void*)dlopen_hook, (void**)&dlopen_real);
-    
-    shadowhook_hook_sym_addr((void*)NativeBridgeLoadLibraryExt_, (void*)NativeBridgeLoadLibraryExt_hook, (void**)&NativeBridgeLoadLibraryExt_real);
-    
+  real_dlopen = (dlopen_t)dlsym(RTLD_NEXT, "dlopen");
+
+  // The shadow of dlopen itself is intentionally NOT installed: it is a pure
+  // log shim, and shadowhook on the global dlopen intercepts every load in the
+  // process, including the linker's own re-entrant ones.
+  if (android_dlopen_ext != nullptr) {
+    shadowhook_hook_sym_addr(android_dlopen_ext,
+                             (void *)android_dlopen_ext_hook,
+                             (void **)&android_dlopen_ext_real);
+  } else {
+    LOGD("android_dlopen_ext not resolved, skip its hook");
+  }
+
+  if (NativeBridgeLoadLibraryExt_ != nullptr) {
+    shadowhook_hook_sym_addr(
+        NativeBridgeLoadLibraryExt_, (void *)NativeBridgeLoadLibraryExt_hook,
+        (void **)&NativeBridgeLoadLibraryExt_real);
+  } else {
+    LOGD("NativeBridgeLoadLibraryExt not resolved, skip its hook");
+  }
 }

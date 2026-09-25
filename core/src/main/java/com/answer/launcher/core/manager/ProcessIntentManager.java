@@ -1,6 +1,7 @@
 package com.answer.launcher.core.manager;
 
 import android.app.Activity;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.os.Bundle;
 import android.net.Uri;
@@ -53,9 +54,23 @@ public class ProcessIntentManager extends Activity {
                 }
             }
 
-            Class<?> clazz = Class.forName("com.answer.launcher.ui.activity.LauncherActivity", false, getClassLoader());
-            intent.setClass(this, clazz);
-            if(SystemUtil.checkClass(LauncherConstants.MINECRAFTACTIVITY))startActivity(intent);
+            /*
+             * The proxy is referenced by name: resolving it through this loader
+             * would drag the game's activity class into the launcher's loader,
+             * which is exactly what puts the game's libraries in the wrong linker
+             * namespace. AlterInstrumentation.newActivity() swaps this component
+             * for the real com.mojang.minecraftpe.MainActivity.
+             */
+            intent.setComponent(new ComponentName(
+                    LauncherConstants.PACKAGE,
+                    LauncherConstants.GAME_HOST_ACTIVITY));
+            if (Alternative.getManager().isGameReady()) {
+                startActivity(intent);
+            } else {
+                Toast.makeText(getApplication(),
+                        "Minecraft 尚未加载完成，请先在游戏页启动一次",
+                        Toast.LENGTH_SHORT).show();
+            }
             finish();
 
         } catch (Exception e) {

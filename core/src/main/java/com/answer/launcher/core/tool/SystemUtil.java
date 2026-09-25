@@ -13,10 +13,29 @@ import java.util.Collections;
 
 public class SystemUtil {
     public static boolean checkClass(String clazz) {
-    	try{
-            Class.forName(clazz, false, SystemUtil.class.getClassLoader());
+    	// The launcher loader is tried first, then the guest loader: since the game
+    	// dex stopped being merged into the launcher's PathClassLoader, classes that
+    	// live only there (com.mojang.minecraftpe.*, com.microsoft.xal.*) resolve
+    	// exclusively through the guest DexClassLoader.
+    	if (present(clazz, SystemUtil.class.getClassLoader())) {
             return true;
-        }catch(Exception e){
+        }
+        ClassLoader guest = com.answer.launcher.core.hook.HookProvider.getGameClassLoader();
+        return guest != null && guest != SystemUtil.class.getClassLoader()
+                && present(clazz, guest);
+    }
+
+    private static boolean present(String clazz, ClassLoader loader) {
+    	try {
+            Class.forName(clazz, false, loader);
+            return true;
+        }catch(Throwable t){
+            // NoClassDefFoundError, not just ClassNotFoundException: a class whose
+            // super-class is absent (com.mojang.minecraftpe.NotificationListenerService
+            // extends com.google.firebase.messaging.FirebaseMessagingService, which the
+            // launcher never ships) arrives as an Error. The old "catch (Exception)"
+            // let it escape, out of LoadedAfterHook.init and out of
+            // Instrumentation.callActivityOnCreate, aborting activity creation.
             return false;
         }
     }

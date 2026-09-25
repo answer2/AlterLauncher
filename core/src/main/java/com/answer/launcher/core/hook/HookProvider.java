@@ -198,16 +198,54 @@ public final class HookProvider {
 
     /** Resolves a class without running its initializer; {@code null} when absent. */
     public static Class<?> clazz(String name) {
-        return clazz(name, HookProvider.class.getClassLoader());
+        // The guest loader first: it is child-first for the game's own classes and still
+        // hands framework and launcher names to the parent, so it returns the class
+        // object the game actually runs -- the only one a hook on it can affect. (Before
+        // the dex merge was dropped, the launcher's loader defined everything and the
+        // order here did not matter.)
+        ClassLoader guest = gameClassLoader;
+        if (guest != null && guest != HookProvider.class.getClassLoader()) {
+            Class<?> fromGame = clazzQuietly(name, guest);
+            if (fromGame != null) {
+                return fromGame;
+            }
+        }
+        Class<?> found = clazzQuietly(name, HookProvider.class.getClassLoader());
+        if (found == null) {
+            Log.w(TAG, "class unavailable: " + name);
+        }
+        return found;
     }
 
     public static Class<?> clazz(String name, ClassLoader loader) {
+        Class<?> found = clazzQuietly(name, loader);
+        if (found == null) {
+            Log.w(TAG, "class unavailable: " + name);
+        }
+        return found;
+    }
+
+    private static Class<?> clazzQuietly(String name, ClassLoader loader) {
         try {
             return Class.forName(name, false, loader);
         } catch (Throwable t) {
-            Log.w(TAG, "class unavailable: " + name);
             return null;
         }
+    }
+
+    /**
+     * Class loader that defines the hosted game. Registered by
+     * {@code Alternative} once the guest {@code LoadedApk} exists; hook targets
+     * resolve through it when the launcher's own loader does not define them.
+     */
+    private static volatile ClassLoader gameClassLoader;
+
+    public static void setGameClassLoader(ClassLoader loader) {
+        gameClassLoader = loader;
+    }
+
+    public static ClassLoader getGameClassLoader() {
+        return gameClassLoader;
     }
 
     /** Declared method with an exact parameter list; {@code null} when the signature moved. */

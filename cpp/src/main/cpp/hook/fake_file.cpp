@@ -58,13 +58,28 @@ const char* redirectPath(JNIEnv* env, const char* path) {
     }
 
     // 将 jstring 转换为 const char*
-    const char* resultCStr = env->GetStringUTFChars(resultJString, nullptr);
+    //
+    // The pointer we hand back must outlive the JNI local frame, so we copy
+    // into a thread-owned buffer instead of returning the GetStringUTFChars
+    // pointer after releasing it (the previous code read freed memory).
+    // Callers (fopen_hook) use the result synchronously before the next
+    // redirect on the same thread, which is what makes a thread_local buffer
+    // safe here: the C hook path never re-enters redirectPath while a pointer
+    // is still in use, because the redirected path is consumed by the real
+    // fopen before it returns.
+    const char* utf = env->GetStringUTFChars(resultJString, nullptr);
+    if (utf == nullptr) {
+        env->DeleteLocalRef(resultJString);
+        return nullptr;
+    }
 
-    // 释放 jstring
-    env->ReleaseStringUTFChars(resultJString, resultCStr);
+    static thread_local std::string redirected;
+    redirected.assign(utf);
+
+    env->ReleaseStringUTFChars(resultJString, utf);
     env->DeleteLocalRef(resultJString);
 
-    return resultCStr;
+    return redirected.c_str();
 }
 
 
@@ -78,6 +93,11 @@ FILE* fopen_hook(const char* filename, const char* mode) {
 
     // 你可以在这里调用你的重定向函数
     const char* redirected_path = redirectPath(Jnienv_, filename);
+    // A failed redirect returns nullptr; passing that to the real fopen would
+    // be a null-deref inside libc, so fall back to the original path.
+    if (redirected_path == nullptr) {
+        return fopen_real(filename, mode);
+    }
     return fopen_real(redirected_path, mode);
 }
 

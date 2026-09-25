@@ -75,6 +75,28 @@ public class AlterInstrumentation extends Instrumentation {
     @Override
     public void callActivityOnCreate(Activity activity, Bundle arg1) {
         if (activity != null) {
+            if (!activity.getClass().getName().startsWith(LauncherConstants.PACKAGE)) {
+                // ORDER MATTERS. The framework built this activity's Context from the
+                // launcher's LoadedApk (the ActivityRecord is the proxy's), so its
+                // Resources are the launcher's table until we replace them. Doing it
+                // after super would let Activity#onCreate -- and therefore the whole
+                // AppCompat subdecor -- resolve the game's compile-time resource ids
+                // against the launcher's table, which yields e.g.
+                // "Drawable com.answer.launcher:dimen/abc_text_size_subtitle_material_toolbar
+                // with resource ID #0x7f07004e is not a Drawable".
+                // The exchange that newActivity() performed has already been undone by
+                // Activity#attach, so it has to happen again here.
+                exchangeResourcesOfActivity(activity);
+                // The game's activities are AppCompat activities. Their manifest entry
+                // in this APK is only a placeholder: the real theme resource id lives in
+                // the GAME's resource space, so it cannot be written here (@android:...
+                // ids resolve against the framework, launcher ids against the launcher).
+                // Without this the game dies in AppCompatDelegateImpl.createSubDecor with
+                // "You need to use a Theme.AppCompat theme (or descendant) with this
+                // activity." -- the id must be applied before Activity#onCreate runs, and
+                // AFTER the exchange, so that it is layered on the game's own table.
+                applyGuestTheme(activity);
+            }
             // Framework-level observation of the game's onCreate. This replaces
             // hooking MainActivity#onCreate directly, which forced the game's
             // <clinit> (and therefore a cross-package native library load the
@@ -84,6 +106,259 @@ public class AlterInstrumentation extends Instrumentation {
         super.callActivityOnCreate(activity, arg1);
         if(activity!=null&&(!activity.getClass().getName().contains(LauncherConstants.PACKAGE))){
              exchangeResourcesOfActivity(activity);
+        }
+    }
+
+    /** Cached resource id of the game's own activity theme, in the game's space. */
+    private static int sGuestThemeId = 0;
+    private static boolean sGuestThemeResolved = false;
+
+    private void applyGuestTheme(Activity activity) {
+        try {
+            if (!sGuestThemeResolved) {
+                sGuestThemeId = resolveGuestThemeId();
+                sGuestThemeResolved = true;
+            }
+            if (sGuestThemeId == 0) {
+                Log.w("AlterInstrumentation",
+                        "no guest theme resolved; AppCompat activities will fail in createSubDecor");
+                return;
+            }
+            // Force a rebuild: ContextThemeWrapper caches the Theme created from the
+            // launcher's resource table during attach(), and applyStyle() would only
+            // layer the guest theme on top of it.
+            try {
+                Reflector.on(android.view.ContextThemeWrapper.class)
+                        .field("mTheme").set(activity, null);
+            } catch (Throwable ignored) {
+                // Worst case the new theme is layered over the old one.
+            }
+            activity.setTheme(sGuestThemeId);
+        } catch (Throwable t) {
+            Log.w("AlterInstrumentation", "guest theme not applied: " + t);
+        }
+    }
+
+    private int resolveGuestThemeId() {
+        // The game's own ContextImpl, NOT getContext(): the theme ids and the attr ids
+        // AppCompat looks up both live in the guest's resource table.
+        Context guest = Alternative.getManager().getPackageContext();
+        if (guest == null) {
+            guest = Alternative.getManager().getContext();
+        }
+        if (guest == null) {
+            return 0;
+        }
+        android.content.res.Resources resources = guest.getResources();
+        // AppCompat reads its attrs by a compile-time constant id baked into whichever
+        // copy of the library actually runs. With the child-first loader it is the
+        // GAME's copy, so the id that matters is the one in the game's table. The
+        // launcher's id is logged beside it because picking the wrong one makes every
+        // candidate verify vacuously -- that is how 0x7f0e0007 was "chosen" in a run
+        // where AppCompat still refused the theme.
+        int windowActionBar = 0;
+        int windowActionBarLauncher = 0;
+        try {
+            windowActionBar = resources.getIdentifier("windowActionBar", "attr",
+                    LauncherConstants.MINECRAFTPACKAGE);
+            windowActionBarLauncher = resources.getIdentifier("windowActionBar", "attr",
+                    LauncherConstants.PACKAGE);
+        } catch (Throwable ignored) {
+            // Probed by name; without either id no candidate can be verified.
+        }
+        Log.i("AlterInstrumentation", "windowActionBar attr: game=0x"
+                + Integer.toHexString(windowActionBar) + " launcher=0x"
+                + Integer.toHexString(windowActionBarLauncher) + " resolved in " + resources);
+        if (windowActionBar == 0) {
+            windowActionBar = windowActionBarLauncher;
+        }
+
+        java.util.ArrayList<int[]> candidates = new java.util.ArrayList<>();
+        java.util.ArrayList<String> names = new java.util.ArrayList<>();
+        // 1. What the game's own manifest declares for its MainActivity, in the game's
+        //    resource space (the launcher's copy of that entry is only a placeholder).
+        try {
+            android.content.pm.PackageInfo gameInfo = guest.getPackageManager()
+                    .getPackageInfo(LauncherConstants.MINECRAFTPACKAGE,
+                            android.content.pm.PackageManager.GET_ACTIVITIES);
+            if (gameInfo != null && gameInfo.activities != null) {
+                for (android.content.pm.ActivityInfo ai : gameInfo.activities) {
+                    if (ai != null && LauncherConstants.MINECRAFTACTIVITY.equals(ai.name)
+                            && ai.getThemeResource() != 0) {
+                        candidates.add(new int[] { ai.getThemeResource() });
+                        names.add("game manifest");
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            Log.w("AlterInstrumentation", "game manifest theme unavailable: " + t);
+        }
+        // 2. The game's theme by name (this is the pair LauncherActivity used to reach
+        //    by reflection on com.mojang.minecraftpe.R.style).
+        try {
+            for (String style : new String[] { "AppTheme_SplashScreen", "AppTheme",
+                    "Theme.Main", "AppBaseTheme" }) {
+                int id = resources.getIdentifier(style, "style",
+                        LauncherConstants.MINECRAFTPACKAGE);
+                if (id != 0) {
+                    candidates.add(new int[] { id });
+                    names.add("name:" + style);
+                }
+            }
+        } catch (Throwable t) {
+            Log.w("AlterInstrumentation", "game theme name lookup failed: " + t);
+        }
+        // 3. The game's <application> theme, when it declares one separately.
+        try {
+            android.content.pm.ApplicationInfo gameAppInfo = guest.getApplicationInfo();
+            if (gameAppInfo != null && gameAppInfo.theme != 0) {
+                candidates.add(new int[] { gameAppInfo.theme });
+                names.add("game application theme");
+            }
+        } catch (Throwable ignored) {
+            // Optional fallback.
+        }
+
+        StringBuilder report = new StringBuilder();
+        for (int i = 0; i < candidates.size(); i++) {
+            int id = candidates.get(i)[0];
+            if (themeIsAppCompat(resources, id, windowActionBar)) {
+                Log.i("AlterInstrumentation", "guest theme chosen (" + names.get(i)
+                        + "): 0x" + Integer.toHexString(id));
+                return id;
+            }
+            report.append(names.get(i)).append("=0x").append(Integer.toHexString(id))
+                    .append(describe(resources, id)).append(" ");
+        }
+        Log.w("AlterInstrumentation", "no AppCompat-capable guest theme among [" + report
+                + "] (windowActionBar attr 0x" + Integer.toHexString(windowActionBar) + ")");
+        diagnoseAppCompat(resources, guest);
+        return candidates.isEmpty() ? 0 : candidates.get(0)[0];
+    }
+
+    /**
+     * AppCompat reads its attrs by a compile-time constant id baked into whichever copy
+     * of the library actually runs. If the launcher's copy runs but the theme was built
+     * from the game's resource table, no id matches and the check can never pass -- so
+     * say which copy is live and whether the game ships its own.
+     */
+    private static void diagnoseAppCompat(android.content.res.Resources resources, Context guest) {
+        int hostAttr = 0;
+        try {
+            hostAttr = (Integer) Class.forName("androidx.appcompat.R$attr")
+                    .getField("windowActionBar").get(null);
+        } catch (Throwable ignored) {
+            // Launcher without appcompat on this path.
+        }
+        StringBuilder sb = new StringBuilder("appcompat windowActionBar: host=0x")
+                .append(Integer.toHexString(hostAttr))
+                .append(" guest=0x")
+                .append(Integer.toHexString(resources.getIdentifier("windowActionBar", "attr",
+                        LauncherConstants.MINECRAFTPACKAGE)));
+        try {
+            Class<?> delegate = Class.forName("androidx.appcompat.app.AppCompatDelegateImpl",
+                    false, guest.getClassLoader());
+            sb.append(" live classes from ").append(delegate.getClassLoader());
+        } catch (Throwable t) {
+            sb.append(" live classes unresolved: ").append(t);
+        }
+        try {
+            java.lang.reflect.Method findClass = Class.forName("dalvik.system.BaseDexClassLoader")
+                    .getDeclaredMethod("findClass", String.class);
+            findClass.setAccessible(true);
+            Object inGameDex = findClass.invoke(guest.getClassLoader(),
+                    "androidx.appcompat.app.AppCompatDelegateImpl");
+            sb.append(" game dex has its own copy: ").append(inGameDex);
+        } catch (Throwable t) {
+            sb.append(" game dex has no copy (").append(t.getCause() == null ? t
+                    : t.getCause()).append(')');
+        }
+        Log.w("AlterInstrumentation", sb.toString());
+    }
+
+    private static String describe(android.content.res.Resources resources, int id) {
+        try {
+            return "(" + resources.getResourceName(id) + ")";
+        } catch (Throwable t) {
+            return "(unnamed)";
+        }
+    }
+
+    /** True when applying {@code themeId} yields AppCompat's windowActionBar attribute. */
+    private static boolean themeIsAppCompat(android.content.res.Resources resources,
+            int themeId, int windowActionBarAttr) {
+        if (themeId == 0) {
+            return false;
+        }
+        if (windowActionBarAttr == 0) {
+            // Cannot verify; assume the manifest value is right rather than lose it.
+            Log.w("AlterInstrumentation",
+                    "windowActionBar attr unavailable, theme accepted without verification");
+            return true;
+        }
+        android.content.res.Resources.Theme theme = null;
+        android.content.res.TypedArray array = null;
+        try {
+            theme = resources.newTheme();
+            theme.applyStyle(themeId, true);
+            array = theme.obtainStyledAttributes(new int[] { windowActionBarAttr });
+            return array.hasValue(0);
+        } catch (Throwable t) {
+            Log.w("AlterInstrumentation", "theme 0x" + Integer.toHexString(themeId)
+                    + " not verifiable: " + t);
+            return false;
+        } finally {
+            if (array != null) {
+                try {
+                    array.recycle();
+                } catch (Throwable ignored) {
+                    // Best effort.
+                }
+            }
+            if (theme != null) {
+                // Nothing to release by hand: Resources.Theme has no mThemePtr field on
+                // API 36 and its finalizer already returns the native theme.
+            }
+        }
+    }
+
+    /**
+     * Give the guest activity the guest's class loader for view inflation.
+     *
+     * The ActivityRecord belongs to the launcher (GameHostActivity is the component
+     * declared in this APK), so ActivityThread builds the activity's base ContextImpl
+     * from the LAUNCHER's LoadedApk and ContextImpl.mClassLoader is the launcher's
+     * PathClassLoader. LayoutInflater resolves the class names written in a layout
+     * through Context#getClassLoader(), so the game's abc_screen_simple.xml produced
+     * the LAUNCHER's copy of androidx.appcompat widgets, while AppCompatActivity --
+     * loaded child-first from the game APK by GuestClassLoader -- casts them to its own
+     * copies. The result is
+     *   java.lang.ClassCastException: androidx.appcompat.widget.ContentFrameLayout
+     *       cannot be cast to androidx.appcompat.widget.ContentFrameLayout
+     * at AppCompatDelegateImpl.createSubDecor(AppCompatDelegateImpl.java:988).
+     * Pointing the base context's loader at the guest loader makes both sides agree.
+     */
+    private void exchangeClassLoaderOfActivity(Activity activity) {
+        try {
+            Context base = activity.getBaseContext();
+            ClassLoader guest = Alternative.getManager().getClassLoader();
+            // Only android.app.ContextImpl carries mClassLoader, and AppCompatActivity
+            // wraps the real one inside androidx.appcompat.view.ContextThemeWrapper
+            // (onAttachBaseContext), so the chain has to be walked down first.
+            while (base instanceof android.content.ContextWrapper
+                    && !"android.app.ContextImpl".equals(base.getClass().getName())) {
+                base = ((android.content.ContextWrapper) base).getBaseContext();
+            }
+            if (base == null || guest == null) {
+                return;
+            }
+            if (guest == base.getClassLoader()) {
+                return;
+            }
+            Reflector.on(base.getClass()).field("mClassLoader").set(base, guest);
+            Log.i("AlterInstrumentation", "activity class loader exchanged to " + guest);
+        } catch (Throwable t) {
+            Log.w("AlterInstrumentation", "cannot exchange the activity class loader: " + t);
         }
     }
     
@@ -101,15 +376,75 @@ public class AlterInstrumentation extends Instrumentation {
         return super.onException(arg0, arg1);
     }
     
+    /**
+     * Component substitution.
+     *
+     * <p>The launcher starts {@code .ui.activity.GameHostActivity}, a class it
+     * owns, and this method hands the framework a real
+     * {@code com.mojang.minecraftpe.MainActivity} instance instead. Two reasons:
+     *
+     * <ul>
+     *   <li>{@code LauncherActivity extends MainActivity} used to be the host,
+     *       which forced the launcher's own {@code PathClassLoader} to define the
+     *       game's activity. Its linker namespace cannot see the game's lib dir,
+     *       so {@code MainActivity.<clinit>} died on
+     *       {@code library "/system_ext/lib64/libc++_shared.so" ... is not
+     *       accessible for the namespace "clns-9"}. Loading the class from the
+     *       DexClassLoader built over the Minecraft APK gives it that APK's
+     *       namespace instead, which resolves its own libraries natively.</li>
+     *   <li>The game's other components ({@code com.microsoft.xal.*},
+     *       {@code com.mojang.*}) are declared in the launcher's manifest but
+     *       exist only in the game dex. Once the dex is no longer merged into the
+     *       launcher's loader, the framework's loader cannot resolve them at all,
+     *       so every such component is resolved through the guest loader.</li>
+     * </ul>
+     */
     @Override
     public Activity newActivity(ClassLoader arg0, String arg1, Intent arg2) throws
             ClassNotFoundException, IllegalAccessException, InstantiationException {
         // TODO: Implement this method
+        if (LauncherConstants.GAME_HOST_ACTIVITY.equals(arg1)) {
+            Activity game = newGuestActivity(LauncherConstants.MINECRAFTACTIVITY);
+            if (game != null) {
+                return game;
+            }
+            Log.e("AlterInstrumentation",
+                    "game activity substitution failed, the proxy will show an error");
+        } else if (!arg1.startsWith(LauncherConstants.PACKAGE)) {
+            Activity game = newGuestActivity(arg1);
+            if (game != null) {
+                return game;
+            }
+        }
         Activity newActivity = super.newActivity(arg0, arg1, arg2);
         if(newActivity!=null&&!newActivity.getClass().getName().contains(LauncherConstants.PACKAGE)){
              exchangeResourcesOfActivity(newActivity);
         }
         return newActivity;
+    }
+
+    /**
+     * Instantiates {@code name} through the loader that defines the game, or
+     * returns {@code null} when the launcher has not assembled that loader yet
+     * or the class is not in it.
+     */
+    private Activity newGuestActivity(String name) {
+        ClassLoader guest = Alternative.getManager().getClassLoader();
+        if (guest == null) {
+            return null;
+        }
+        try {
+            Class<?> clazz = Class.forName(name, false, guest);
+            Activity activity = (Activity) clazz.getDeclaredConstructor().newInstance();
+            exchangeResourcesOfActivity(activity);
+            Log.i("AlterInstrumentation", "instantiated " + name
+                    + " from the guest loader " + guest);
+            return activity;
+        } catch (Throwable t) {
+            Log.w("AlterInstrumentation",
+                    "cannot instantiate " + name + " from the guest loader: " + t);
+            return null;
+        }
     }
 
   public void initHook() {
@@ -178,9 +513,23 @@ public class AlterInstrumentation extends Instrumentation {
      */
     private void exchangeResourcesOfActivity(Activity activity) {
         try {
+            // getPackageContext() is the GUEST's ContextImpl -- the one built from the
+            // game's LoadedApk, whose Resources carry the game's own asset path.
+            // getContext() returns the LAUNCHER's application context (Alternative.java
+            // :159/:216), so writing its Resources here was a no-op: the activity kept
+            // the launcher's table and every game id resolved against it, which is what
+            // produced "Resources$NotFoundException: Resource ID #0x7f0b0015 type #0x10
+            // is not valid" while inflating the game's abc_screen_simple.
+            Context guest = Alternative.getManager().getPackageContext();
+            if (guest == null) {
+                guest = Alternative.getManager().getContext();
+            }
             Class<?> contextThemeWrapperClass = Class.forName("android.view.ContextThemeWrapper");
             Reflector.on(contextThemeWrapperClass)
-            .field("mResources").set(activity, Alternative.getManager().getContext().getResources());
+            .field("mResources").set(activity, guest.getResources());
+            // Same reason, different field: the loader must agree with the table, or
+            // AppCompat inflates one copy's widgets and casts them to another's.
+            exchangeClassLoaderOfActivity(activity);
             
             
         } catch (Exception e) {

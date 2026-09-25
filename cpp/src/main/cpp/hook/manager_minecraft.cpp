@@ -81,7 +81,13 @@ void ANativeActivity_finish_hook(ANativeActivity *activity) {
     LOGD("ANativeActivity_finish Success");
     LOGD("instance :%p", activity->instance);
     LOGD("class :%p", activity->clazz);
-    // ANativeActivity_finish_real(activity);
+    // The forward call used to be commented out, so the shadow swallowed
+    // finish(): the game asked to be destroyed, the native activity never was,
+    // and the process stayed alive holding the surface. Observe first, then
+    // always hand over to the real implementation.
+    if (ANativeActivity_finish_real != nullptr) {
+        ANativeActivity_finish_real(activity);
+    }
 }
 
 

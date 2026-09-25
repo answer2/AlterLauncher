@@ -24,6 +24,7 @@ import com.answer.launcher.core.env.MinecraftEnv;
 import com.answer.launcher.core.env.VirtualRuntime;
 import com.answer.launcher.core.hook.BaseHook;
 import com.answer.launcher.core.hook.HookProvider;
+import com.answer.launcher.core.hook.LoadLibraryHook;
 import com.answer.launcher.core.tool.AbiUtils;
 import com.answer.launcher.core.tool.AssetOverrideManager;
 import com.answer.launcher.core.tool.ContextFixer;
@@ -71,6 +72,38 @@ public class Alternative {
     /**
      * Minecraft PackageInfo
      */
+    /**
+     * Which class loader defines the game's classes.
+     *
+     * <p>{@code true} keeps the historical behaviour: {@code HotFix.hotFix()}
+     * copies the game's {@code dexElements} into the launcher's
+     * {@code PathClassLoader}, so launcher code can reference game types
+     * directly. The cost is that every {@code System.loadLibrary} the game makes
+     * is then resolved by the launcher's linker namespace, whose search path
+     * holds only the launcher's own lib dir — on Android 16 that dies in
+     * {@code MainActivity.<clinit>} with
+     * <pre>
+     * dlopen failed: library "/system_ext/lib64/libc++_shared.so" needed or
+     * dlopened by "/apex/com.android.art/lib64/libnativeloader.so" is not
+     * accessible for the namespace "clns-9"
+     * </pre>
+     * because the game's libraries live under the Minecraft package's install
+     * directory.
+     *
+     * <p>{@code false} (current) leaves the game's classes in the
+     * {@code DexClassLoader} built over the Minecraft APK, which carries the
+     * game's {@code nativeLibraryDir} as its library search path, so ART gives
+     * it a namespace that can actually resolve them. The launcher's patch
+     * classes under {@code core/src/com/mojang/**} still take effect: that
+     * loader's parent is the launcher's loader and delegation is parent-first.
+     */
+    private static final boolean MERGE_GAME_DEX = false;
+
+    /** Whether {@code HotFix} put the game dex into the launcher's loader. */
+    public static boolean isGameDexMerged() {
+        return MERGE_GAME_DEX;
+    }
+
     private PackageInfo packageInfo;
     /**
      * Minecraft ApplicationInfo
@@ -362,7 +395,7 @@ public class Alternative {
         }
 
         classLoader =
-                new DexClassLoader(
+                new com.answer.launcher.core.env.GuestClassLoader(
                         applicationInfo.sourceDir,
                         optimizedDirectory,
                         applicationInfo.nativeLibraryDir,
@@ -1041,12 +1074,46 @@ public class Alternative {
                 );
 
         /*
-         * HotFix
+         * Dex ownership.
+         *
+         * MERGE_GAME_DEX == true  : HotFix copies the game's dexElements into the
+         *      launcher's PathClassLoader. Every game class is then defined by the
+         *      launcher loader, so so its linker namespace ("clns-9", search path =
+         *      launcher lib dirs only) is used for the game's System.loadLibrary
+         *      calls. On Android 16 that resolves "libc++_shared.so" to
+         *      /system_ext/lib64 and the linker refuses it.
+         * MERGE_GAME_DEX == false : the game's classes stay in the DexClassLoader
+         *      built over the Minecraft APK, whose library search path IS the game's
+         *      native lib dir, so ART creates a namespace that can resolve them. The
+         *      launcher's own patch classes (core/src's com/mojang/** clones) still
+         *      win: this loader's parent is the launcher loader, so parent-first
+         *      delegation reaches them before the game dex.
          */
-        HotFix.hotFix(
-                mContext,
-                classLoader
-        );
+        if (MERGE_GAME_DEX) {
+            HotFix.hotFix(
+                    mContext,
+                    classLoader
+            );
+        } else if (classLoader != null) {
+            /*
+             * Hook targets named by class (XboxHook's com.microsoft.xal.*, the
+             * NativeActivity signatures, plugin SPI classes) no longer resolve
+             * through the launcher loader, so hand it the guest loader too.
+             */
+            HookProvider.setGameClassLoader(classLoader);
+        }
+
+        /*
+         * Only needed while the game's classes are defined by the launcher's
+         * loader: pre-load every game library by absolute path so the later
+         * bare-SONAME request finds one already resident. With the guest loader
+         * owning the dex this is counter-productive - it would put a second copy
+         * of libminecraftpe.so into the launcher namespace, and the game's own
+         * load would then create a second instance of the engine.
+         */
+        if (MERGE_GAME_DEX) {
+            LoadLibraryHook.preloadGameLibraries();
+        }
 
         /*
          * IO Redirect
@@ -1260,31 +1327,50 @@ public class Alternative {
     }
 
     /**
+     * True once the guest class loader can resolve the game's activity class.
+     *
+     * <p>Replaces {@code SystemUtil.checkClass(MINECRAFTACTIVITY)}, which asks the
+     * launcher's own loader and therefore only reported the game as present while
+     * {@code HotFix} merged its dex into that loader.
+     */
+    public boolean isGameReady() {
+        ClassLoader guest = classLoader;
+        if (guest == null) {
+            return false;
+        }
+        try {
+            Class.forName(LauncherConstants.MINECRAFTACTIVITY, false, guest);
+            return true;
+        } catch (Throwable t) {
+            Log.w(TAG, "game activity not resolvable from the guest loader: " + t);
+            return false;
+        }
+    }
+
+    /**
      * 启动 Launcher Activity
      */
     public void LaunchMinecraft(Activity activity) {
 
         try {
 
-            String launcherClass =
-                    "com.answer.launcher.ui.activity.LauncherActivity";
+            /*
+             * Resolved by name through a ComponentName instead of Class.forName:
+             * resolving the class here would load it with the launcher's loader,
+             * and the proxy's superclass chain no longer lives in that loader.
+             * GameHostActivity is swapped for the game's MainActivity by
+             * AlterInstrumentation.newActivity().
+             */
+            Intent intent = new Intent();
 
-            Class<?> clazz =
-                    Class.forName(
-                            launcherClass,
-                            true,
-                            mContext.getClassLoader()
-                    );
-
-            Intent intent =
-                    new Intent(
-                            activity,
-                            clazz
-                    );
-
-            intent.setFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK
+            intent.setComponent(
+                    new ComponentName(
+                            LauncherConstants.PACKAGE,
+                            LauncherConstants.GAME_HOST_ACTIVITY
+                    )
             );
+
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
             AlterInstrumentation
                     .get()
