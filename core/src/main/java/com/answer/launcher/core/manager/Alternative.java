@@ -1203,18 +1203,26 @@ public class Alternative {
         }
 
         /*
-         * mInitialApplication
+         * mInitialApplication is deliberately NOT overwritten.
+         *
+         * The guest Application is reachable through the guest LoadedApk
+         * (getApp()) and through the app context returned by createAppContext,
+         * which is what Minecraft actually uses. Overriding this field made
+         * ActivityThread.currentApplication() report the Minecraft package for
+         * a process whose real UID belongs to the launcher, and any framework
+         * call that derives its calling package from it was rejected:
+         *
+         *   SecurityException: BIND_EXTERNAL_SERVICE failed,
+         *       calling package not owned by calling UID
+         *   at android.app.ContextImpl.bindServiceCommon(ContextImpl.java:2282)
+         *
+         * That is how the Chromium WebView renderer binding killed the process
+         * in the pre-convergence baseline. The launcher's own Application stays
+         * the process identity; the game keeps its own.
          */
-        ActivityThread activityThread =
-                ActivityThread.currentActivityThread();
-
-        Reflector
-                .on(ActivityThread.class)
-                .field("mInitialApplication")
-                .set(
-                        activityThread,
-                        application
-                );
+        Log.d(TAG, "guest application registered separately, "
+                + "mInitialApplication left as "
+                + ActivityThread.currentActivityThread().getApplication());
 
         /*
          * Game-dex hook groups (MainActivity#onCreate, Xbox sign-in) were
