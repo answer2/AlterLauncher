@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.IBinder;
+import com.answer.launcher.core.hook.SplashScreenHook;
 import android.util.Log;
 import com.answer.launcher.core.LauncherConstants;
 import com.answer.launcher.core.manager.Alternative;
@@ -73,8 +74,14 @@ public class AlterInstrumentation extends Instrumentation {
     
     @Override
     public void callActivityOnCreate(Activity activity, Bundle arg1) {
+        if (activity != null) {
+            // Framework-level observation of the game's onCreate. This replaces
+            // hooking MainActivity#onCreate directly, which forced the game's
+            // <clinit> (and therefore a cross-package native library load the
+            // launcher's linker namespace rejects on Android 16).
+            SplashScreenHook.dispatch(activity);
+        }
         super.callActivityOnCreate(activity, arg1);
-        // TODO: Implement this method
         if(activity!=null&&(!activity.getClass().getName().contains(LauncherConstants.PACKAGE))){
              exchangeResourcesOfActivity(activity);
         }

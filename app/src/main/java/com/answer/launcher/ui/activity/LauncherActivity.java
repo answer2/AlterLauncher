@@ -22,6 +22,7 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 
+import com.answer.launcher.R;
 import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.core.manager.MinecraftManager;
 import com.answer.launcher.core.manager.NativeCore;
@@ -41,7 +42,30 @@ public class LauncherActivity extends MainActivity {
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
+      super.onCreate(savedInstanceState);
+      int themeId = 0x7f0e0007;
+
+    try {
+      Field field1 = com.mojang.minecraftpe.R.style.class.getField("AppTheme_SplashScreen");
+      field1.setAccessible(true);
+      themeId = field1.getInt(null);
+    } catch (Exception e) {
+      e.printStackTrace();
+        Field field1 = null;
+        try {
+            field1 = com.mojang.minecraftpe.R.style.class.getField("AppTheme");
+          field1.setAccessible(true);
+          themeId = field1.getInt(null);
+        } catch (Exception ex) {
+            e.printStackTrace();
+        }
+    }
+
+
+    System.out.println("AppTheme" + themeId);
+
+    setTheme(themeId);
+//    super.onCreate(savedInstanceState);
 
   }
 
@@ -53,6 +77,11 @@ public class LauncherActivity extends MainActivity {
   @Override
   public AssetManager getAssets() {
     return Alternative.getManager().getContext().getAssets();
+  }
+
+  @Override
+  public Resources.Theme getTheme() {
+    return Alternative.getManager().getContext().getTheme();
   }
 
   @Override

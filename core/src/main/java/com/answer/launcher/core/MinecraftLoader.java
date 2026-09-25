@@ -27,29 +27,43 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import android.annotation.SuppressLint;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import me.weishu.reflection.Reflection;
 import org.lsposed.hiddenapibypass.HiddenApiBypass;
-import top.canyie.pine.PineConfig;
+import dev.answer.altercore.AlterConfig;
 
 public class MinecraftLoader {
+
+  private static final String TAG = "MinecraftLoader";
+
+  /** Upper bound for blocking the calling thread while WebView boots on the main thread. */
+  private static final long WEBVIEW_INIT_TIMEOUT_MS = 3000L;
 
   static {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
           HiddenApiBypass.setHiddenApiExemptions("L");
       }
 
-      // initial Hook Framework
-    PineConfig.debug = false;
-    PineConfig.debuggable = true;
+      // Single hook engine for the process. AlterCore's debug flag also gates
+      // its per-call logging, which matters because several hooks sit on paths
+      // as hot as java.io.File.<init>.
+      AlterConfig.isDebug = LauncherConstants.isDebug;
   }
 
   public static void load(Context context) {
     try {
-            
-      // Init WebView
-        new Handler(Looper.getMainLooper()).post(()->{
-            new WebView(context);
-        });
+      // WebView must be initialised BEFORE the game identity is installed.
+      // WebView binds its sandboxed renderer through
+      // ActivityThread.currentApplication(), and Alternative#initEnv replaces
+      // mInitialApplication with the game's Application. Deferring this with
+      // Handler.post() (as before) let the queued Runnable run after that swap,
+      // so the bind reported "com.mojang.minecraftpe" under the launcher's UID
+      // and Android 16 killed the process with
+      //   SecurityException: BIND_EXTERNAL_SERVICE failed,
+      //       calling package not owned by calling UID
+      initializeWebView(context);
+
       Reflection.unseal(context);
       // init Environment
       PluginManager.getManager(context);
@@ -60,6 +74,50 @@ public class MinecraftLoader {
 
     } catch (Exception e) {
       e.printStackTrace();
+    }
+  }
+
+  /**
+   * Forces WebView (and its Chromium renderer service binding) to come up
+   * while this process still presents its real package identity.
+   */
+  private static void initializeWebView(Context context) {
+    Context supplied = context.getApplicationContext();
+    if (supplied == null) {
+      supplied = context;
+    }
+    final Context appContext = supplied;
+    try {
+      if (Looper.myLooper() == Looper.getMainLooper()) {
+        new WebView(appContext);
+      } else {
+        // WebView must be created on the main thread; block until it is done
+        // so the binding happens before the identity swap below.
+        final CountDownLatch done = new CountDownLatch(1);
+        new Handler(Looper.getMainLooper()).post(() -> {
+          try {
+            new WebView(appContext);
+          } catch (Throwable t) {
+            Log.e(TAG, "WebView init failed", t);
+          } finally {
+            done.countDown();
+          }
+        });
+        awaitWebViewReady(done);
+      }
+    } catch (Throwable t) {
+      Log.e(TAG, "WebView init failed", t);
+    }
+  }
+
+  private static void awaitWebViewReady(CountDownLatch done) {
+    try {
+      if (!done.await(WEBVIEW_INIT_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+        Log.w(TAG, "WebView init timed out after " + WEBVIEW_INIT_TIMEOUT_MS + "ms");
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      Log.w(TAG, "Interrupted waiting for WebView init", e);
     }
   }
 

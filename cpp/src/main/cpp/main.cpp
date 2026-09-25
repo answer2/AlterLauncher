@@ -129,7 +129,7 @@ void *(*Minecraft_update_real)(MinecraftGame *minecraftGame);
 
 // Hook函数实现
 void *Minecraft_update_hook(MinecraftGame *minecraftGame_) {
-    //LOGD("Minecraft Hook Update : %lx",(void*) minecraftGame->sub_method3() );
+    //LOGD("Minecraft Hook Update : %p", minecraftGame_);
     minecraftGame = minecraftGame_;
     Minecraft_update_real(minecraftGame_);
     return nullptr;//
@@ -210,10 +210,17 @@ void sendMessage(JNIEnv *env, jobject obj, jstring msg) {
         return;
     }
 
-    void *addresss = NativeInvoker::callV<60, void *>
+    void *addresss = NativeInvoker::callV<218, void *>
             (minecraftGame);
-    LOGI("Got %d site at: %p", 60, &addresss);
+    LOGI("Got %d site at: %p", 218, &addresss);
 
+}
+
+void* (*MinecraftGame__joinMultiplayerGame_real)(void*, std::string const&, void*);
+void *MinecraftGame__joinMultiplayerGame_hook(void* minecraftGame, std::string const& a1, void* a2){
+    LOGD("Minecraft Hook MinecraftGame__joinMultiplayerGame : %p  %s %p", minecraftGame, a1.c_str(), a2);
+    MinecraftGame__joinMultiplayerGame_real(minecraftGame, a1, a2);
+    return nullptr;//
 }
 
 
@@ -231,10 +238,13 @@ void load(JNIEnv *env, jobject obj) {
     LOGD("TEST %lu", info.base);
     LOGD("TEST %zu", info.size);
 
+
     uintptr_t update = FindSignature::findSignatureInModule(info,
-                                                            "E8 0F ?? ?? FD 7B 01 A9 FD 43 00 91 FC 6F 02 A9 FA 67 03 A9 F8 5F 04 A9 F6 57 05 A9 F4 4F 06 A9 FF ?3 0D D1 5A ?? ?? ?? F3 03 00 AA 48 17 ?? ?? A8 03 ?? ?? 60 12 ?? ?? ?? ?? ?? ?? C0 ?? ?? ?? E0 03 13 AA 6B ?? ?? ?? ?8 ?? ?? ?? ?? ?? ?? ?? 08 FD ?? ?? 48 ?? ?? ?? 3B ?? ?? ?? ?1 ?? ?? ?? ?? ?? ?? ?? E0 E3 04 91 ?? ?? ?? ?? ?2 03 ?? ?? ?? ?? ?? ?? ?4 ?? ?? ?? FC 03 00 AA");
+                                                            "E8 0F ?? ?? FD 7B 01 A9 FD 43 00 91 FC 6F 02 A9 FA 67 03 A9 F8 5F 04 A9 F6 57 05 A9 F4 4F 06 A9 FF 03 0C D1 5A ?? ?? ?? F3 03 00 AA 48 17");
     shadowhook_hook_func_addr((void *) update, (void *) Minecraft_update_hook,
                               (void **) &Minecraft_update_real);
+
+    LOGD("update ： %p", update);
 
     uintptr_t displayClientMessage = FindSignature::findSignatureInModule(info,
                                                                           "FF C3 07 D1 FD 7B 1C A9 FD 03 07 91 FC 57 1D A9 F4 4F 1E A9 55 ?? ?? ?? F4 03 03 2A F3 03 00 AA A8 16 ?? ?? E4 03 02 AA E3 03 01 AA A8 83 ?? ?? FF 83 ?? ?? FF 53 ?? ?? FF 23 ?? ?? 45 ?? ?? ?? E6 03 1F 2A E7 03 1F 2A E8 43 00 91 E9 A3 00 91 A0 E3 02 D1 A5 ?? ?? ?? E2 03 01 91 00 ?? ?? ?? 41 ?? ?? ?? E9 23 00 A9 8F ?? ?? ??");
@@ -242,11 +252,20 @@ void load(JNIEnv *env, jobject obj) {
                               (void *) GuiDate_sendClientMessage_hook,
                               (void **) &GuiDate_sendClientMessage_real);
 
+    LOGD("displayClientMessage ： %p", displayClientMessage);
+
     uintptr_t addMessage = FindSignature::findSignatureInModule(info,
                                                                 "E8 0F ?? ?? FD 7B 01 A9 FD 43 00 91 FA 67 02 A9 F8 5F 03 A9 F6 57 04 A9 F4 4F 05 A9 F5 03 00 AA 14 20 00 91 F3 03 00 AA E0 03 14 AA F7 03 07 2A F9 03 06 2A A1 06 ?? ?? E1 03 02 AA 08 40 20 1E FA 03 05 AA F8 03 04 AA F6 03 03 AA ?? ?? ?? ??");
     shadowhook_hook_func_addr((void *) addMessage, (void *) GuiData_addMessage_hook,
                               (void **) &GuiData_addMessage_real);
+    LOGD("addMessage ： %p", addMessage);
 
+    uintptr_t MinecraftGame__joinMultiplayerGame = FindSignature::findSignatureInModule(info,
+                                                                                        "FD 7B BA A9 FC 6F 01 A9 FD 03 00 91 FA 67 02 A9 F8 5F 03 A9 F6 57 04 A9 F4 4F 05 A9 FF 43 17 D1 53 ?? ?? ?? F8 03 08 AA 68 16 ?? ?? F7 03 02 AA F4 03 01 AA F5 03 00 AA A8 83");
+    shadowhook_hook_func_addr((void *) MinecraftGame__joinMultiplayerGame, (void *) MinecraftGame__joinMultiplayerGame_hook,
+                              (void **) &MinecraftGame__joinMultiplayerGame_real);
+
+    LOGD("MinecraftGame__joinMultiplayerGame ： %p", MinecraftGame__joinMultiplayerGame);
 
 }
 

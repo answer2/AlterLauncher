@@ -156,8 +156,8 @@ public class MultiVersionManager {
         // 4. 创建上下文实例
         Object newContext;
         Integer overrideDisplayId = 0;
-        System.out.println( Build.VERSION.SDK_INT);
-        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.S_V2){
+        System.out.println(Build.VERSION.SDK_INT);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             Object mParams = contextImplReflector.field("mParams").get(context);
             boolean mForceDisplayOverride = contextImplReflector.field("mForceDisplayOverrideInResources").get(context);
             overrideDisplayId = mForceDisplayOverride ? displayId : null;
@@ -192,19 +192,24 @@ public class MultiVersionManager {
                             null      // overrideOpPackageName
                     );
 
-            Log.d(TAG, context +"");
+            Log.d(TAG, context + "");
 
-        }else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // 4.1 Android S+ 版本
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            // 4.1 Android VANILLA_ICE_CREAM+ 版本
             int mDeviceId = contextImplReflector.field("mDeviceId").get(context);
+            Object mParams = contextImplReflector.field("mParams").get(context);
             boolean mIsExplicitDeviceId = contextImplReflector.field("mIsExplicitDeviceId").get(context);
             boolean mForceDisplayOverride = contextImplReflector.field("mForceDisplayOverrideInResources").get(context);
-             overrideDisplayId = mForceDisplayOverride ? displayId : null;
+            overrideDisplayId = mForceDisplayOverride ? displayId : null;
 
-            // 创建ContextImpl实例
+            // private ContextImpl(@Nullable ContextImpl container, @NonNull ActivityThread mainThread,
+            //3472              @NonNull LoadedApk packageInfo, @NonNull ContextParams params,
+            //3473              @Nullable String attributionTag, @Nullable AttributionSource nextAttributionSource,
+            //3474              @Nullable String splitName, @Nullable IBinder token, @Nullable UserHandle user,
+            //3475              int flags, @Nullable ClassLoader classLoader, @Nullable String overrideOpPackageName,
+            //3476              int deviceId, boolean isExplicitDeviceId) {
             newContext = contextImplReflector.constructor(
                             Class.forName(CONTEXT_IMPL),
-                            Context.class,
                             ActivityThread.class,
                             LoadedApk.class,
                             ContextParams.class,
@@ -222,7 +227,7 @@ public class MultiVersionManager {
                             context,  // outerContext
                             ActivityThread.currentActivityThread(),
                             pi,       // packageInfo
-                            null,      // params (ContextParams)
+                            mParams,      // params (ContextParams)
                             getAttributionTag(context),  // attributionTag
                             getAttributionNext(context), // attributionSourceNext
                             null,      // splitName
@@ -301,7 +306,7 @@ public class MultiVersionManager {
                     );
         }
 
-        Log.d(TAG, resources+"");
+        Log.d(TAG, resources + "");
 
         // 6. 设置资源并返回
         if (resources != null) {
@@ -309,7 +314,6 @@ public class MultiVersionManager {
                     .callByCaller(newContext, resources);
             return (Context) newContext;
         }
-
 
 
         return null;
@@ -320,7 +324,8 @@ public class MultiVersionManager {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             try {
                 return context.getAttributionTag();
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
         return null;
     }
@@ -334,7 +339,8 @@ public class MultiVersionManager {
                 return (AttributionSource) Reflector.on(AttributionSource.class)
                         .method("getNext")
                         .callByCaller(source);
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
         return null;
     }
@@ -345,7 +351,7 @@ public class MultiVersionManager {
                     .method("getPackageInfoNoCheck",
                             ApplicationInfo.class,
                             CompatibilityInfo.class)
-                    .callByCaller( ActivityThread.currentActivityThread(), info, compatInfo);
+                    .callByCaller(ActivityThread.currentActivityThread(), info, compatInfo);
         } catch (Exception e) {
             e.printStackTrace();
             return null;
@@ -358,24 +364,82 @@ public class MultiVersionManager {
                     .field("mBoundApplication")
                     .get(ActivityThread.currentActivityThread());
 
-            return (CompatibilityInfo) Reflector.on("android.app.ActivityThread$AppBindData")
+            CompatibilityInfo fromBind = (CompatibilityInfo) Reflector.on("android.app.ActivityThread$AppBindData")
                     .field("compatInfo")
                     .get(appBindData);
-        } catch (Exception e) {
+            if (fromBind != null) {
+                return fromBind;
+            }
+        } catch (Throwable ignored) {
+            // AppBindData.compatInfo is @UnsupportedAppUsage(maxTargetSdk=P);
+            // it is simply not readable once the host targets a later SDK.
+        }
+
+        try {
+            // Same field handleLaunchActivity passes to getPackageInfoNoCheck.
+            return (CompatibilityInfo) Reflector.on(ActivityThread.class)
+                    .field("mCompatibilityInfo")
+                    .get(ActivityThread.currentActivityThread());
+        } catch (Throwable t) {
+            Log.w(TAG, "CompatibilityInfo unavailable", t);
             return null;
         }
     }
 
+    /**
+     * Builds the guest LoadedApk through ActivityThread#getPackageInfoNoCheck.
+     *
+     * <p>Unlike a hand-rolled LoadedApk this comes with a framework-constructed
+     * ClassLoader (shared libraries, splits, overlays, correct parent) and
+     * without a security violation, because the uid was already aligned with
+     * the host. Returns null when the hidden method is unavailable so callers
+     * can fall back to reflection.
+     */
+    public LoadedApk createLoadedApkViaActivityThread(ApplicationInfo applicationInfo) {
+        if (applicationInfo == null) {
+            return null;
+        }
+        if (applicationInfo instanceof ApplicationInfo
+                && (applicationInfo.flags & ApplicationInfo.FLAG_HAS_CODE) == 0) {
+            // Without FLAG_HAS_CODE ActivityThread files the LoadedApk in the
+            // resource-only map and hands back a class loader with no code in
+            // it, so the game's classes silently fail to resolve.
+            applicationInfo.flags |= ApplicationInfo.FLAG_HAS_CODE;
+        }
+        try {
+            CompatibilityInfo compatInfo = getResCompatibilityInfo();
+            if (compatInfo == null) {
+                // LoadedApk's constructor feeds this straight into
+                // mDisplayAdjustments.setCompatibilityInfo(); null NPEs there.
+                Log.w(TAG, "no CompatibilityInfo available, using reflective path");
+                return null;
+            }
+            LoadedApk apk = getPackageInfoNoCheck(applicationInfo, compatInfo);
+            if (apk != null) {
+                Log.i(TAG, "guest LoadedApk built by ActivityThread: " + apk);
+            }
+            return apk;
+        } catch (Throwable t) {
+            Log.w(TAG, "getPackageInfoNoCheck unavailable, falling back to reflection", t);
+            return null;
+        }
+    }
+
+    public LoadedApk createLoadedApk(ApplicationInfo applicationInfo){
+        CompatibilityInfo compatInfo = getResCompatibilityInfo();
+        LoadedApk pi = getPackageInfoNoCheck(applicationInfo, compatInfo);
+        return pi;
+    }
+
     public static PackageInfo getApkInfo(Context context, String path) {
         PackageManager pm = context.getPackageManager();
-        PackageInfo pi = pm.getPackageArchiveInfo(path, PackageManager.GET_ACTIVITIES|PackageManager.GET_PROVIDERS);
+        PackageInfo pi = pm.getPackageArchiveInfo(path, PackageManager.GET_ACTIVITIES | PackageManager.GET_PROVIDERS);
 
         if (pi != null) {
             return pi;
         }
         return null;
     }
-
 
 
 }

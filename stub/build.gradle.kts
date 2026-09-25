@@ -5,17 +5,17 @@ plugins {
 
 android {
     namespace = "com.answer.launcher.stub"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
-        minSdk = 24
+        minSdk = 26
         lint.targetSdk  = 35
     }
     
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
-    buildToolsVersion = "35.0.1"
+    buildToolsVersion = "36.1.0"
 
 }
 

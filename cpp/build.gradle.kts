@@ -6,16 +6,16 @@ plugins {
 
 android {
     namespace = "com.answer.launcher.cpp"
-    compileSdk = 35
-    ndkVersion = "24.0.8215888"
+    compileSdk = 36
+    ndkVersion = "27.0.12077973"
     defaultConfig {
-        minSdk = 24
+        minSdk = 26
         lint.targetSdk  = 35
     }
     
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     buildTypes {
@@ -39,7 +39,7 @@ android {
             version = "3.22.1"
         }
     }
-    buildToolsVersion = "35.0.1"
+    buildToolsVersion = "36.1.0"
 }
 
 dependencies {

@@ -1,77 +1,108 @@
 package com.answer.launcher.core.hook;
 
-import java.io.File;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
-
-import org.lsposed.hiddenapibypass.HiddenApiBypass;
-import top.canyie.pine.Pine;
-import top.canyie.pine.callback.MethodHook;
+import android.util.Log;
 
 import com.answer.launcher.core.manager.IOManager;
 
+import java.io.File;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Member;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
+
+import dev.answer.altercore.callback.BeforeCallback;
+
 /**
- * @Author AnswerDev
- * @Date 2024/04/13 08:40
+ * Redirects every path the JVM's file layer is about to touch.
+ *
+ * <p>{@code java.io.UnixFileSystem} delegates to {@code *0} native helpers, so
+ * those are the narrowest interception point; {@code File}'s constructors are
+ * hooked as well because paths are cached into the {@code File} object itself
+ * and later native calls would then receive an already-unredirected path.
+ *
+ * <p>Targets are resolved one by one and a missing one is skipped with a
+ * warning. This class used to hold eleven lookups plus thirteen registrations
+ * in a single {@code try}, so a single renamed native helper (they move
+ * between releases, and {@code HiddenApiBypass} returns {@code null} rather
+ * than throwing for some misses) silently dropped the remainder of the list,
+ * leaving file redirection half-installed and the failure nearly impossible
+ * to read in logcat.
  */
+public class UnixFileSystemHook extends BaseHook {
 
-public class UnixFileSystemHook extends BaseHook{
+    private static final String TAG = "UnixFileSystemHook";
 
+    /** Native/hidden helpers on {@code java.io.UnixFileSystem}, by name and signature. */
+    private static final Object[][] UFS_TARGETS = new Object[][]{
+            {"canonicalize0", String.class},
+            {"getBooleanAttributes0", String.class},
+            {"getLastModifiedTime0", File.class},
+            {"setPermission0", File.class, int.class, boolean.class, boolean.class},
+            {"createFileExclusively0", String.class},
+            {"list0", File.class},
+            {"createDirectory0", File.class},
+            {"setLastModifiedTime0", File.class, long.class},
+            {"setReadOnly0", File.class},
+            {"getSpace0", File.class, int.class},
+    };
+
+    @Override
     public void init() {
-        try {
-            Class<?> clazz = Class.forName("java.io.UnixFileSystem");
-            
-            Method canonicalize0 = HiddenApiBypass.getDeclaredMethod(clazz, "canonicalize0", String.class);
-            Method getBooleanAttributes0 = HiddenApiBypass.getDeclaredMethod(clazz, "getBooleanAttributes0", String.class);
-            Method getLastModifiedTime0 = HiddenApiBypass.getDeclaredMethod(clazz, "getLastModifiedTime0", File.class);
-            Method setPermission0 = HiddenApiBypass.getDeclaredMethod(clazz, "setPermission0", File.class, int.class, boolean.class, boolean.class);
-            Method createFileExclusively0 = HiddenApiBypass.getDeclaredMethod(clazz, "createFileExclusively0", String.class);
-            Method list0 = HiddenApiBypass.getDeclaredMethod(clazz, "list0", File.class);
-            Method createDirectory0 = HiddenApiBypass.getDeclaredMethod(clazz, "createDirectory0", File.class);
-            Method setLastModifiedTime0 = HiddenApiBypass.getDeclaredMethod(clazz, "setLastModifiedTime0", File.class, long.class);
-            Method setReadOnly0 = HiddenApiBypass.getDeclaredMethod(clazz, "setReadOnly0", File.class);
-            Method getSpace0 = HiddenApiBypass.getDeclaredMethod(clazz, "getSpace0", File.class, int.class);
-            //public static int setPermissions(String path, int mode, int uid, int gid) {
-            Method setPermissions = HiddenApiBypass.getDeclaredMethod(Class.forName("android.os.FileUtils"), "setPermissions", String.class,int.class, int.class, int.class);
-            Constructor File_S = File.class.getDeclaredConstructor(String.class);
-            Constructor File_S_S = File.class.getDeclaredConstructor(String.class, String.class);
-            
-            MethodHook hook = new MethodHook(){
-                @Override
-                public void beforeCall(Pine.CallFrame params) throws Throwable {
-                    super.beforeCall(params);
-                    if (params.args[0] == null) return;
-                    
-                    if (params.args[0] instanceof String) {
-                        String path = (String) params.args[0] ;
-                        params.args[0] = IOManager.get().redirectPath(path);
-                    } else if (params.args[0] instanceof File) {
-                        File path = (File) params.args[0] ;
-                        params.args[0] = IOManager.get().redirectPath(path);
-                    }
+        BeforeCallback redirect = params -> {
+            Object first = params.args[0];
+            if (first == null) {
+                return;
+            }
+            if (first instanceof String) {
+                params.args[0] = IOManager.get().redirectPath((String) first);
+            } else if (first instanceof File) {
+                params.args[0] = IOManager.get().redirectPath((File) first);
+            }
+        };
 
-                }
-            };
-            
-
-            Pine.hook(canonicalize0, hook);
-            Pine.hook(getBooleanAttributes0, hook);
-            Pine.hook(getLastModifiedTime0, hook);
-            Pine.hook(setPermission0, hook);
-            Pine.hook(createFileExclusively0, hook);
-            Pine.hook(list0, hook);
-            Pine.hook(createDirectory0, hook);
-            Pine.hook(setLastModifiedTime0, hook);
-            Pine.hook(setReadOnly0, hook);
-            Pine.hook(getSpace0, hook);
-            Pine.hook(setPermissions, hook);
-            Pine.hook(File_S, hook);
-            Pine.hook(File_S_S, hook);
-        } catch (Exception e) {
-            e.printStackTrace();
+        List<Member> targets = collectTargets();
+        int installed = 0;
+        for (Member target : targets) {
+            if (HookProvider.before(target, redirect)) {
+                installed++;
+            }
         }
-
+        Log.i(TAG, "path redirection active on " + installed + "/" + targets.size()
+                + " resolved targets");
     }
 
+    private List<Member> collectTargets() {
+        List<Member> targets = new ArrayList<>();
 
+        Class<?> unixFileSystem = HookProvider.clazz("java.io.UnixFileSystem");
+        for (Object[] spec : UFS_TARGETS) {
+            String name = (String) spec[0];
+            Class<?>[] parameterTypes = new Class<?>[spec.length - 1];
+            System.arraycopy(spec, 1, parameterTypes, 0, parameterTypes.length);
+            Method target = HookProvider.method(unixFileSystem, name, parameterTypes);
+            if (target != null) {
+                targets.add(target);
+            }
+        }
+
+        // Not part of java.io, but paths reach it the same way. Absent on some
+        // releases/ROMs, hence optional rather than fatal.
+        Method setPermissions = HookProvider.method(
+                HookProvider.clazz("android.os.FileUtils"), "setPermissions",
+                String.class, int.class, int.class, int.class);
+        if (setPermissions != null) {
+            targets.add(setPermissions);
+        }
+
+        Constructor<?> singlePath = HookProvider.constructor(File.class, String.class);
+        if (singlePath != null) {
+            targets.add(singlePath);
+        }
+        Constructor<?> parentAndChild = HookProvider.constructor(File.class, String.class, String.class);
+        if (parentAndChild != null) {
+            targets.add(parentAndChild);
+        }
+        return targets;
+    }
 }

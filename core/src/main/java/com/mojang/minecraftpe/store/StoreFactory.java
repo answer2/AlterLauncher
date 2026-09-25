@@ -17,4 +17,8 @@ public class StoreFactory {
     static Store createAmazonAppStore(StoreListener storeListener, boolean forFireTV) {
         return new AmazonAppStore(MainActivity.mInstance, storeListener, forFireTV);
     }
+
+    static Store createAmazonAppStore(StoreListener storeListener) {
+        return new AmazonAppStore(MainActivity.mInstance, storeListener, false);
+    }
 }

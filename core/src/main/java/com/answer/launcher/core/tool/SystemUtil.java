@@ -14,7 +14,7 @@ import java.util.Collections;
 public class SystemUtil {
     public static boolean checkClass(String clazz) {
     	try{
-            Class.forName(clazz);
+            Class.forName(clazz, false, SystemUtil.class.getClassLoader());
             return true;
         }catch(Exception e){
             return false;

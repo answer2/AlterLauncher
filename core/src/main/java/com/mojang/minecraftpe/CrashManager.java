@@ -1,10 +1,18 @@
 package com.mojang.minecraftpe;
 import java.io.File;
+import java.util.UUID;
 
 public class CrashManager {
     public CrashManager(CrashManagerOwner crashManagerOwner, String str, String str2, SentryEndpointConfig sentryEndpointConfig, SessionInfo sessionInfo) {
         
     }
+
+
+
+    public String getCurrentSessionId(){
+        return UUID.randomUUID().toString().toLowerCase().replace("-","");
+    }
+
     
     public String getCrashUploadURI() {
         return "http://localhost";

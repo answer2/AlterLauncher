@@ -1,49 +1,65 @@
 package com.answer.launcher.core.hook;
 
-import android.content.Context;
+import android.util.Log;
 
+import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.core.manager.NativeCore;
 import com.answer.launcher.core.tool.SystemUtil;
 
-import dev.answer.pinetool.Pina;
-import top.canyie.pine.Pine;
-import top.canyie.pine.callback.MethodHook;
-import top.canyie.pine.callback.MethodReplacement;
-import com.mojang.minecraftpe.MainActivity;
-import android.view.ContextThemeWrapper;
-import android.content.ContextWrapper;
-import com.answer.launcher.core.manager.Alternative;
-import com.mojang.minecraftpe.NotificationListenerService;
-
-import java.util.stream.Stream;
+import java.lang.reflect.Method;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * @Author AnswerDev
- * @Date 2024/07/07 09:26
+ * Everything that must happen once the game's {@code MainActivity} exists:
+ * disable the Braze SDK, attach the notification listener, then map
+ * {@code libminecraftpe.so} and install the native signature hooks.
+ *
+ * <p>{@link #init()} is reachable from the {@code MainActivity#onCreate} hook,
+ * which runs again on every recreation (rotation with a config that is not
+ * handled, process restart). {@code NativeCore.loadManager()} re-ran
+ * {@code System.load()} and the signature scans each time; the once-guard keeps
+ * that from happening.
  */
 public class LoadedAfterHook extends BaseHook {
 
+    private static final String TAG = "LoadedAfterHook";
+
+    private static final String MAIN_ACTIVITY = "com.mojang.minecraftpe.MainActivity";
+    private static final String NOTIFICATION_LISTENER =
+            "com.mojang.minecraftpe.NotificationListenerService";
+
+    private final AtomicBoolean nativeCoreReady = new AtomicBoolean(false);
+
+    @Override
     public void init() {
-        try {
-            if(SystemUtil.checkMethod(MainActivity.class,"isBrazeEnabled", null)){
-            Pine.hook(MainActivity.class.getDeclaredMethod("isBrazeEnabled"),
-                new MethodReplacement(){
-                    @Override
-                    protected Object replaceCall(Pine.CallFrame callFrame) throws Throwable {
-                        return false;
-                    }
-                });
+        hookBrazeDisabled();
+
+        if (SystemUtil.checkClass(NOTIFICATION_LISTENER)) {
+            try {
+                Alternative.getManager().createService(NOTIFICATION_LISTENER);
+            } catch (Throwable t) {
+                // A manually attached service can fail without the game caring;
+                // it must not stop the native library from being mapped.
+                Log.e(TAG, "createService(" + NOTIFICATION_LISTENER + ") failed", t);
             }
-        
-           if (SystemUtil.checkClass("com.mojang.minecraftpe.NotificationListenerService")) Alternative.getManager().createService("com.mojang.minecraftpe.NotificationListenerService");
-            
-            // Get libminecraftpe.so
-            NativeCore.loadManager();
+        }
 
-
-        } catch (Exception e) {
-            e.printStackTrace();
+        if (nativeCoreReady.compareAndSet(false, true)) {
+            try {
+                NativeCore.loadManager();
+            } catch (Throwable t) {
+                nativeCoreReady.set(false);
+                Log.e(TAG, "NativeCore.loadManager() failed", t);
+            }
         }
     }
 
+    private void hookBrazeDisabled() {
+        Class<?> mainActivity = HookProvider.clazz(MAIN_ACTIVITY);
+        if (mainActivity == null) {
+            return;
+        }
+        Method isBrazeEnabled = HookProvider.firstMethodByName(mainActivity, "isBrazeEnabled");
+        HookProvider.replace(isBrazeEnabled, params -> Boolean.FALSE);
+    }
 }

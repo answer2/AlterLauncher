@@ -8,6 +8,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -24,6 +25,7 @@ import com.hjq.permissions.XXPermissions;
 
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -96,12 +98,19 @@ public class HomeFragment extends Fragment {
 
         binding.selectVersion.setOnClickListener(v->{
             try {
+                File file = new File("/sdcard/base.apk");
+                if (!file.exists()){
+                    Toast.makeText(getActivity(), "似乎没有导入安装包", Toast.LENGTH_LONG).show();
+                    return;
+                }
+
                 Context c =  MultiVersionManager.getManager()
                         .createPackageContext(requireActivity().getApplication().getBaseContext(),
                         Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY,
                                 "/sdcard/base.apk");
                 System.out.println(c);
                 System.out.println(c.getPackageName());
+                Toast.makeText(getActivity(), "获取到Context ：" + c +"  包名：" + c.getPackageName(), Toast.LENGTH_LONG).show();
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     System.out.println(c.getOpPackageName());
                 }
