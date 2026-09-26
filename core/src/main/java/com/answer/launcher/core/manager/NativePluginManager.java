@@ -21,7 +21,9 @@ public class NativePluginManager {
 
     private NativePluginManager(Context context) {
         this.mContext = context;
-        this.nativePath = new File(context.getFilesDir().getAbsolutePath() + "/nativePlugin");
+        File base = Alternative.getManager().getHostFilesDir();
+        if (base == null) base = context.getFilesDir();
+        this.nativePath = new File(base.getAbsolutePath() + "/nativePlugin");
         if (!this.nativePath.exists()) this.nativePath.mkdir();
         rescan();
     }

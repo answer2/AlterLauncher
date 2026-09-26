@@ -152,6 +152,22 @@ public class Alternative {
     public String getIsolationSlug() {
         return isolationSlug;
     }
+
+    /**
+     * The launcher's own {@code files/} directory, captured before the assembly
+     * repoints the host LoadedApk at an installation root. Plugin storage is not
+     * game content: the UI process imports {@code *.dex} and {@code *.so} into
+     * {@code files/plugin} and {@code files/nativePlugin} with no knowledge of which
+     * installation is about to boot, and {@code :game} reads the very same tree. If
+     * those two paths followed the instance root the import would land in one place
+     * and the loader would look in another, silently, per installation.
+     */
+    private File hostFilesDir;
+
+    /** {@code null} until {@code init()} runs; callers fall back to their own context. */
+    public File getHostFilesDir() {
+        return hostFilesDir;
+    }
     /**
      * ActivityThread.mBoundApplication
      */

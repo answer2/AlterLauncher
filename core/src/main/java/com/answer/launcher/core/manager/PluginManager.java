@@ -29,7 +29,9 @@ public class PluginManager {
 
     private PluginManager(Context context) {
         this.mContext = context;
-        this.pluginPath = new File(context.getFilesDir().getAbsolutePath() + "/plugin");
+        File base = Alternative.getManager().getHostFilesDir();
+        if (base == null) base = context.getFilesDir();
+        this.pluginPath = new File(base.getAbsolutePath() + "/plugin");
         if (!this.pluginPath.exists()) this.pluginPath.mkdir();
         rescan();
     }
