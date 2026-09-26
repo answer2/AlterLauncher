@@ -21,7 +21,8 @@ Where each finding ended up:
 Current commit chain: `f6e6b43` C6 RTTI vtable resolution -> `e74120a` 16 KB max-page-size ->
 `72a57f7` AlterCore 1.1.3 from Central -> `9343664` C7 version-gated hook data ->
 `5947105` C8 island reachability pre-check -> `214df13` C9 island verdict on device ->
-C10 external-storage rules (see the last section).
+`a9809c1` C10 external-storage rules -> `24eb03c` C11 `off.<key>` rule support ->
+C12 long-reach inline hook (see the last section).
 
 Two things the baseline could not have known:
 
@@ -33,7 +34,8 @@ Two things the baseline could not have known:
   (0x5FAEEF0, 95.7 MiB into that build's segment) did not, which is why the old build worked.
   Virtual entry points are patched in the vtable instead (`RttiLookup::patchVtableSlot`), and
   `RttiLookup::islandReachable()` now refuses an inline hook with that explanation rather than
-  letting an engine error look like a stale signature.
+  letting an engine error look like a stale signature. `LongCall` (last section) is what
+   finally reaches inside the band.
 - **The signature scan is no longer compiled in.** `core/src/main/assets/game-hooks.ini` carries a
   version window plus `vtable.<key> = Class:slot`, `sig.<key> = IDA pattern` and
   `off.<key> = 0xRVA` entries, applied by `NativeCore.applyHookRules()` before `loadManager()`.
@@ -183,10 +185,63 @@ binaries are 2.7–3.4 GB and this machine has 1.9 GB free).
 5. Write the result as `off.<key>` inside a version window, and let `build/inicheck.py` prove it
    decodes as an instruction boundary in `.text` before anything runs on a device.
 
-The offsets are in `core/src/main/assets/game-hooks.ini`; what they do *not* buy yet is a working
-hook — see the geometry paragraph above, all three land inside the dead band of this build. They
-are recorded so that the next build, whose function may sit outside the band, needs one line
-changed rather than another crossing.
+The offsets are in `core/src/main/assets/game-hooks.ini` and are now reachable: `hookGameFunction`
+falls through to `LongCall::hook()` whenever `islandReachable()` says no, so a function in the dead
+band is hooked by a patch of our own instead of being refused.
+
+## Long-reach inline hooks (`LongCall`, C12)
+
+shadowhook gets from the hooked function to its trampoline island with one AArch64 direct branch,
+which reaches +/-128 MiB (`kBranchReach = 1 << 27`), and the header exposes no knob to change that —
+only `SHADOWHOOK_ERRNO_HOOK_ISLAND_EXIT/_ENTER/_REWRITE` and the SHARED/UNIQUE/MULTI modes. Inside a
+284 MiB mapping that is a hard wall. `cpp/src/main/cpp/util/LongCall.cpp` removes the wall by removing
+the direct branch:
+
+- **far placement** (no bridge page in reach): the entry becomes `LDR X16, #8` / `BR X16` /
+  `.quad handler`, which reaches anywhere in the address space because the address is data, not an
+  offset. The four displaced words are replayed on the bridge page, followed by the same
+  `LDR/BR/.quad` pair back to `target + 16`.
+- **near placement** (a page was found within +/-128 MiB): the entry is a single aligned word
+  `B thunk`, so the patch is one 4-byte store — atomic, with no window in which another core can
+  observe half an instruction. Only `word[0]` is displaced; the trampoline replays it and resumes at
+  `target + 4`. A `BRK #0x800` keeps the following `LDR` 8-byte aligned, which `LDR (literal)`
+  requires.
+- **refusals**, each with a reason string that ends up in the log: a target that is not 4-aligned or
+  whose 16-byte patch would cross a page boundary; any displaced word that is PC-relative
+  (`B`/`BL`/`B.cond`/`CBZ`/`TBZ`/`CBNZ`/`TBNZ`/`ADR`/`ADRP`/`LDR`-literal/`LDRSW`/`PRFM`), a register
+  branch, an exception instruction, or a HINT/BTI/PAC op — replaying those at a different address
+  would silently change what they compute; a mapping that is **shared**, because writing into it
+  would edit the file on disk; a target whose mapping is not executable.
+- **store order** in the far case is `[3] [2] [0] [1]`: both halves of the address land before the
+  `LDR` that reads them, and the `BR` that ends the prologue goes last. The residual window — a
+  thread that was already sitting on the displaced tail when the patch went in — is accepted because
+  these hooks are installed while the game is still starting up.
+
+`build/longcall_sim.py` (gitignored) proves the encodings offline against the real bytes: it applies
+the same classifier to the four words at each of `sendClientMessage` 0x923A22C, `addMessage`
+0x923A5D4, `joinMultiplayerGame` 0x95975D4 and `update` 0x943EC54, then disassembles every word the
+engine would emit. All four entries are plain stack setup (`stp x29, x30, [sp, #-0x30]!`,
+`str d8, [sp, #-0x50]!`, `sub sp, sp, #0x90`, `stp x29, x30, [sp, #-0x60]!`) — nothing PC-relative,
+nothing signed, so none is refused — and both placements decode back to the intended `ldr x16, #8` /
+`br x16` / `b #<bridge>` with the literal at an 8-aligned address. 0 problems.
+
+Proven on the device (RMX8899, pid 16609, log `build\verify-183425.log`, chat run
+`build\logcat-chat.txt`). All three landed at exactly the pinned RVAs — library base
+`0x70f7468000`, so `sendClientMessage` at `0x71006a222c`, `addMessage` at `0x71006a25d4`,
+`joinMultiplayerGame` at `0x71009ff5d4` — and all three took the **far** placement: the kernel
+never returned a hinted page inside +/-128 MiB (the whole window belongs to the 303 MB mapping),
+so the bridges sit at `0x733e2c1000` / `0x733e2c0000` / `0x733e21c000`, roughly 150 GiB above the
+library. The near placement is therefore implemented but unexercised; nothing depends on it.
+
+`addMessage` was then driven with real traffic: five messages typed into the in-game chat each
+produced `Minecraft Hook sendMessage 祖里§r -Type 1 UUID 465503536 …` from the handler *and*
+rendered normally on screen (`build\c12-chat.png`), which means the four displaced words replayed,
+the `br x16` back to `target + 16` worked, and the nine-argument signature survived the round trip.
+No crash, no tombstone, `ClientInstance::update` still counting frames (693 → 8525), both processes
+alive. `sendClientMessage` and `joinMultiplayerGame` are installed but have not been *called* yet:
+chat typed in a local world is displayed through `addMessage` without a network send, and the join
+path needs an actual multiplayer join. The expectation for those two stays "no handler log until
+something calls them", not "broken".
 
 ### What stays, and why it is not a bug
 

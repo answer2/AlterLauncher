@@ -36,6 +36,7 @@ set(SRC_FILES
     util/FindSignature.cpp
     util/RttiLookup.cpp
     util/HookRules.cpp
+    util/LongCall.cpp
 )
 
 # 添加头文件目录

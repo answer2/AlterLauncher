@@ -18,6 +18,7 @@
 #include <util/Utils.h>
 #include <util/FindSignature.h>
 #include <util/RttiLookup.h>
+#include <util/LongCall.h>
 #include <util/HookRules.h>
 #include <android/android_log.h>
 #include <dl_internal.h>
@@ -342,7 +343,19 @@ static void hookGameFunction(uintptr_t address, void *handler, void **real,
     // without this line the log blames a stale signature for an unmappable hook.
     std::string reach;
     if (!RttiLookup::islandReachable(address, &reach)) {
-        LOGW("cannot inline-hook %s at 0x%lx: %s", name, (unsigned long) address, reach.c_str());
+        // shadowhook's island must sit within +/-128 MB of the target because it
+        // gets there with a direct branch, and inside libminecraftpe.so no free
+        // page does. LongCall drops the direct branch: it places its bridge on a
+        // page of our own and reaches the handler through a register, which works
+        // at any address in the address space.
+        std::string why;
+        if (LongCall::hook(address, handler, real, &why)) {
+            LOGD("hooked %s at 0x%lx by long-reach patch (%s)", name,
+                 (unsigned long) address, why.c_str());
+            return;
+        }
+        LOGW("cannot inline-hook %s at 0x%lx: %s; long-reach patch refused: %s", name,
+             (unsigned long) address, reach.c_str(), why.c_str());
         return;
     }
     if (shadowhook_hook_func_addr((void *) address, handler, real) == nullptr) {
