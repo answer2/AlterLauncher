@@ -105,7 +105,12 @@ public class IOManager {
      */
     private static String isolationSlug(String guestPackage, String versionName) {
         String raw = guestPackage + "@" + (TextUtils.isEmpty(versionName) ? "unknown" : versionName);
-        return raw.replaceAll("[^A-Za-z0-9._+-]", "_");
+        // '@' survives because it is the separator that makes the name unambiguous —
+        // '_' is legal inside a package name, so a slug built from package + version
+        // with only underscores could in principle be produced by two different
+        // pairs. Android's own paths carry '~' and '=', so '@' is not a character a
+        // mounted filesystem is allowed to reject.
+        return raw.replaceAll("[^A-Za-z0-9._+@-]", "_");
     }
 
     /**
@@ -143,8 +148,9 @@ public class IOManager {
      * {@code AlterEnvironment.establishEnv()}, so they never contain the guest's
      * package name and never match a rule: they stay shared on purpose. That keeps
      * the launcher's own preferences, plugin storage and WebView profile where the
-     * launcher expects them, and isolates exactly the paths the game spells out of
-     * its own package identity.
+     * launcher expects them, and signs the guest in once for every installation.
+     * The one exception is the subtree the game derives from those roots and writes
+     * its content into — {@code <dataDir>/games} — which is claimed by name below.
      */
     public void enableRedirect(Context context) {
         installRedirectRules(context, null);
@@ -199,13 +205,35 @@ public class IOManager {
                 }
             }
 
+            // The game does not only spell paths out of its own package name, and this
+            // is the one that matters. Its content root is derived from the Context
+            // directories that AlterEnvironment.establishEnv() copied from the launcher
+            // — so at runtime it opens <launcher dataDir>/games/com.mojang/..., a path
+            // carrying the *launcher's* package, which no guest-package rule can ever
+            // match. Measured on the device after the first isolated build: the worlds
+            // moved into the isolated root correctly, and the game then created a fresh
+            // empty minecraftWorlds next to the launcher's own data dir. Redirecting
+            // this subtree is what actually isolates worlds, packs and options; it is
+            // also the only name at the launcher's root that the launcher itself never
+            // writes, which is what makes it safe to claim wholesale.
+            if (slug != null) {
+                String gamesTarget = new File(internalRoot, "games").getAbsolutePath();
+                rule.put(packageInfo.dataDir + "/games", gamesTarget);
+                rule.put("/data/user/0/" + LauncherConstants.PACKAGE + "/games", gamesTarget);
+                if (hostData != null) {
+                    rule.put(new File(hostData, "files/games").getAbsolutePath(),
+                            new File(isolate(hostData, slug), "files/games").getAbsolutePath());
+                }
+            }
+
             // Worlds, packs and options are the one thing that must survive being
             // pointed somewhere new, and "games" is the only name in the old
             // location the launcher can never have written itself: the game spells
             // it below its own data dir, so it is unambiguously the guest's.
             // Everything else that used to land in the shared root — login state,
-            // SDK caches, telemetry files — starts fresh per installation, which is
-            // the point of isolating in the first place.
+            // SDK caches, telemetry files — stays shared, because those paths come
+            // from the copied Context fields and carry no guest package name to
+            // match a rule on. Signing in once therefore serves every installation.
             if (slug != null) {
                 migrate(new File(packageInfo.dataDir, "games"), new File(internalRoot, "games"));
             }

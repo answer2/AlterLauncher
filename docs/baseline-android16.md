@@ -258,7 +258,7 @@ something calls them", not "broken".
   `LoadedApk.mPackageName` is therefore deliberately off the table; redirecting storage paths
   is the surgical half.
 
-## One data set per installation (issue ④, C13)
+## One data set per installation (issue ④, C13–C14)
 
 A version string is not an identity: two different APKs can report the same `versionName`,
 and a launcher that hosts more than one Minecraft build needs each one's worlds, packs and
@@ -270,24 +270,43 @@ options kept apart. `IOManager` therefore aims the guest's own paths at
 
 The package is part of the name because Android guarantees one install per package, so
 package+version is unique per installation by construction — version alone is not. The slug
-is reduced to `[A-Za-z0-9._+-]` because the external roots can sit on a filesystem that
-accepts less than ext4 does.
+keeps `[A-Za-z0-9._+@-]` and folds everything else to `_`; `@` survives on purpose, because
+`_` is legal inside a package name and a separator has to be one the two halves cannot
+contain.
 
 Only the redirect table moves. The directories the guest receives from its `Context` fields
 (`mFilesDir`, `mPreferencesDir`, `mDatabasesDir`, `mCacheDir`, …) were copied verbatim from
 the launcher by `AlterEnvironment.establishEnv()`, so they never contain the guest's package
 name and never match a rule: they stay shared on purpose. That keeps the launcher's own
-preferences, plugin storage and WebView profile where the launcher expects them, and isolates
-exactly the paths the game spells out of its own identity — which is every path under
-`/data/data/<guest>`, `/data/user/0/<guest>` and `/storage/emulated/0/Android/{data,obb,media}/<guest>`.
-`/lib` is deliberately not isolated: it names the launcher's real `nativeLibraryDir`, the
-libraries this process has already mapped.
+preferences and plugin storage where the launcher expects them, and it means one sign-in
+serves every installation — `xal/`, `Flighting/`, the entitlement `.ent` file and the SDK
+caches all sit at the launcher's data-dir root and are untouched by isolation.
+`/lib` is deliberately not isolated either: it names the launcher's real `nativeLibraryDir`,
+the libraries this process has already mapped.
 
-`<legacy dataDir>/games` is renamed into the isolated root the first time it is created,
-because that is the one name in the old location the launcher can never have written itself —
-the game spells it below its own data dir. A rename, so it is instant and atomic for the whole
-tree, and it only runs while the destination is absent. Everything else that used to land in
-the shared root (XAL login state, SDK caches, telemetry files) starts fresh per installation;
-that separation is the point rather than a cost, but it does mean the first run of a newly
-isolated build is signed out.
+### The path that broke the first isolated build
+
+The first build with this table installed migrated the worlds correctly and was still broken:
+the game came up with an empty world list. The reason is that the game's content root is not
+spelled out of its own package name — it is derived from the copied `Context` directories, so
+at runtime it opens
+
+```
+/data/data/com.answer.launcher/games/com.mojang/…      ← the launcher's package
+```
+
+and no rule keyed on `com.mojang.minecraftpe` can ever match that string. Measured on the
+device: the isolated root held `minecraftWorlds/oUTWSHJuu9I=` (3.6 MB, mtimes from the previous
+session) while the game wrote a fresh `options.txt` and an *empty* `minecraftWorlds` into the
+old location. The fix claims that one subtree by name — `<dataDir>/games`, its
+`/data/user/0/` alias and the external `files/games` all redirect into the isolated root —
+which is safe for exactly the reason the migration was: `games` is the only name at the
+launcher's data-dir root that the launcher itself never writes.
+
+So the rule set is not purely "guest-package paths": it is guest-package paths **plus** the
+game's content root. `<legacy dataDir>/games` is renamed into the isolated root the first time
+it is created, because that is the one name in the old location the launcher can never have
+written itself. A rename, so it is instant and atomic for the whole tree, and it only runs
+while the destination is absent.
+
 
