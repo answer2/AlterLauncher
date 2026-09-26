@@ -14,6 +14,14 @@ find_library(GLESv2_LIB GLESv2)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+# 16 KB 页面对齐。NDK 27 默认仍按 4 KB 生成 PT_LOAD p_align，
+# 在 16 KB 页的设备上（Android 16 起部分机型）这个 .so 会直接加载失败。
+# 已验证：未加此选项时 libalternative_core.so 的 p_align 是 0x1000，
+# 而随包附带的 libshadowhook.so 已经是 0x4000。
+if(${ANDROID_ABI} STREQUAL "arm64-v8a")
+    add_link_options("-Wl,-z,max-page-size=16384")
+endif()
+
 # 添加源文件
 set(SRC_FILES
     main.cpp
