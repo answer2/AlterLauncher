@@ -407,4 +407,88 @@ What this buys for the features the user asked for: a per-installation root is e
 `VersionManager.Installation.paths()` shape, so ⑤ (import an APK, keep several versions) has
 somewhere to put each one, and the same root is where an exported account lands for ⑧.
 
+## The login that would not survive a restart (issue ⑤, C20)
+
+Reported as `重新启动登录状态都会丢失`. Nothing was being lost — the copy was the problem.
+
+Seeding (`IOManager.seed`, C15) moves the identity into the instance once, with
+`File.lastModified() <= target.lastModified()` as the skip test, and after that the two trees
+drift apart forever. XBL refresh tokens rotate: the instance's `xal/` was the 20:40 snapshot, and
+the last interactive sign-in wrote at 21:08 into the shared root, which invalidated that snapshot
+server-side. Every boot then reads a dead refresh token, fails silently, and rewrites the files
+with the failure — the mtimes churn while the account stays out. Measured on a cold boot with no
+reinstall: `am force-stop` + `am start --activity-clear-task -n …/.core.manager.ProcessIntentManager`
+came up with `host LoadedApk repointed at …`, hooks 19/0 + 21/0 and `bridge ready`, and zero
+browser activity — it never attempted interactive auth, it read the store and decided the user was
+not signed in. The title screen confirmed it: 「登录」, 「社交 (0)」, default Steve avatar.
+
+Candidate causes were eliminated one by one against the device, because "the migration lost a
+file" is the obvious guess and it was wrong:
+
+| | shared root | instance root |
+| --- | --- | --- |
+| `xal/` | 8 files, newest 21:08 | same 8 names, seeded 20:40, three rewritten 21:53 / 22:04 |
+| `shared_prefs/` | XAL device keypair | name set **identical** (`comm -3` empty) |
+| `games/com.mojang/ud1995949509.dat` | frozen 19:22 | live (21:54, 22:05) |
+| `*.ent` | `1995949509.ent` 74264 B | present |
+
+So the tree was complete. The token envelopes are JWEs (`RSA-OAEP` / `A128CBC-HS256` / `zip:DEF`)
+but their claim section is cleartext, which is what made the diagnosis possible: the 19:22 pair
+expired 2026-09-27T03:22Z and the 21:53 pair carried a 14-day token to 2026-10-10 — the device
+clock read 2026-09-26 22:00 with `auto_time=1`, so **nothing was expired by the clock**; the skew
+cache (`{"Skew":"-10499086"}`) was a symptom of the failed refresh, not its cause. Clock skew and
+"missing files" are both falsified; rotation is the mechanism.
+
+The fix is to stop copying identity and make it one write target. `IdentityStore` (new,
+`core/…/core/manager/IdentityStore.java`) symlinks each identity entry of an instance root at the
+launcher's own data dir — `xal`, `app_webview`, `shared_prefs`, `databases`, `Flighting`,
+`bootstrap_settings.json` and every `*.ent` — and the mode is a file
+(`<dataDir>/mc/.identity-mode`, `shared` is the default) rather than SharedPreferences because both
+processes have to read it. Where both sides already hold a real directory, `mergeEntry` merges
+per-file newest-wins and moves the losers into `<instance>/.identity-parked/<entry>/`: never inside
+the shared tree (XAL enumerates `xal/` for numeric names) and never deleted. A directory-level
+mtime comparison would have parked the wrong side, because the launcher's own Braze/Firebase prefs
+touch `shared_prefs/` more often than the XAL keypair in it does.
+
+`IOManager.prepareDataRoot` branches on the mode: shared links (falling back to `seed()` only if a
+link fails), isolated seeds. The instance's `games/` tree stays real and per-installation either
+way — that is the content isolation C13–C17 bought, and it is orthogonal to where the account
+lives.
+
+Measured after the change, same build, no reinstall: seven `identity shared: <instance>/<entry> ->
+<launcher>/<entry>` lines, all seven entries `lrwxrwxrwx` on the device, and the shared
+`xal/13687287496199607557` rewritten at 22:55 with `NotAfter 2026-09-27T06:55:30Z` plus a 14-day
+`NotAfter 2026-10-10T14:55:30Z` — a silent refresh that succeeded through the symlink, with the
+default-user pointer `07cc73f690e1e574` intact and the skew back to `332406`. The home tab shows
+「XUID 1995949509」 while the game's own title screen shows the gamertag.
+
+For M3 this settles the design: the launcher does not run its own OAuth. The envelopes are sealed
+with the title key and the device private key, so a host-side sign-in would mean extracting a
+Mojang secret; instead the launcher reads the store the game writes (`IdentityStore.readAccount`)
+and its 登录 button starts the runtime and lets the game's XAL flow do the signing in.
+
+## What the launcher knows about the runtime (C19, C21)
+
+`我在关于页面中启动的游戏但是没有同步相应的状态` had two causes, both in
+`core/…/core/bridge/GameBridgeClient.java`. The client's listeners fired on the binder thread, so
+any listener that touched a View threw and was swallowed by the loop's `catch (Throwable ignored)`;
+and `notifyListeners()` was not reached when the runtime went IDLE, because the IDLE branch
+`return`ed after `releaseWake()`, which no-ops once the binding is already parked. A dead-but-non-null
+`bridge` — `:game` self-reaps 2.5 s after the window closes (`GameBridgeService.IDLE_REAP_DELAY_MS`)
+and AMS does not always report it — then left the page showing a pid for a process that no longer
+existed. C19 adds `linkToDeath` plus `onRuntimeGone(reason)`, which clears `boundContexts` and
+`boundFlags` **before** unbind/rebind (`bindInternal` no-ops on a context it still believes is bound
+with matching flags), and `noteFailure(Throwable)`, which walks four causes for
+`DeadObjectException` from inside the best-effort `call()` helper. `notifyListeners()` now hops to
+the main looper, and the IDLE branch falls through to an unconditional notify.
+
+The state is now displayed where the user looks for it: `HomeFragment` registers a listener in
+`onResume` and fills the previously inert `user_image`/`user_id`/`version_label`/`arch_label` slots
+plus a new `runtime_status` line (运行中 · 进程 N / 正在装配运行时… / 运行时装配失败：… / 运行时未启动),
+and its 启动 button reads 回到游戏 while the runtime is READY. `fragment_setting.xml` was an empty
+ConstraintLayout; it is now three cards — 账号与登录 (the 共享登录数据 switch, which toasts 下次启动游戏生效),
+安装与数据 (instance root path), 运行时 (hook stats) — and the switch detaches its own listener while
+being synced from the store, because assigning `isChecked` fires it and a render must not write the
+mode back.
+
 

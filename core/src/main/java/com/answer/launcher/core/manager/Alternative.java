@@ -608,6 +608,10 @@ public class Alternative {
         }
         Log.i(TAG, "guest data root = " + guestRootPath
                 + ", installation = " + isolationSlug);
+        // The launcher process cannot know which installation will boot next, and it
+        // must not recompute the slug from the package manager to draw an account card:
+        // record the decision here so the UI reads the same root the game was given.
+        IdentityStore.setActiveSlug(mContext, isolationSlug);
         retargetHostLoadedApk(guestDataRoot, guestDeviceProtectedRoot);
 
         /*

@@ -37,11 +37,11 @@ public class IOManager {
      * {@code shared_prefs} holds the XAL device keypair, and {@code Flighting} plus the
      * {@code .ent} files are the licence proof.
      */
-    private static final String[] SEEDED_NAMES = {
+    static final String[] SEEDED_NAMES = {
             "xal", "app_webview", "shared_prefs", "databases", "Flighting",
             "bootstrap_settings.json"};
 
-    private static final String[] SEEDED_SUFFIXES = {".ent"};
+    static final String[] SEEDED_SUFFIXES = {".ent"};
 
     public static IOManager get() {
         return sIOManager;
@@ -151,13 +151,29 @@ public class IOManager {
             Log.w(TAG, "cannot create isolated root " + root + ", using the shared one");
             return host.getDataDir();
         }
-        int seeded = seed(host.getDataDir(), root);
+        String identity;
+        if (IdentityStore.MODE_SHARED.equals(IdentityStore.mode(host))) {
+            /*
+             * Default: the sign-in state is linked, never copied. A copy of a rotating
+             * secret goes stale the moment the other half is used, which is what cost
+             * the user their login across restarts (issue 5, see IdentityStore). Seeding
+             * is still the fallback for any entry the link could not take over, so a
+             * filesystem that rejects symlinks degrades to the old behaviour instead of
+             * to a signed-out game.
+             */
+            boolean linked = IdentityStore.link(host.getDataDir(), root);
+            int copied = linked ? 0 : seed(host.getDataDir(), root);
+            identity = linked ? "identity shared" : "seeded " + copied + " entries";
+        } else {
+            int copied = seed(host.getDataDir(), root);
+            identity = "identity kept local, seeded " + copied + " entries";
+        }
         // "games" is the game's content subtree, and it moves rather than being
         // copied: two live copies of the same world is the one outcome nobody can
         // repair. It is also the only name at the launcher's root that the launcher
         // itself never writes, which is what makes it safe to claim wholesale.
         migrate(new File(host.getDataDir(), "games"), new File(root, "games"));
-        Log.i(TAG, "guest data root " + root + " (seeded " + seeded + " entries)");
+        Log.i(TAG, "guest data root " + root + " (" + identity + ")");
         return root;
     }
 

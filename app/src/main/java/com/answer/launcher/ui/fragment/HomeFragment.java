@@ -15,7 +15,11 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.answer.launcher.core.MinecraftLoader;
+import com.answer.launcher.core.LauncherConstants;
+import com.answer.launcher.core.bridge.GameBridgeClient;
+import com.answer.launcher.core.bridge.GameRuntime;
 import com.answer.launcher.core.manager.Alternative;
+import com.answer.launcher.core.manager.IdentityStore;
 import com.answer.launcher.core.manager.MultiVersionManager;
 import com.answer.launcher.databinding.FragmentHomeBinding;
 import com.answer.launcher.ui.activity.CrashActivity;
@@ -35,6 +39,77 @@ import java.util.List;
 
 public class HomeFragment extends Fragment {
     private FragmentHomeBinding binding;
+
+    /**
+     * The bridge is the only source of truth about the runtime, and it now calls back on
+     * the main thread whenever the state moves — including when {@code :game} kills
+     * itself after the idle timeout, which is the transition that used to leave this page
+     * showing a process that no longer existed.
+     */
+    private final GameBridgeClient.Listener bridgeListener =
+            () -> requireActivity().runOnUiThread(this::refresh);
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        GameBridgeClient.get().addListener(bridgeListener);
+        refresh();
+    }
+
+    @Override
+    public void onPause() {
+        GameBridgeClient.get().removeListener(bridgeListener);
+        super.onPause();
+    }
+
+    /** Redraws the account card, the version labels and the runtime line from live state. */
+    private void refresh() {
+        if (binding == null) {
+            return;
+        }
+        Context host = requireContext().getApplicationContext();
+        IdentityStore.Account account = IdentityStore.readAccount(host);
+        if (account.signedIn) {
+            binding.userId.setText(account.xuid != null
+                    ? "XUID " + account.xuid : "已登录");
+            binding.userStatus.setText(account.shared
+                    ? "所有版本共用这份登录状态"
+                    : "仅本版本使用这份登录状态");
+            binding.accountLogin.setText("重新登录");
+        } else {
+            binding.userId.setText("未登录");
+            binding.userStatus.setText("登录在游戏内完成，启动器只负责保管和显示状态");
+            binding.accountLogin.setText("登录");
+        }
+        String version = guestVersion(host);
+        binding.versionLabel.setText(version == null ? "VERSION" : version);
+        binding.archLabel.setText(Build.SUPPORTED_ABIS.length > 0
+                ? (Build.SUPPORTED_ABIS[0].contains("64") ? "64 位" : "32 位") : "ARCH");
+
+        String state = GameBridgeClient.get().runtimeState();
+        int pid = GameBridgeClient.get().gamePid();
+        String text;
+        if (state.startsWith(GameRuntime.FAILED_PREFIX)) {
+            text = "运行时装配失败：" + state.substring(GameRuntime.FAILED_PREFIX.length());
+        } else if (GameRuntime.READY.equals(state)) {
+            text = "运行中 · 进程 " + pid;
+        } else if (GameRuntime.ASSEMBLING.equals(state)) {
+            text = "正在装配运行时…";
+        } else {
+            text = "运行时未启动";
+        }
+        binding.runtimeStatus.setText(text);
+        binding.loadGame.setText(GameRuntime.READY.equals(state) ? "回到游戏" : "启动");
+    }
+
+    private String guestVersion(Context host) {
+        try {
+            return host.getPackageManager()
+                    .getPackageInfo(LauncherConstants.MINECRAFTPACKAGE, 0).versionName;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
 
     @Nullable
     @Override
@@ -92,6 +167,20 @@ public class HomeFragment extends Fragment {
                 requireActivity().runOnUiThread(
                         () -> Alternative.getManager().LaunchMinecraft(requireActivity()));
             }).start();
+        });
+
+        /*
+         * Sign-in is a conversation between the game and Xbox Live: the token envelopes
+         * the SDK writes are JWEs sealed with the title key and this device's keypair, so
+         * the launcher cannot mint them and does not try to. What it can do is start the
+         * runtime that owns the flow and report the result afterwards, which is what this
+         * button does — and the account card above it reads the store back, so the state
+         * the user sees here is the state the game will boot into.
+         */
+        binding.accountLogin.setOnClickListener(view -> {
+            Toast.makeText(requireContext(), "登录在游戏内完成，完成后这里会显示账号",
+                    Toast.LENGTH_LONG).show();
+            Alternative.getManager().LaunchMinecraft(requireActivity());
         });
 
         binding.versionSetting.setOnClickListener(view -> {

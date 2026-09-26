@@ -4,7 +4,10 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.os.DeadObjectException;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.RemoteException;
 import android.util.Log;
 
@@ -43,11 +46,30 @@ public final class GameBridgeClient {
     private static volatile GameBridgeClient instance;
 
     private volatile IGameBridge bridge;
+    private volatile IBinder bridgeBinder;
     private volatile boolean binding;
     private volatile String runtimeState = GameRuntime.IDLE;
 
+    /**
+     * Listener dispatch hops here. The callbacks arrive on a binder thread, and a
+     * listener that touches a View from there either throws or silently corrupts
+     * the UI - and {@link #notifyListeners()} swallows throwables, so a page that
+     * was only ever updated from the binder thread could look permanently stale.
+     */
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
     /** The flags the current binding was asked for; 0 means "read-only park". */
     private int boundFlags;
+
+    private final IBinder.DeathRecipient death = new IBinder.DeathRecipient() {
+        @Override
+        public void binderDied() {
+            mainHandler.post(() -> {
+                Log.w(TAG, "the game binder died");
+                onRuntimeGone("binder death");
+            });
+        }
+    };
 
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
     private final List<Context> boundContexts = Collections.synchronizedList(new ArrayList<>());
@@ -65,8 +87,11 @@ public final class GameBridgeClient {
                  * by itself whenever :game comes back.
                  */
                 releaseWake();
-                return;
             }
+            // Notification is unconditional: releaseWake() no-ops when the binding is
+            // already parked, and that used to mean the UI never heard about the
+            // runtime going idle — the page kept showing a pid for a process that was
+            // about to be reaped. This is the "state does not sync" symptom.
             notifyListeners();
         }
 
@@ -79,11 +104,26 @@ public final class GameBridgeClient {
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
-            bridge = IGameBridge.Stub.asInterface(service);
+            IGameBridge local = IGameBridge.Stub.asInterface(service);
+            bridge = local;
+            bridgeBinder = service;
             binding = false;
+            /*
+             * AMS reports a bound service's death through onServiceDisconnected, but
+             * only for a service it still considers alive at the moment the process
+             * goes. :game kills itself (GameBridgeService's idle reaper), and a
+             * self-kill racing the last unbind can leave this side holding a binder
+             * nobody will ever tell it is dead. linkToDeath is the authoritative
+             * notification, so the UI never has to guess from a failed call.
+             */
             try {
-                bridge.registerCallback(callback);
-                runtimeState = bridge.getRuntimeState();
+                service.linkToDeath(death, 0);
+            } catch (Throwable t) {
+                Log.w(TAG, "linkToDeath failed: " + t);
+            }
+            try {
+                local.registerCallback(callback);
+                runtimeState = local.getRuntimeState();
             } catch (Throwable t) {
                 Log.w(TAG, "handshake with " + name + " failed: " + t);
             }
@@ -94,18 +134,12 @@ public final class GameBridgeClient {
         @Override
         public void onServiceDisconnected(ComponentName name) {
             // :game died or was killed. The parked binding reconnects if it returns.
-            bridge = null;
-            binding = false;
-            runtimeState = GameRuntime.IDLE;
             Log.w(TAG, "lost the game runtime (" + name + ")");
-            notifyListeners();
+            onRuntimeGone("disconnected");
         }
 
         @Override
         public void onBindingDied(ComponentName name) {
-            bridge = null;
-            binding = false;
-            runtimeState = GameRuntime.IDLE;
             /*
              * The binding is gone on the AMS side too, so the bookkeeping has to go
              * with it: without this, a later wake() sees a matching boundFlags and
@@ -113,9 +147,52 @@ public final class GameBridgeClient {
              */
             boundContexts.clear();
             boundFlags = 0;
-            notifyListeners();
+            onRuntimeGone("binding died");
         }
     };
+
+    /**
+     * Everything the UI knew about the runtime is now unverifiable: drop the
+     * binder, fall back to idle, and re-park the binding so the next launch is
+     * picked up without any page having to ask for it.
+     */
+    private synchronized void onRuntimeGone(String reason) {
+        IBinder binder = bridgeBinder;
+        if (binder != null) {
+            try {
+                binder.unlinkToDeath(death, 0);
+            } catch (Throwable ignored) {
+                // Already unlinked, or the binder never registered it.
+            }
+            bridgeBinder = null;
+        }
+        if (bridge == null && GameRuntime.IDLE.equals(runtimeState) && !boundContexts.isEmpty()) {
+            return; // a previous notification already did the work
+        }
+        bridge = null;
+        binding = false;
+        runtimeState = GameRuntime.IDLE;
+        Log.i(TAG, "runtime gone (" + reason + "), re-parking the binding");
+        List<Context> parked = new ArrayList<>(boundContexts);
+        /*
+         * Emptied before the rebind: bindInternal() treats a context it already
+         * knows with matching flags as a no-op, and the whole point here is to
+         * hand AMS a fresh binding after the old one died.
+         */
+        boundContexts.clear();
+        boundFlags = 0;
+        for (Context app : parked) {
+            try {
+                app.unbindService(connection);
+            } catch (Throwable ignored) {
+                // The binding may already be gone; the bind below is what matters.
+            }
+        }
+        for (Context app : parked) {
+            bindInternal(app, 0);
+        }
+        notifyListeners();
+    }
 
     private GameBridgeClient() {
     }
@@ -261,6 +338,7 @@ public final class GameBridgeClient {
             runtimeState = local.getRuntimeState();
         } catch (Throwable t) {
             Log.w(TAG, "getRuntimeState failed: " + t);
+            noteFailure(t);
         }
         return runtimeState;
     }
@@ -273,6 +351,7 @@ public final class GameBridgeClient {
         try {
             return local.isGameReady();
         } catch (Throwable t) {
+            noteFailure(t);
             return false;
         }
     }
@@ -376,7 +455,25 @@ public final class GameBridgeClient {
             return value == null ? fallback : value;
         } catch (Throwable t) {
             Log.w(TAG, "bridge call failed: " + t);
+            noteFailure(t);
             return fallback;
+        }
+    }
+
+    /**
+     * A binder whose transactions all fail is not a runtime to display. Without
+     * this the UI keeps a non-null {@code bridge} forever, every getter answers
+     * with its fallback, and no page ever rebinds - which is what "the state is
+     * not syncing" looks like from the outside.
+     */
+    private void noteFailure(Throwable t) {
+        Throwable cause = t;
+        for (int i = 0; i < 4 && cause != null; i++) {
+            if (cause instanceof DeadObjectException) {
+                onRuntimeGone("dead binder");
+                return;
+            }
+            cause = cause.getCause();
         }
     }
 
@@ -385,6 +482,10 @@ public final class GameBridgeClient {
     }
 
     private void notifyListeners() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post(this::notifyListeners);
+            return;
+        }
         for (Listener listener : listeners) {
             try {
                 listener.onBridgeChanged();

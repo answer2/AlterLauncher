@@ -12,5 +12,7 @@
     <string name="restart">重启</string>
     <string name="empty">这个是一个空信息( •̀ ω •́ )✧</string>
     <string name="warning_content">你可以将错误信息复制并保存到文件中，发送到GitHub或交流群中获得问题解决的帮助。</string>
+    <string name="identity_share_summary">开启后所有版本共用同一份 Xbox 登录状态，任一处登录即全部生效；关闭后每个版本自己登录一次，互不影响。下次启动生效。</string>
+    <string name="identity_isolated_summary">本版本使用自己的登录状态，登录一次只对这个版本有效，其他版本不会共用。下次启动生效。</string>
 
 </resources>
