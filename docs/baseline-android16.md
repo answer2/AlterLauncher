@@ -491,4 +491,28 @@ ConstraintLayout; it is now three cards — 账号与登录 (the 共享登录数
 being synced from the store, because assigning `isChecked` fires it and a render must not write the
 mode back.
 
+## Who owns the bridge (C22)
+
+`通过其他方式启动游戏后…要点再次启动才能检测到游戏进程` was a lifetime bug, not a polling bug:
+nothing in the runtime process ever created `GameBridgeService`. The only statement in the whole
+codebase that mentioned the bridge action was `GameBridgeClient.bindInternal`'s `bindService`, so the
+service existed for as long as a UI binding with `BIND_AUTO_CREATE` held it — and the parked
+read-only binding every page uses passes flags `0`, which can attach but never create. A game
+booted by any other route (recents, a file intent, a fresh launcher process) therefore had no
+service to attach to, and the UI kept the IDLE snapshot until 启动 pressed `wake()` and started a
+second runtime. C22 makes the runtime publish its own bridge: `MinecraftLoader.load()` calls
+`startService(GameBridgeClient.serviceIntent())` right after `setAssembling()`, and
+`GameBridgeService.onCreate` arms the idle reaper when it comes up on an already-IDLE runtime,
+because a started service can now outlive every binding and must not keep an empty game process
+resident.
+
+Two client defects sat behind that one and would have hidden it: `onBindingDied` cleared
+`boundContexts` and `boundFlags` *before* `onRuntimeGone` snapshotted them, so the rebind loop
+iterated an empty list and after one reaper kill the launcher held no binding at all; and
+`onRuntimeGone` returned early whenever the state already read IDLE. Both are gone, and the context
+that issued the original request is now remembered in `parkedOn` so a park can be re-issued after
+the binder is long dead. `addListener()` calls `ensureParked()`, which makes any screen that opens
+self-healing instead of trusting that the Application's one-shot park in `AlterApplication.onCreate`
+is still outstanding.
+
 

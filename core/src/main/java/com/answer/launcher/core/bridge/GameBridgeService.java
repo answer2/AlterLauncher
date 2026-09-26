@@ -232,6 +232,17 @@ public class GameBridgeService extends Service {
     public void onCreate() {
         super.onCreate();
         GameRuntime.addStateListener(pump);
+        /*
+         * The service is now started by the runtime process itself, so it can outlive
+         * every binding. If nothing is assembling at the moment it comes up, treat
+         * that as idle and reap on the same clock the state listener would have used —
+         * otherwise a started service would keep a game process resident with no game
+         * in it. Any real boot publishes ASSEMBLING right after and cancels this.
+         */
+        mainHandler.removeCallbacks(reaper);
+        if (GameRuntime.IDLE.equals(GameRuntime.state())) {
+            mainHandler.postDelayed(reaper, IDLE_REAP_DELAY_MS);
+        }
         Log.i(TAG, "bridge ready in pid " + Process.myPid()
                 + ", runtime=" + GameRuntime.state());
     }

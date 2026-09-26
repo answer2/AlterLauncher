@@ -74,6 +74,16 @@ public final class GameBridgeClient {
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
     private final List<Context> boundContexts = Collections.synchronizedList(new ArrayList<>());
 
+    /**
+     * The application context the process-wide binding was last asked for, kept
+     * even after the binding itself dies. AMS drops a binding when :game goes away
+     * and never restores it on its own, so whoever still wants to hear about the
+     * next boot has to hand it a fresh request — and the only thing that can issue
+     * one is a context, which outlives the binder by design.
+     */
+    private Context parkedOn;
+
+
     private final IGameBridgeCallback.Stub callback = new IGameBridgeCallback.Stub() {
         @Override
         public void onRuntimeStateChanged(String state) {
@@ -141,12 +151,12 @@ public final class GameBridgeClient {
         @Override
         public void onBindingDied(ComponentName name) {
             /*
-             * The binding is gone on the AMS side too, so the bookkeeping has to go
-             * with it: without this, a later wake() sees a matching boundFlags and
-             * skips the rebind that would actually bring :game back.
+             * The binding is gone on the AMS side too. The bookkeeping is deliberately
+             * NOT cleared here: the application context that owns the request is still
+             * alive, and onRuntimeGone() re-parks from it. Clearing it used to leave
+             * nothing to rebind with, which is how "the launcher never notices the game
+             * came back" happened.
              */
-            boundContexts.clear();
-            boundFlags = 0;
             onRuntimeGone("binding died");
         }
     };
@@ -166,21 +176,22 @@ public final class GameBridgeClient {
             }
             bridgeBinder = null;
         }
-        if (bridge == null && GameRuntime.IDLE.equals(runtimeState) && !boundContexts.isEmpty()) {
-            return; // a previous notification already did the work
-        }
         bridge = null;
         binding = false;
         runtimeState = GameRuntime.IDLE;
         Log.i(TAG, "runtime gone (" + reason + "), re-parking the binding");
-        List<Context> parked = new ArrayList<>(boundContexts);
         /*
-         * Emptied before the rebind: bindInternal() treats a context it already
-         * knows with matching flags as a no-op, and the whole point here is to
-         * hand AMS a fresh binding after the old one died.
+         * Re-park unconditionally. The old code skipped the work when the state was
+         * already idle, and onBindingDied cleared the context list before getting
+         * here — so after the idle reaper killed :game once, this process was left
+         * with no outstanding binding at all and never heard about a later boot.
+         * "The game is running but the launcher only notices after 启动 is pressed"
+         * was that: only wake() (or a fresh launcher process) re-bound.
          */
-        boundContexts.clear();
-        boundFlags = 0;
+        List<Context> parked = new ArrayList<>(boundContexts);
+        if (parked.isEmpty() && parkedOn != null && !parked.contains(parkedOn)) {
+            parked.add(parkedOn);
+        }
         for (Context app : parked) {
             try {
                 app.unbindService(connection);
@@ -188,10 +199,24 @@ public final class GameBridgeClient {
                 // The binding may already be gone; the bind below is what matters.
             }
         }
+        boundContexts.clear();
+        boundFlags = 0;
         for (Context app : parked) {
             bindInternal(app, 0);
         }
         notifyListeners();
+    }
+
+    /**
+     * Re-arm the parked binding if it is not there any more. Pages call this when
+     * they become visible: a binding lost while the launcher sat in the background
+     * would otherwise stay lost until the user pressed 启动.
+     */
+    public synchronized void ensureParked() {
+        if (bridge != null || parkedOn == null) {
+            return;
+        }
+        bindInternal(parkedOn, 0);
     }
 
     private GameBridgeClient() {
@@ -214,6 +239,13 @@ public final class GameBridgeClient {
         if (listener != null && !listeners.contains(listener)) {
             listeners.add(listener);
         }
+        /*
+         * Registering a listener means someone is looking now, so re-arm the parked
+         * binding if a death that happened while the page was backgrounded left this
+         * process without one. Otherwise the next state change is never delivered and
+         * the page keeps saying 未启动 about a game that is running.
+         */
+        ensureParked();
     }
 
     public void removeListener(Listener listener) {
@@ -267,6 +299,8 @@ public final class GameBridgeClient {
         boundContexts.add(app);
         boundFlags = flags;
         binding = true;
+        parkedOn = app;
+
         try {
             app.bindService(serviceIntent(), connection, flags);
         } catch (Throwable t) {

@@ -12,6 +12,7 @@ import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
 import android.webkit.WebView;
+import com.answer.launcher.core.bridge.GameBridgeClient;
 import com.answer.launcher.core.bridge.GameRuntime;
 import com.answer.launcher.core.hook.ActivityThreadHook;
 import com.answer.launcher.core.hook.EnvironmentHook;
@@ -81,6 +82,21 @@ public class MinecraftLoader {
     }
 
     GameRuntime.setAssembling();
+    /*
+     * Publish the bridge from inside the runtime process. Until now GameBridgeService
+     * existed only because the UI process had bound it with BIND_AUTO_CREATE, so a
+     * game that came up by any other route — restored from recents, a file intent,
+     * or simply a launcher process that only parked its read-only binding — had no
+     * service to attach to, and the UI sat at 未启动 until 启动 pressed wake().
+     * Starting it here costs nothing: the idle reaper still ends the process when
+     * the runtime goes away.
+     */
+    try {
+        context.startService(GameBridgeClient.serviceIntent());
+    } catch (Throwable t) {
+        // A missing bridge costs the UI its live state, not the game.
+        Log.w(TAG, "bridge service not started: " + t);
+    }
     try {
       // WebView must be initialised BEFORE the game identity is installed.
       // WebView binds its sandboxed renderer through
