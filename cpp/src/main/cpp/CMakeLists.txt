@@ -26,6 +26,7 @@ set(SRC_FILES
     hook/fake_file.cpp
     util/Utils.cpp
     util/FindSignature.cpp
+    util/RttiLookup.cpp
 )
 
 # 添加头文件目录

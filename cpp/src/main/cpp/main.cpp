@@ -17,6 +17,7 @@
 #include <util/fake_dlfcn.h>
 #include <util/Utils.h>
 #include <util/FindSignature.h>
+#include <util/RttiLookup.h>
 #include <android/android_log.h>
 #include <dl_internal.h>
 
@@ -32,6 +33,13 @@ AAssetManager *Main::manager = nullptr;
 const char *corePath = "com/answer/launcher/core/manager/NativeCore";
 static MinecraftGame *minecraftGame = nullptr;
 
+// State published by the runtime vtable resolver further down. It lives at file
+// scope because sendMessage reports it.
+void *clientInstance = nullptr;
+uintptr_t clientInstanceVtable = 0;
+uintptr_t guiDataVtable = 0;
+long updateCalls = 0;
+
 // Function declarations
 void initAssets(JNIEnv *env, jobject obj, jobject assetManager);
 
@@ -44,6 +52,9 @@ long findLibBaseAddress_java(JNIEnv *env, jobject obj, jstring library);
 void load(JNIEnv *env, jobject obj);
 
 void loadManager(JNIEnv *env, jobject obj);
+
+// Declared here because load() calls it and its definition follows load().
+void installSignatureHooks();
 
 void sendMessage(JNIEnv *env, jobject obj, jstring msg);
 
@@ -221,16 +232,23 @@ void *GuiDate_sendClientMessage_hook(void *void1, const std::string &msg, const 
 
 
 void sendMessage(JNIEnv *env, jobject obj, jstring msg) {
-    //sendClientMessage(env->GetStringUTFChars(msg, 0));
-    if (minecraftGame == nullptr) {
-        LOGI("Got Fail");
+    const char *text = env->GetStringUTFChars(msg, nullptr);
+    if (text == nullptr) return;
+    if (clientInstance == nullptr && minecraftGame == nullptr) {
+        LOGW("sendMessage(\"%s\"): no game instance captured yet, ClientInstance::update has "
+             "not fired", text);
+        env->ReleaseStringUTFChars(msg, text);
         return;
     }
-
-    void *addresss = NativeInvoker::callV<218, void *>
-            (minecraftGame);
-    LOGI("Got %d site at: %p", 218, &addresss);
-
+    // The old code called vtable slot 218 of the captured game object blind.
+    // Slot numbering drifts between builds — 1.21 puts getGuiData at 219/220,
+    // 1.26 has 8-byte stubs there — and invoking an unknown virtual is a crash
+    // waiting to happen, so the chat route has to be resolved explicitly before
+    // this can do anything beyond reporting the state we reached.
+    LOGI("sendMessage(\"%s\"): ClientInstance=%p MinecraftGame=%p updateCalls=%ld "
+         "guiDataVtable=%p", text, clientInstance, minecraftGame, updateCalls,
+         reinterpret_cast<void *>(guiDataVtable));
+    env->ReleaseStringUTFChars(msg, text);
 }
 
 void* (*MinecraftGame__joinMultiplayerGame_real)(void*, std::string const&, void*);
@@ -260,6 +278,99 @@ static void hookGameFunction(uintptr_t address, void *handler, void **real,
     LOGD("hooked %s at 0x%lx", name, (unsigned long) address);
 }
 
+// ---------------------------------------------------------------------------
+// Runtime vtable resolution (the version-portable path)
+// ---------------------------------------------------------------------------
+//
+// The byte signatures below are pinned to one Minecraft build and Mojang
+// recompiles the functions on every release, so all four of them miss on
+// 1.26.45.1 and no game hook installs at all. RTTI survives: the guest keeps
+// `14ClientInstance` type names in .rodata even though .symtab is stripped, so
+// the class's vtable can be found by walking name -> typeinfo -> vtable in the
+// live mappings, and slot 25 of ClientInstance's table is its per-frame
+// update(bool). Hooking a virtual function hands us `this` for free, which is
+// the only reliable way to get a handle on the running game.
+//
+// The index is not guessed blindly: slots 18..55 of the 1.26.45.1 table match
+// the symbolised 1.21.131 build slot for slot by function size (tick/endFrame
+// are 4-byte stubs in both, update is the largest of the group), and even a
+// wrong index is survivable because the hook forwards to the original.
+namespace {
+
+constexpr const char *kGuestLib = "libminecraftpe.so";
+constexpr size_t kClientInstanceUpdateSlot = 25;
+
+typedef uintptr_t (*ClientInstance_update)(void *, bool);
+ClientInstance_update ClientInstance_update_real = nullptr;
+
+uintptr_t ClientInstance_update_hook(void *self, bool paused) {
+    if (clientInstance == nullptr) {
+        clientInstance = self;
+        LOGI("ClientInstance captured at %p (vtable %p, guiData vtable %p)", self,
+             reinterpret_cast<void *>(clientInstanceVtable),
+             reinterpret_cast<void *>(guiDataVtable));
+    }
+    updateCalls++;
+    return ClientInstance_update_real(self, paused);
+}
+
+// Checks that a resolved vtable really has `index` slots and hands back the
+// function stored in it, or 0.
+uintptr_t resolveVirtual(uintptr_t vtable, size_t index, size_t slots) {
+    if (vtable == 0) return 0;
+    if (slots <= index) {
+        LOGW("the vtable has only %zu virtual slots, index %zu is out of range", slots, index);
+        return 0;
+    }
+    uintptr_t fn = RttiLookup::slotAt(vtable, index);
+    std::vector<RttiLookup::Region> regions = RttiLookup::regionsOf(kGuestLib);
+    if (!RttiLookup::inRegions(regions, fn, true)) {
+        LOGW("slot %zu (0x%lx) is not executable", index, (unsigned long) fn);
+        return 0;
+    }
+    return fn;
+}
+
+void installRttiHooks() {
+    size_t slots = 0;
+    guiDataVtable = RttiLookup::findVtable(kGuestLib, "GuiData", NULL);
+    clientInstanceVtable = RttiLookup::findVtable(kGuestLib, "ClientInstance", &slots);
+    uintptr_t update = resolveVirtual(clientInstanceVtable, kClientInstanceUpdateSlot, slots);
+    if (update == 0) {
+        LOGW("ClientInstance::update is not resolvable by RTTI in this build");
+        clientInstanceVtable = 0;
+        return;
+    }
+    LOGD("resolved ClientInstance vtable %p (%zu slots), update(bool) at 0x%lx",
+         reinterpret_cast<void *>(clientInstanceVtable), slots, (unsigned long) update);
+
+    // The vtable slot is patched rather than the function body: shadowhook
+    // cannot allocate its trampoline island anywhere inside the guest's 298 MB
+    // executable mapping ("Alloc island for exit failed"), and for a virtual
+    // function the slot is the natural place to intercept anyway.
+    uintptr_t original = 0;
+    if (!RttiLookup::patchVtableSlot(clientInstanceVtable, kClientInstanceUpdateSlot,
+                                     reinterpret_cast<uintptr_t>(ClientInstance_update_hook),
+                                     &original)) {
+        LOGE("failed to patch ClientInstance::update slot %zu", kClientInstanceUpdateSlot);
+        clientInstanceVtable = 0;
+        return;
+    }
+    if (original != update) {
+        LOGE("ClientInstance::update slot changed under us: expected 0x%lx, found 0x%lx",
+             (unsigned long) update, (unsigned long) original);
+        RttiLookup::patchVtableSlot(clientInstanceVtable, kClientInstanceUpdateSlot, original,
+                                    nullptr);
+        clientInstanceVtable = 0;
+        return;
+    }
+    ClientInstance_update_real = reinterpret_cast<ClientInstance_update>(original);
+    LOGD("hooked ClientInstance::update: original 0x%lx -> handler %p", (unsigned long) original,
+         reinterpret_cast<void *>(ClientInstance_update_hook));
+}
+
+}  // namespace
+
 void load(JNIEnv *env, jobject obj) {
     initManagers();
 
@@ -270,18 +381,32 @@ void load(JNIEnv *env, jobject obj) {
 
     LOGD("Minecraft Handle : %lx", Main::baseAddress);
 
+    // RTTI first: it works on any build whose class layout is unchanged, and
+    // needs no dlopen of the guest library (which our linker namespace cannot
+    // do anyway). The signatures below are the fallback for the functions that
+    // are not virtual, and for builds where the RTTI chain does not validate.
+    installRttiHooks();
+    installSignatureHooks();
+}
+
+// The pinned-prologue path. `Minecraft::update` is only tried when RTTI did not
+// hand us the game instance, so a modern build is not patched twice; the chat
+// and join-game functions are not virtual, so they have no RTTI equivalent and
+// still depend on Mojang not having recompiled them.
+void installSignatureHooks() {
     ModuleInfo info = FindSignature::getModuleInfo("libminecraftpe.so");
     LOGD("TEST %lu", info.base);
     LOGD("TEST %zu", info.size);
 
-
-    uintptr_t update = FindSignature::findSignatureInModule(info,
-                                                            "E8 0F ?? ?? FD 7B 01 A9 FD 43 00 91 FC 6F 02 A9 FA 67 03 A9 F8 5F 04 A9 F6 57 05 A9 F4 4F 06 A9 FF 03 0C D1 5A ?? ?? ?? F3 03 00 AA 48 17");
-    hookGameFunction(update, (void *) Minecraft_update_hook,
-                     (void **) &Minecraft_update_real, "Minecraft::update");
-
-    LOGD("update ： %p", update);
-
+    if (clientInstanceVtable == 0) {
+        uintptr_t update = FindSignature::findSignatureInModule(info,
+                                                                "E8 0F ?? ?? FD 7B 01 A9 FD 43 00 91 FC 6F 02 A9 FA 67 03 A9 F8 5F 04 A9 F6 57 05 A9 F4 4F 06 A9 FF 03 0C D1 5A ?? ?? ?? F3 03 00 AA 48 17");
+        hookGameFunction(update, (void *) Minecraft_update_hook,
+                         (void **) &Minecraft_update_real, "Minecraft::update");
+        LOGD("update ： %p", update);
+    } else {
+        LOGD("Minecraft::update signature skipped: the RTTI hook already owns the game instance");
+    }
     uintptr_t displayClientMessage = FindSignature::findSignatureInModule(info,
                                                                           "FF C3 07 D1 FD 7B 1C A9 FD 03 07 91 FC 57 1D A9 F4 4F 1E A9 55 ?? ?? ?? F4 03 03 2A F3 03 00 AA A8 16 ?? ?? E4 03 02 AA E3 03 01 AA A8 83 ?? ?? FF 83 ?? ?? FF 53 ?? ?? FF 23 ?? ?? 45 ?? ?? ?? E6 03 1F 2A E7 03 1F 2A E8 43 00 91 E9 A3 00 91 A0 E3 02 D1 A5 ?? ?? ?? E2 03 01 91 00 ?? ?? ?? 41 ?? ?? ?? E9 23 00 A9 8F ?? ?? ??");
     hookGameFunction(displayClientMessage, (void *) GuiDate_sendClientMessage_hook,
