@@ -20,7 +20,8 @@ Where each finding ended up:
 
 Current commit chain: `f6e6b43` C6 RTTI vtable resolution -> `e74120a` 16 KB max-page-size ->
 `72a57f7` AlterCore 1.1.3 from Central -> `9343664` C7 version-gated hook data ->
-`5947105` C8 island reachability pre-check.
+`5947105` C8 island reachability pre-check -> `214df13` C9 island verdict on device ->
+C10 external-storage rules (see the last section).
 
 Two things the baseline could not have known:
 
@@ -92,4 +93,83 @@ The guest package reaches process-wide state via `createApplication()` overwriti
 
 ## Unreached this run
 `NativeCore.loadManager()` / MC `.so` signature scans are driven from `MainActivity.onCreate`,
-which needs a real game Activity launch; not exercised by this probe.
+which needs a real game Activity launch; no longer true — `LoadedAfterHook` drives them and they
+are covered by `build/verify.ps1`.
+
+## The external-storage chicken-and-egg (issue ③, fixed in C10)
+
+`IOManager.enableRedirect()` used to guard its external block with
+
+```java
+if (Alternative.getManager().mContext.getExternalCacheDir() != null
+        && context.getExternalCacheDir() != null) {          // context is the GUEST
+```
+
+On API 36 the external dirs have no cached fields — every getter recomputes them from
+`getPackageName()` (`ContextImpl.getExternalFilesDirs` :894, `getObbDirs` :912,
+`getExternalCacheDirs` :962, `getExternalMediaDirs` :967) — and `getExternalCacheDirs()`
+passes `tryCreateInProcess = false`, because cache dirs must go through
+`StorageManagerService` for quota tracking. So `ensureExternalDirsExistOrFilter()`
+(:3780) asks vold to make `/storage/emulated/0/Android/data/com.mojang.minecraftpe/cache`,
+vold answers
+
+```
+SecurityException: Invalid mkdirs path: ... does not contain calling package com.answer.launcher
+```
+
+the getter returns null, the guard fails — **and the rules that would have made the getter
+work are never installed.** The check asked the broken thing whether it was broken, and
+`IOManager` logged nothing but `e.printStackTrace()`, so the whole block vanished silently.
+The secondary defect was in the body: `external` came from the *guest* context, so even when
+it ran the table mapped the guest's `Android/data` path onto itself.
+
+Both sides are now computed without touching a guest external getter: the guest path is
+spelled from its package name, the target from the launcher's own context. The bare root goes
+in first, since `redirectPath()` takes the first matching prefix and one rule then covers
+every subpath. This works without hooking `ContextImpl` at all: the existence check inside
+`ensureExternalDirsExistOrFilter()` calls `File.exists()`, which goes through the hooked
+`UnixFileSystem.getBooleanAttributes0`, so the guest's cache dir already "exists" (it is
+ours), vold is never consulted, and the guest receives a usable `File`.
+
+Measured (RMX8899, MC 1.26.45.1): `redirect rules installed: 19, guest external cache =
+/storage/emulated/0/Android/data/com.mojang.minecraftpe/cache, usable=true`, and
+`Failed to ensure` / `Invalid mkdirs` occurrences dropped to zero.
+
+`usable=true` is worth understanding, because it says the block was never about filesystem
+permissions. Our process holds `MANAGE_EXTERNAL_STORAGE` (appop `allow` for uid 10429), and
+MediaProvider's FUSE layer grants that appop full access to `/storage/emulated/0` — it is a
+capability check in the FUSE daemon, not a gid: `/proc/<pid>/status` lists only
+`1077 3002 3003 9997 20429 50429 99909997`, with no `ext_data_rw`, yet `canWrite()` on the
+guest's own path still returns true. What blocked us was purely the SDK's policy gate:
+`StorageManagerService`/vold validates that the requested path contains the *calling* package
+(`Invalid mkdirs path`), and that check has no idea we are allowed by capability. So the
+redirect's real job is to keep the framework from ever making that call.
+
+Data layout: guest external paths map into the launcher's own tree, matching what was already
+on the device (`Android/data/com.answer.launcher/cache/crash/*.txt`). The alternative — the
+direction the original code implied, guest onto guest — would write into the *real* Minecraft's
+`Android/data/com.mojang.minecraftpe`, which collides with the installed retail package
+(uid 10428) whenever both are present.
+
+There is no two-tree split in practice: after this change the guest's own external dir still
+shows mtime `2026-09-15 21:32` (untouched by any of our runs) while our tree's
+`files/games` carries `2026-09-25 23:31` — Java-layer writes land in ours, and the game engine
+never touches external storage at all, because its root comes from the redirected internal
+`dataDir`.
+
+
+### What stays, and why it is not a bug
+
+- `E/AppOps: Specified package "com.mojang.minecraftpe" under uid 10429 but it is not` —
+  the stack is `Notifier.notifyWakelockAcquisition` → `AppOpsManager.startOpNoThrow`, i.e.
+  system_server's *observational* wakelock accounting. The lock is already held; only the
+  stat is dropped.
+- `W/Minecraft: NO LOG FILE!`, `E/EventsSDK.SQLiteDB: Failed to open database file: (14)`,
+  `W/TransportRuntime: Error scheduling event uid 10429`, `W/GoogleApiManager`,
+  `W/ServiceBindIntentUtils` — byte-for-byte unchanged across the fix, so they are not caused
+  by the external-dir failure. JobScheduler and GMS validate package↔uid in system_server,
+  which cannot be satisfied from inside a host process without reporting the launcher's own
+  package name — and XAL/Microsoft OAuth depends on the guest name working. Changing
+  `LoadedApk.mPackageName` is therefore deliberately off the table; redirecting storage paths
+  is the surgical half.
+
