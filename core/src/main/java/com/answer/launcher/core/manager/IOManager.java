@@ -30,6 +30,19 @@ public class IOManager {
      */
     private static final String ISOLATION_DIR = "mc";
 
+    /**
+     * Top-level entries a new installation is seeded with, so that taking a data root
+     * of its own does not cost the user a sign-in. {@code xal} is the Microsoft auth
+     * state, {@code app_webview} the profile that carries its cookies,
+     * {@code shared_prefs} holds the XAL device keypair, and {@code Flighting} plus the
+     * {@code .ent} files are the licence proof.
+     */
+    private static final String[] SEEDED_NAMES = {
+            "xal", "app_webview", "shared_prefs", "databases", "Flighting",
+            "bootstrap_settings.json"};
+
+    private static final String[] SEEDED_SUFFIXES = {".ent"};
+
     public static IOManager get() {
         return sIOManager;
     }
@@ -86,24 +99,26 @@ public class IOManager {
     /**
      * Builds the redirect table with one data set per guest installation.
      *
-     * <p>Passing the version name is what turns isolation on: the table then aims
-     * the guest's own paths at {@code <launcher dataDir>/mc/<slug>} instead of the
-     * launcher's data dir root. The slug carries the package name as well as the
-     * version because a version string alone is not an identity — the same version
-     * can be installed more than once (different channels, different APKs that
-     * happen to report the same versionName), while Android guarantees one install
-     * per package, so package+version is unique per installation by construction.
+     * <p>The isolated root is <em>not</em> decided here: {@code Alternative.createLoadedApk()}
+     * has already handed it to the guest's {@code ApplicationInfo.dataDir} by the time
+     * this runs, so the table follows that decision instead of competing with it. What
+     * is left for the table are the paths a root cannot move — the external storage
+     * directories, which the framework derives from the calling package name at call
+     * time and never from {@code dataDir}.
      */
     public void enableRedirect(Context context, String versionName) {
-        installRedirectRules(context, isolationSlug(context.getPackageName(), versionName));
+        Alternative manager = Alternative.getManager();
+        installRedirectRules(context, manager.getIsolationSlug(), manager.getGuestDataRoot());
     }
 
     /**
-     * Names one installation. Kept to characters that are safe on every filesystem
-     * we can end up on (internal storage is ext4/f2fs, but the external roots can be
-     * sdcardfs over anything), so nothing has to be escaped further downstream.
+     * Names one installation. Public because the data root is decided earlier than the
+     * redirect table, and both have to agree — a version string alone is not an
+     * identity, since the same version can be installed more than once, while Android
+     * guarantees one install per package, so package+version is unique per installation
+     * by construction.
      */
-    private static String isolationSlug(String guestPackage, String versionName) {
+    public static String isolationSlug(String guestPackage, String versionName) {
         String raw = guestPackage + "@" + (TextUtils.isEmpty(versionName) ? "unknown" : versionName);
         // '@' survives because it is the separator that makes the name unambiguous —
         // '_' is legal inside a package name, so a slug built from package + version
@@ -111,6 +126,125 @@ public class IOManager {
         // pairs. Android's own paths carry '~' and '=', so '@' is not a character a
         // mounted filesystem is allowed to reject.
         return raw.replaceAll("[^A-Za-z0-9._+@-]", "_");
+    }
+
+    /**
+     * Creates the internal data root one installation owns and brings across the state
+     * it must not lose on the way. Returns the launcher's own directory when isolation
+     * is off (no slug) or when the new root cannot be created, so a failure degrades to
+     * the shared layout rather than to a crash.
+     *
+     * <p>This is the fix for what C13/C14 measured: rewriting paths in
+     * {@code java.io.UnixFileSystem} cannot isolate a native engine, because
+     * {@code libminecraftpe.so} opens its files through libc and never asks us. The
+     * isolation therefore moved up to the root the game is <em>told</em> about, and
+     * Android 16 derives the real {@code ContextImpl} directories from it
+     * ({@code LoadedApk.setApplicationInfo()}), so the Java and native sides cannot
+     * disagree any more — there is nothing left to redirect.
+     */
+    public static File prepareDataRoot(Context host, String slug) {
+        if (slug == null) {
+            return host.getDataDir();
+        }
+        File root = isolate(host.getDataDir(), slug);
+        if (!root.exists() && !root.mkdirs()) {
+            Log.w(TAG, "cannot create isolated root " + root + ", using the shared one");
+            return host.getDataDir();
+        }
+        int seeded = seed(host.getDataDir(), root);
+        // "games" is the game's content subtree, and it moves rather than being
+        // copied: two live copies of the same world is the one outcome nobody can
+        // repair. It is also the only name at the launcher's root that the launcher
+        // itself never writes, which is what makes it safe to claim wholesale.
+        migrate(new File(host.getDataDir(), "games"), new File(root, "games"));
+        Log.i(TAG, "guest data root " + root + " (seeded " + seeded + " entries)");
+        return root;
+    }
+
+    /** The device-protected sibling, mirroring how Android keeps /data/user and /data/user_de apart. */
+    public static File prepareDeviceProtectedRoot(File hostDeviceProtectedDir, String slug) {
+        if (slug == null || hostDeviceProtectedDir == null) {
+            return hostDeviceProtectedDir;
+        }
+        File de = isolate(hostDeviceProtectedDir, slug);
+        if (!de.exists() && !de.mkdirs()) {
+            Log.w(TAG, "cannot create " + de + ", leaving the device-protected root shared");
+            return hostDeviceProtectedDir;
+        }
+        return de;
+    }
+
+    /**
+     * Copies the sign-in state into a freshly created root: the XAL tree, the WebView
+     * profile behind it, the preferences holding the device keypair, the databases, and
+     * the licensing files. Copied, not moved — the launcher keeps its own copy and reads
+     * it through its own context — and only while the destination name is still absent,
+     * so a seeded root never overwrites state the installation produced itself.
+     *
+     * <p>Without this, giving the guest a real data root would sign the user out on the
+     * first isolated launch, which is exactly the regression C14 caused by other means.
+     * It is a one-time copy; issue 8 replaces it with an account the launcher exports
+     * itself, and the share / don't-share switch becomes a write target.
+     */
+    private static int seed(File legacy, File root) {
+        File[] children = legacy.listFiles();
+        if (children == null) {
+            return 0;
+        }
+        int copied = 0;
+        for (File child : children) {
+            if (!isSeeded(child.getName())) {
+                continue;
+            }
+            File target = new File(root, child.getName());
+            if (target.exists()) {
+                continue;
+            }
+            try {
+                copyTree(child, target);
+                copied++;
+            } catch (Throwable t) {
+                Log.w(TAG, "cannot seed " + child.getName() + " into " + root + ": " + t);
+            }
+        }
+        return copied;
+    }
+
+    private static boolean isSeeded(String name) {
+        for (String seeded : SEEDED_NAMES) {
+            if (seeded.equals(name)) {
+                return true;
+            }
+        }
+        for (String suffix : SEEDED_SUFFIXES) {
+            if (name.endsWith(suffix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void copyTree(File source, File target) throws java.io.IOException {
+        if (source.isDirectory()) {
+            if (!target.mkdirs()) {
+                throw new java.io.IOException("cannot create " + target);
+            }
+            File[] children = source.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    copyTree(child, new File(target, child.getName()));
+                }
+            }
+            return;
+        }
+        try (java.io.InputStream in = new java.io.FileInputStream(source);
+                java.io.OutputStream out = new java.io.FileOutputStream(target)) {
+            byte[] buffer = new byte[64 * 1024];
+            int read;
+            while ((read = in.read(buffer)) > 0) {
+                out.write(buffer, 0, read);
+            }
+        }
     }
 
     /**
@@ -142,21 +276,21 @@ public class IOManager {
      * never consulted, and the guest receives a usable File whose every later access
      * lands in our tree.
      *
-     * <p>Only the redirect table decides isolation. The directories the guest gets
-     * from its {@code Context} fields ({@code mFilesDir}, {@code mPreferencesDir},
-     * {@code mDatabasesDir}, …) were copied verbatim from the launcher by
-     * {@code AlterEnvironment.establishEnv()}, so they never contain the guest's
-     * package name and never match a rule: they stay shared on purpose. That keeps
-     * the launcher's own preferences, plugin storage and WebView profile where the
-     * launcher expects them, and signs the guest in once for every installation.
-     * The one exception is the subtree the game derives from those roots and writes
-     * its content into — {@code <dataDir>/games} — which is claimed by name below.
+     * <p>Isolation is decided by the data root, not by this table: by the time the
+     * rules are built, the guest's {@code ApplicationInfo.dataDir} already points at
+     * its own directory, so {@code ContextImpl} hands the game files/cache/databases
+     * paths inside it and there is nothing left to rewrite. What the table still owns
+     * is the external storage, which the framework recomputes from the calling package
+     * name on every call and never from {@code dataDir}, plus the launcher's own
+     * library directory, which stays shared because it holds the {@code .so} files this
+     * process already mapped.
      */
     public void enableRedirect(Context context) {
-        installRedirectRules(context, null);
+        Alternative manager = Alternative.getManager();
+        installRedirectRules(context, null, manager.getGuestDataRoot());
     }
 
-    private void installRedirectRules(Context context, String slug) {
+    private void installRedirectRules(Context context, String slug, File guestRoot) {
         Map<String, String> rule = new LinkedHashMap<>();
         String packageName = context.getPackageName();
 
@@ -168,7 +302,7 @@ public class IOManager {
             rule.put("/data/data/" + packageName + "/lib", packageInfo.nativeLibraryDir);
             rule.put("/data/user/0/" + packageName + "/lib", packageInfo.nativeLibraryDir);
 
-            String internalRoot = isolate(new File(packageInfo.dataDir), slug).getAbsolutePath();
+            String internalRoot = guestRoot.getAbsolutePath();
             rule.put("/data/data/" + packageName, internalRoot);
             rule.put("/data/user/0/" + packageName, internalRoot);
 
@@ -205,17 +339,15 @@ public class IOManager {
                 }
             }
 
-            // The game does not only spell paths out of its own package name, and this
-            // is the one that matters. Its content root is derived from the Context
-            // directories that AlterEnvironment.establishEnv() copied from the launcher
-            // — so at runtime it opens <launcher dataDir>/games/com.mojang/..., a path
-            // carrying the *launcher's* package, which no guest-package rule can ever
-            // match. Measured on the device after the first isolated build: the worlds
-            // moved into the isolated root correctly, and the game then created a fresh
-            // empty minecraftWorlds next to the launcher's own data dir. Redirecting
-            // this subtree is what actually isolates worlds, packs and options; it is
-            // also the only name at the launcher's root that the launcher itself never
-            // writes, which is what makes it safe to claim wholesale.
+            // Two spellings of the game's content root survive here. The external one
+            // is live: {@code Android/<kind>/…} is rebuilt from the calling package on
+            // every getter, so a root change cannot reach it and the rule still does.
+            // The internal {@code games} subtree is now correct on its own — it hangs
+            // below the data root the guest was given — but C14 measured what happens
+            // when it is not, so the two legacy spellings of the launcher's own path
+            // stay in the table as a cheap safety net: if anything still opens
+            // <launcher dataDir>/games, it lands in this installation's copy instead of
+            // creating a second world list next to the first.
             if (slug != null) {
                 String gamesTarget = new File(internalRoot, "games").getAbsolutePath();
                 rule.put(packageInfo.dataDir + "/games", gamesTarget);
@@ -224,18 +356,6 @@ public class IOManager {
                     rule.put(new File(hostData, "files/games").getAbsolutePath(),
                             new File(isolate(hostData, slug), "files/games").getAbsolutePath());
                 }
-            }
-
-            // Worlds, packs and options are the one thing that must survive being
-            // pointed somewhere new, and "games" is the only name in the old
-            // location the launcher can never have written itself: the game spells
-            // it below its own data dir, so it is unambiguously the guest's.
-            // Everything else that used to land in the shared root — login state,
-            // SDK caches, telemetry files — stays shared, because those paths come
-            // from the copied Context fields and carry no guest package name to
-            // match a rule on. Signing in once therefore serves every installation.
-            if (slug != null) {
-                migrate(new File(packageInfo.dataDir, "games"), new File(internalRoot, "games"));
             }
 
         } catch (Exception e) {

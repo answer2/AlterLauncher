@@ -41,9 +41,17 @@ public class AlterEnvironment {
     private static final String CONTEXT_IMPL = "android.app.ContextImpl";
 
     /**
-     * Copies the host's data-directory fields onto the guest context so the game
-     * reads and writes the launcher's own files instead of a path built from its
-     * own package name.
+     * Fills in any data-directory field the guest context failed to derive for itself.
+     *
+     * <p>Used to overwrite all seven with the launcher's own, which is how the game was
+     * made to read and write our files at all. That is now the wrong thing to do: the
+     * guest's {@code ApplicationInfo.dataDir} is set to its own root before the
+     * LoadedApk exists ({@code Alternative.createLoadedApk()}), and API 36 derives
+     * {@code mFilesDir}, {@code mPreferencesDir}, {@code mDatabasesDir} and the rest
+     * from it — so copying the launcher's values back over them would undo the
+     * isolation, which is the split brain C14 measured. Only a null gets filled, and
+     * the count of each is logged so a regression here is visible in the log rather
+     * than in someone's missing worlds.
      */
     public static void establishEnv(Context app, Context plugin) {
         /*
@@ -66,7 +74,8 @@ public class AlterEnvironment {
             return;
         }
 
-        int copied = 0;
+        int filled = 0;
+        int kept = 0;
         int failed = 0;
         // Context
         List<String> dirFields = Arrays.asList("mDatabasesDir", "mPreferencesDir",
@@ -84,19 +93,23 @@ public class AlterEnvironment {
                 if (dirFields.contains(f.getName())) {
                     try {
                         f.setAccessible(true);
-                        f.set(target, f.get(source));
-                        copied++;
+                        if (f.get(target) == null) {
+                            f.set(target, f.get(source));
+                            filled++;
+                        } else {
+                            kept++;
+                        }
                     } catch (Throwable t) {
                         failed++;
-                        Log.w(TAG, "cannot copy " + f.getName() + ": " + t);
+                        Log.w(TAG, "cannot inspect " + f.getName() + ": " + t);
                     }
                 }
             }
         } catch (Throwable e) {
             Log.e(TAG, "cannot enumerate ContextImpl fields: " + e);
         }
-        Log.i(TAG, "guest context directories copied from host: "
-                + copied + " fields, " + failed + " skipped");
+        Log.i(TAG, "guest context directories: " + kept + " already derived from its "
+                + "data root, " + filled + " filled from the host, " + failed + " skipped");
     }
 
     private static String describe(Context unwrapped, Context original) {

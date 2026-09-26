@@ -274,15 +274,14 @@ keeps `[A-Za-z0-9._+@-]` and folds everything else to `_`; `@` survives on purpo
 `_` is legal inside a package name and a separator has to be one the two halves cannot
 contain.
 
-Only the redirect table moves. The directories the guest receives from its `Context` fields
-(`mFilesDir`, `mPreferencesDir`, `mDatabasesDir`, `mCacheDir`, …) were copied verbatim from
-the launcher by `AlterEnvironment.establishEnv()`, so they never contain the guest's package
-name and never match a rule: they stay shared on purpose. That keeps the launcher's own
-preferences and plugin storage where the launcher expects them, and it means one sign-in
-serves every installation — `xal/`, `Flighting/`, the entitlement `.ent` file and the SDK
-caches all sit at the launcher's data-dir root and are untouched by isolation.
-`/lib` is deliberately not isolated either: it names the launcher's real `nativeLibraryDir`,
-the libraries this process has already mapped.
+At this point isolation was still only a redirect table, and that turned out not to hold — see
+"The root, not the rewrite" below. While it lasted, the directories the guest received from its
+`Context` fields (`mFilesDir`, `mPreferencesDir`, `mDatabasesDir`, `mCacheDir`, …) were copied
+verbatim from the launcher by `AlterEnvironment.establishEnv()`, so they never contained the
+guest's package name and never matched a rule: they stayed shared on purpose, which kept the
+launcher's own preferences and plugin storage where the launcher expects them and meant one
+sign-in served every installation. `/lib` is still deliberately not isolated: it names the
+launcher's real `nativeLibraryDir`, the libraries this process has already mapped.
 
 ### The path that broke the first isolated build
 
@@ -308,5 +307,54 @@ game's content root. `<legacy dataDir>/games` is renamed into the isolated root 
 it is created, because that is the one name in the old location the launcher can never have
 written itself. A rename, so it is instant and atomic for the whole tree, and it only runs
 while the destination is absent.
+
+### The root, not the rewrite (C15, closes issue ④)
+
+C14's rules could not hold, and the second isolated build proved why by measuring both trees in
+the same run: the Java side wrote `<iso>/games/…` while `libminecraftpe.so` recreated
+`/data/data/com.answer.launcher/games/com.mojang/…` with the same file set, minutes apart. The
+redirect lives in `java.io.UnixFileSystem` (`UnixFileSystemHook` → `IOManager.redirectPath`), so
+any path the engine opens through libc never reaches it. **String rewriting at the Java `File`
+layer cannot isolate a native engine** — it can only isolate the parts of the game that ask the
+framework.
+
+So the isolation moved to the one place both sides have to agree on: the root the game is *told*
+about. `Alternative.createLoadedApk()` now decides it once, before any LoadedApk exists —
+
+```java
+isolationSlug = IOManager.isolationSlug(MINECRAFTPACKAGE, MINECRAFT_VERSION);
+guestDataRoot = IOManager.prepareDataRoot(mContext, isolationSlug);
+applicationInfo.dataDir = guestRootPath;                       // <launcher dataDir>/mc/<slug>
+applicationInfo.deviceProtectedDataDir = …prepareDeviceProtectedRoot(…);
+```
+
+and Android 16 derives everything else from it: `LoadedApk.setApplicationInfo()` computes
+`mDataDirFile`, `mDeviceProtectedDataDirFile` and `mCredentialProtectedDataDirFile` from the
+`ApplicationInfo`, `ActivityThread.getPackageInfoNoCheck()` (`LoadedApk.java:411-416`,
+`:3068`) builds the LoadedApk around it, and `ContextImpl`'s seven directory fields come out of
+that. The game's content root is a child of the root we set, so Java and native now disagree by
+construction — impossible, rather than merely redirected.
+
+Consequences, all of them deliberate:
+
+* `AlterEnvironment.establishEnv()` no longer overwrites the guest's directories with the
+  launcher's. It fills a field **only when it is null**, and logs `N already derived from its
+  data root, M filled from the host` — if that line ever reads `0 already derived`, the root
+  stopped taking effect and the log says so.
+* The C14 `games` rules stay in the table as a safety net for anything that still spells the
+  launcher's own path, but they are no longer what makes isolation work.
+* `IOManager.prepareDataRoot()` **seeds** a new root by copying `xal/`, `app_webview/`,
+  `shared_prefs/`, `databases/`, `Flighting/`, `bootstrap_settings.json` and `*.ent` out of the
+  shared root, each only while the destination name is absent. Without that, taking a real data
+  root would have signed the user out on first launch — the same regression C14 caused by other
+  means, and the one the user has now been hit by twice. It is a one-time copy; issue ⑧ replaces
+  it with an account the launcher exports itself, at which point "share / don't share" becomes a
+  write target instead of a filesystem trick.
+* The migration and seeding run before the LoadedApk is built, not inside `enableRedirect()`,
+  which happens later in `createApplication()`.
+
+What this buys for the features the user asked for: a per-installation root is exactly the
+`VersionManager.Installation.paths()` shape, so ⑤ (import an APK, keep several versions) has
+somewhere to put each one, and the same root is where an exported account lands for ⑧.
 
 

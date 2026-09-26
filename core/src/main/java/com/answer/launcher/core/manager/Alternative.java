@@ -111,6 +111,24 @@ public class Alternative {
      */
     private ApplicationInfo applicationInfo;
     /**
+     * The directory this guest installation owns, and the name it owns it under. Both
+     * are decided once, in {@code createLoadedApk()}, before any LoadedApk exists —
+     * Android 16 derives the real {@code ContextImpl} data directories from
+     * {@code ApplicationInfo.dataDir} inside {@code LoadedApk.setApplicationInfo()}, so
+     * a root written afterwards is too late for the Java side and invisible to the
+     * native one. Everything downstream reads these two fields.
+     */
+    private File guestDataRoot;
+    private String isolationSlug;
+
+    public File getGuestDataRoot() {
+        return guestDataRoot != null ? guestDataRoot : mContext.getDataDir();
+    }
+
+    public String getIsolationSlug() {
+        return isolationSlug;
+    }
+    /**
      * ActivityThread.mBoundApplication
      */
     private Object boundApplication;
@@ -465,18 +483,32 @@ public class Alternative {
          * inside setApplicationInfo(), and setDataDirInfoLocked() no longer
          * exists. Writing the LoadedApk fields afterwards is both too late and
          * (for mSecurityViolation/mPackageName) impossible, as they are final.
+         *
+         * This is also the only place isolation can be decided. C13/C14 tried to
+         * isolate by rewriting paths in java.io.UnixFileSystem and measured the
+         * result: the Java side wrote the isolated tree while libminecraftpe.so,
+         * which opens through libc and never asks us, recreated the legacy one in
+         * the same run. Pointing the root here makes the two sides unable to
+         * disagree, because the game's content root is a child of it.
          */
-        String hostDataDir = mContext.getDataDir().getAbsolutePath();
-        applicationInfo.dataDir = hostDataDir;
-        applicationInfo.deviceProtectedDataDir = deviceProtectedDirPath();
+        isolationSlug = IOManager.isolationSlug(
+                LauncherConstants.MINECRAFTPACKAGE,
+                LauncherConstants.MINECRAFT_VERSION);
+        guestDataRoot = IOManager.prepareDataRoot(mContext, isolationSlug);
+        String guestRootPath = guestDataRoot.getAbsolutePath();
+        applicationInfo.dataDir = guestRootPath;
+        applicationInfo.deviceProtectedDataDir = IOManager.prepareDeviceProtectedRoot(
+                new File(deviceProtectedDirPath()), isolationSlug).getAbsolutePath();
         // ApplicationInfo.credentialProtectedDataDir is @hide in the SDK, so it
         // has to be written reflectively; LoadedApk tolerates a null one.
         try {
             Reflector.on(ApplicationInfo.class)
                     .field("credentialProtectedDataDir")
-                    .set(applicationInfo, hostDataDir);
+                    .set(applicationInfo, guestRootPath);
         } catch (Throwable ignored) {
         }
+        Log.i(TAG, "guest data root = " + guestRootPath
+                + ", installation = " + isolationSlug);
 
         /*
          * Provider
