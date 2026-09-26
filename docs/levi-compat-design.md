@@ -214,7 +214,61 @@ They do **not** delegate login to the guest's XAL SDK and they do not capture th
 5. **Refresh**: `BedrockAuthManager.fromJson(http, GAME_VERSION, json)` then `getMinecraftCertificateChain().getUpToDate()` (`MsftAuthManager.java:201-210`) — transparent MSA refresh and re-mint, with 4-attempt backoff (`:212-224`). Their `GAME_VERSION` is pinned to `"1.21.110"` (`:54`); we would pin it per instance from the imported APK.
 6. **Bug to not copy**: `clearXalData()` (`XalExporter.java:49-55`) recursively deletes `filesDir/xal`, which is also where `Xal.Accounts.json` lives (`MsftAccountStore.java:52`) — losing the active account silently destroys every saved account.
 
-### 6.2 Our design
+### 6.2 What the game actually stores (measured on device, 2026-09-26)
+
+The scheme above is Levi's, and Levi's file names do **not** match what our guest
+writes. Measured in `/data/user/0/com.answer.launcher/xal/`: eight entries with numeric
+names (`13687287496199607557` 2565 B, `1734634999945796391` 33 B, `23267674985628`,
+`7162984379564848478`, `Skew` 19 B, `default_lock` 0 B, `default_user`,
+`Xal.1734634999945796391.Production`), plus `shared_prefs/com.microsoft.xal.crypto.xml`
+(1561 B) and `games/com.mojang/ud1995949509.dat` (7319 B).
+
+Two facts came out of that list.
+
+**The names are hashes, and the hash is FNV-1 64-bit.** `libminecraftpe.so` carries the
+key grammar as format strings — `Xal.%llu.%s.Default` (0x23ccfb4),
+`Xal.%llu.%s.Msa.%s` (0x23f089a), `Xal.%llu.%s.%s.User.%s` (0x2387b62),
+`Xal.%llu.%s.%s.T` (0x24a38e5), `Xal.%s.%s.DeviceIdentity` (0x262c5f9),
+`Xal.%s.%s.D` (0x257aeb2), `Xal.%s.Msa.Foci.1` (0x257adb2) — and the Android platform
+layer turns a key into a file name by hashing it with 64-bit FNV-1 (basis
+`0xCBF29CE484222325`, prime `0x100000001B3`, **multiply-then-xor**, not the FNV-1a
+variant), printed as an unsigned decimal. One exact hit confirms it:
+
+```
+fnv164("Xal.1739947436.Production.Default") == 1734634999945796391
+```
+
+which is the device file whose content is `{"default":"07cc73f690e1e574"}`. So the game's
+XAL title id is **1739947436** — the same value Levi hardcodes at `XalExporter.java:81` —
+and *not* the `ms-xal-0000000048183522` (= 1209513250) in our manifest: the redirect
+scheme carries the Azure application id, the storage keys carry the XAL title id, and
+confusing the two writes files the game will never look for. `Skew` is stored under its
+literal key, so only namespaced keys are hashed. The implementation of the naming lives
+in `auth/src/main/java/com/answer/launcher/auth/XalStore.java`; `build/xalhash.py`,
+`build/xalnames.py` and `build/xalinvert.py` are the probes that found it.
+
+**The contents are the schema §6.1 describes.** `13687287496199607557` opens with
+`{"deviceId":"{85745666-…}","tokens":[{"MsaUserId":"07cc73f690e1e574",
+"HasSignInDisplayClaims":true,"IdentityType":"MRSI","Environment":"Production",
+"Sandbox":"RETAIL","TokenType":"JWT","RelyingParty":"http://xboxlive.com",
+"TokenData":{"Token":"eyJ0eXAiOiJKV3ci…"` — Levi's `…RETAIL.User.<user>.json` shape
+exactly. So the export is writable, and the device keypair has a known home
+(`com.microsoft.xal.crypto.xml`, named after the SDK's own package, which answers the
+"launcher-derived prefs name" guess in §6.2 below: it is not launcher-derived).
+
+**What is still open, and it is the hard part.** Only the `Default` key has been matched.
+The other seven names are not reproduced by any key built from `1739947436` +
+`07cc73f690e1e574` + `RETAIL` (`build/xalhash2.py` enumerates the guesses and shows the
+misses), so at least one `%s` segment is something else — most likely the *web* account id
+(a GUID) or Levi's `Base64.URL_SAFE(msUserId)` rather than the local id, since
+`XalUserGetLocalId` and `XalUserGetWebAccountId` are separate accessors in the exported
+API. And one entry is only 14 digits (`23267674985628`), far too small to be a 64-bit
+hash, so not everything in that directory is named this way. `build/xalstore.sh` dumps the
+names with sizes and first bytes and is ready for the next device session. Until every
+name is accounted for, an exported token could land under a name the game never looks for
+— a silent failure, which is the kind this launcher has already been bitten by.
+
+### 6.3 Our design
 
 Same mechanism, adapted to a separate `:game` process and to §2's real data root:
 
