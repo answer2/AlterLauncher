@@ -159,7 +159,7 @@ void applyHookRules_java(JNIEnv *env, jobject obj, jstring version, jstring rule
     }
     gRule = *found;
     gHasRule = true;
-    LOGD("hook rules: rule '%s' active, %zu vtable entr(y|ies) and %zu signature(s)",
+    LOGD("hook rules: rule '%s' active, vtable=%zu signature=%zu",
          gRule.name.c_str(), gRule.vtable.size(), gRule.signatures.size());
 }
 
@@ -453,10 +453,18 @@ void installRttiHooks() {
          update_target.className.c_str(), reinterpret_cast<void *>(clientInstanceVtable), slots,
          (unsigned long) update);
 
-    // The vtable slot is patched rather than the function body: shadowhook
-    // cannot allocate its trampoline island anywhere inside the guest's 298 MB
-    // executable mapping ("Alloc island for exit failed"), and for a virtual
-    // function the slot is the natural place to intercept anyway.
+    // The vtable slot is patched rather than the function body: an inline hook
+    // needs a free page within +/-128 MB of the target for shadowhook's
+    // trampoline island, and inside the guest's single 298 MB executable
+    // mapping there is none. Say so on the device instead of only here.
+    std::string reachReason;
+    bool reachable = RttiLookup::islandReachable(update, &reachReason);
+    LOGD("an inline hook of update at 0x%lx would be %s: %s", (unsigned long) update,
+         reachable ? "possible" : "impossible", reachReason.c_str());
+
+    // For a virtual function the slot is the natural place to intercept anyway:
+    // no trampoline, and the mapping is MAP_PRIVATE so the patch is local to
+    // this process.
     uintptr_t original = 0;
     if (!RttiLookup::patchVtableSlot(clientInstanceVtable, update_target.slot,
                                      reinterpret_cast<uintptr_t>(ClientInstance_update_hook),
