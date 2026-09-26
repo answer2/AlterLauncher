@@ -24,6 +24,12 @@ public class IOManager {
 
     private static final Map<String, Map<String, String>> sCachePackageRedirect = new HashMap<>();
 
+    /**
+     * Per-installation data sets live under this directory in the launcher's own
+     * data dir, one subdirectory per guest installation.
+     */
+    private static final String ISOLATION_DIR = "mc";
+
     public static IOManager get() {
         return sIOManager;
     }
@@ -77,8 +83,29 @@ public class IOManager {
         return new File(redirectPath(pathStr, rule));
     }
 
+    /**
+     * Builds the redirect table with one data set per guest installation.
+     *
+     * <p>Passing the version name is what turns isolation on: the table then aims
+     * the guest's own paths at {@code <launcher dataDir>/mc/<slug>} instead of the
+     * launcher's data dir root. The slug carries the package name as well as the
+     * version because a version string alone is not an identity — the same version
+     * can be installed more than once (different channels, different APKs that
+     * happen to report the same versionName), while Android guarantees one install
+     * per package, so package+version is unique per installation by construction.
+     */
     public void enableRedirect(Context context, String versionName) {
-        enableRedirect(context);
+        installRedirectRules(context, isolationSlug(context.getPackageName(), versionName));
+    }
+
+    /**
+     * Names one installation. Kept to characters that are safe on every filesystem
+     * we can end up on (internal storage is ext4/f2fs, but the external roots can be
+     * sdcardfs over anything), so nothing has to be escaped further downstream.
+     */
+    private static String isolationSlug(String guestPackage, String versionName) {
+        String raw = guestPackage + "@" + (TextUtils.isEmpty(versionName) ? "unknown" : versionName);
+        return raw.replaceAll("[^A-Za-z0-9._+-]", "_");
     }
 
     /**
@@ -109,20 +136,37 @@ public class IOManager {
      * .getBooleanAttributes0} — so the guest's cache dir "exists" (it is ours), vold is
      * never consulted, and the guest receives a usable File whose every later access
      * lands in our tree.
+     *
+     * <p>Only the redirect table decides isolation. The directories the guest gets
+     * from its {@code Context} fields ({@code mFilesDir}, {@code mPreferencesDir},
+     * {@code mDatabasesDir}, …) were copied verbatim from the launcher by
+     * {@code AlterEnvironment.establishEnv()}, so they never contain the guest's
+     * package name and never match a rule: they stay shared on purpose. That keeps
+     * the launcher's own preferences, plugin storage and WebView profile where the
+     * launcher expects them, and isolates exactly the paths the game spells out of
+     * its own package identity.
      */
     public void enableRedirect(Context context) {
+        installRedirectRules(context, null);
+    }
+
+    private void installRedirectRules(Context context, String slug) {
         Map<String, String> rule = new LinkedHashMap<>();
         String packageName = context.getPackageName();
 
         try {
             ApplicationInfo packageInfo = context.getPackageManager().getApplicationInfo(LauncherConstants.PACKAGE, 0);
+            // The library directory is the launcher's own, shared by every
+            // installation: it holds the .so files this process already mapped,
+            // and isolating it would only duplicate them per version.
             rule.put("/data/data/" + packageName + "/lib", packageInfo.nativeLibraryDir);
             rule.put("/data/user/0/" + packageName + "/lib", packageInfo.nativeLibraryDir);
 
-            rule.put("/data/data/" + packageName, packageInfo.dataDir);
-            rule.put("/data/user/0/" + packageName, packageInfo.dataDir);
+            String internalRoot = isolate(new File(packageInfo.dataDir), slug).getAbsolutePath();
+            rule.put("/data/data/" + packageName, internalRoot);
+            rule.put("/data/user/0/" + packageName, internalRoot);
 
-            rule.put("/data/user/0/" + packageName +"/app_ntp0", packageInfo.dataDir + "/app_ntp0");
+            rule.put("/data/user/0/" + packageName + "/app_ntp0", internalRoot + "/app_ntp0");
 
             Context host = Alternative.getManager().mContext;
             // Only the data getter appends a leaf ("/files", "/cache"), so only it
@@ -139,19 +183,31 @@ public class IOManager {
             // the only place they can be fixed. The bare roots go in first:
             // redirectPath() takes the first matching prefix, so one rule covers every
             // subpath (files/games/com.mojang/**, cache/**, …).
-            addExternalRules(rule, packageName, "data", hostData);
-            addExternalRules(rule, packageName, "obb", hostObb);
-            addExternalRules(rule, packageName, "media", hostMediaRoot);
+            addExternalRules(rule, packageName, "data", isolate(hostData, slug));
+            addExternalRules(rule, packageName, "obb", isolate(hostObb, slug));
+            addExternalRules(rule, packageName, "media", isolate(hostMediaRoot, slug));
 
-            // Keep the leaf rules the previous table had, for callers that build a
+            // Keep the leaf rules the previous table carried, for callers that build a
             // guest path out of an ApplicationInfo field instead of a Context getter.
             // They resolve to the same place; addRedirect() ignores duplicates.
             if (hostCache != null) {
                 String guestData = "/storage/emulated/0/Android/data/" + packageName;
-                rule.put(guestData + "/cache", new File(hostCache, "cache").getAbsolutePath());
+                File dataRoot = isolate(hostCache, slug);
+                rule.put(guestData + "/cache", new File(dataRoot, "cache").getAbsolutePath());
                 if (hostData != null) {
-                    rule.put(guestData + "/files", new File(hostData, "files").getAbsolutePath());
+                    rule.put(guestData + "/files", new File(isolate(hostData, slug), "files").getAbsolutePath());
                 }
+            }
+
+            // Worlds, packs and options are the one thing that must survive being
+            // pointed somewhere new, and "games" is the only name in the old
+            // location the launcher can never have written itself: the game spells
+            // it below its own data dir, so it is unambiguously the guest's.
+            // Everything else that used to land in the shared root — login state,
+            // SDK caches, telemetry files — starts fresh per installation, which is
+            // the point of isolating in the first place.
+            if (slug != null) {
+                migrate(new File(packageInfo.dataDir, "games"), new File(internalRoot, "games"));
             }
 
         } catch (Exception e) {
@@ -164,6 +220,43 @@ public class IOManager {
         Log.i(TAG, "redirect rules installed: " + rule.size()
                 + ", guest external cache = " + guestCache
                 + ", usable=" + (guestCache != null && guestCache.canWrite()));
+    }
+
+    /**
+     * Appends the installation segment to a host directory, or returns it unchanged
+     * when isolation is off.
+     */
+    private static File isolate(File hostRoot, String slug) {
+        if (hostRoot == null) {
+            return null;
+        }
+        if (slug == null) {
+            return hostRoot;
+        }
+        return new File(new File(hostRoot, ISOLATION_DIR), slug);
+    }
+
+    /**
+     * One-shot move of the pre-isolation tree into the isolated one. A rename, so it
+     * is instant and atomic for the whole directory, and it only ever runs while the
+     * destination is still absent — after that both launcher and game only ever see
+     * the new location.
+     */
+    private static void migrate(File legacy, File target) {
+        if (legacy == null || !legacy.exists() || target.exists()) {
+            return;
+        }
+        File parent = target.getParentFile();
+        if (parent != null && !parent.exists() && !parent.mkdirs()) {
+            Log.w(TAG, "cannot create " + parent + ", leaving " + legacy + " in place");
+            return;
+        }
+        if (legacy.renameTo(target)) {
+            Log.i(TAG, "migrated " + legacy + " to " + target);
+        } else {
+            Log.w(TAG, "could not move " + legacy + " to " + target
+                    + "; this installation starts with an empty world list");
+        }
     }
 
     /**

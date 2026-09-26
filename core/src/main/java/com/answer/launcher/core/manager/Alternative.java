@@ -1117,11 +1117,12 @@ public class Alternative {
         }
 
         /*
-         * IO Redirect
+         * IO Redirect. The version name is what selects the isolated data set —
+         * see IOManager.enableRedirect for why the slug carries the package too.
          */
         IOManager
                 .get()
-                .enableRedirect(packageContext);
+                .enableRedirect(packageContext, LauncherConstants.MINECRAFT_VERSION);
 
         /*
          * The game's dex is now merged into this class loader, so hook groups

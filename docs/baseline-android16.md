@@ -258,3 +258,36 @@ something calls them", not "broken".
   `LoadedApk.mPackageName` is therefore deliberately off the table; redirecting storage paths
   is the surgical half.
 
+## One data set per installation (issue ④, C13)
+
+A version string is not an identity: two different APKs can report the same `versionName`,
+and a launcher that hosts more than one Minecraft build needs each one's worlds, packs and
+options kept apart. `IOManager` therefore aims the guest's own paths at
+
+```
+<launcher dataDir>/mc/<guestPackage>@<versionName>
+```
+
+The package is part of the name because Android guarantees one install per package, so
+package+version is unique per installation by construction — version alone is not. The slug
+is reduced to `[A-Za-z0-9._+-]` because the external roots can sit on a filesystem that
+accepts less than ext4 does.
+
+Only the redirect table moves. The directories the guest receives from its `Context` fields
+(`mFilesDir`, `mPreferencesDir`, `mDatabasesDir`, `mCacheDir`, …) were copied verbatim from
+the launcher by `AlterEnvironment.establishEnv()`, so they never contain the guest's package
+name and never match a rule: they stay shared on purpose. That keeps the launcher's own
+preferences, plugin storage and WebView profile where the launcher expects them, and isolates
+exactly the paths the game spells out of its own identity — which is every path under
+`/data/data/<guest>`, `/data/user/0/<guest>` and `/storage/emulated/0/Android/{data,obb,media}/<guest>`.
+`/lib` is deliberately not isolated: it names the launcher's real `nativeLibraryDir`, the
+libraries this process has already mapped.
+
+`<legacy dataDir>/games` is renamed into the isolated root the first time it is created,
+because that is the one name in the old location the launcher can never have written itself —
+the game spells it below its own data dir. A rename, so it is instant and atomic for the whole
+tree, and it only runs while the destination is absent. Everything else that used to land in
+the shared root (XAL login state, SDK caches, telemetry files) starts fresh per installation;
+that separation is the point rather than a cost, but it does mean the first run of a newly
+isolated build is signed out.
+
