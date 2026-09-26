@@ -11,6 +11,7 @@ import android.os.IBinder;
 import com.answer.launcher.core.hook.SplashScreenHook;
 import android.util.Log;
 import com.answer.launcher.core.LauncherConstants;
+import com.answer.launcher.core.bridge.GameRuntime;
 import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.core.tool.Reflector;
 import java.lang.reflect.Field;
@@ -87,6 +88,9 @@ public class AlterInstrumentation extends Instrumentation {
                 // The exchange that newActivity() performed has already been undone by
                 // Activity#attach, so it has to happen again here.
                 exchangeResourcesOfActivity(activity);
+                // Same story for a restore: the framework put the launcher's loader on
+                // the saved-state Bundle before handing it to us.
+                adoptSavedState(arg1);
                 // The game's activities are AppCompat activities. Their manifest entry
                 // in this APK is only a placeholder: the real theme resource id lives in
                 // the GAME's resource space, so it cannot be written here (@android:...
@@ -362,10 +366,80 @@ public class AlterInstrumentation extends Instrumentation {
         }
     }
     
+    /**
+     * Materialise every extra on a launching Intent while the guest class loader is
+     * still installed on it, so the framework cannot re-read them later with the
+     * launcher's. See the call site in {@link #newActivity}.
+     *
+     * This goes for the Bundle held inside the Intent, not the one
+     * {@link Intent#getExtras()} hands back: that is a defensive copy, and reading
+     * through a copy leaves the original still pointing at its Parcel.
+     */
+    private void consumeExtras(Intent intent, ClassLoader guest) {
+        Bundle extras;
+        try {
+            extras = Reflector.on(Intent.class).field("mExtras").get(intent);
+        } catch (Throwable t) {
+            Log.w("AlterInstrumentation", "cannot reach the intent extras: " + t);
+            return;
+        }
+        if (extras == null) {
+            return;
+        }
+        try {
+            extras.setClassLoader(guest);
+            // keySet() is BaseBundle.unparcel(); every get() then runs
+            // Parcel.readValue over the real Parcel and caches the object in place,
+            // which is exactly what makes the framework's later read harmless.
+            for (String key : extras.keySet()) {
+                try {
+                    extras.get(key);
+                } catch (Throwable ignored) {
+                    // One value the guest loader cannot read must not sink the launch
+                    // - the framework would only throw on it anyway.
+                }
+            }
+        } catch (Throwable t) {
+            Log.w("AlterInstrumentation", "cannot pre-read the intent extras: " + t);
+        }
+    }
+
+    /**
+     * Saved state is handed to the Activity as a Bundle whose loader ActivityThread
+     * overwrote with the launcher's (android16 ActivityThread.java:4180) right
+     * before {@code callActivityOnCreate}. Same fix, one step later.
+     */
+    private void adoptSavedState(Bundle savedInstanceState) {
+        if (savedInstanceState == null) {
+            return;
+        }
+        ClassLoader guest = Alternative.getManager().getClassLoader();
+        if (guest != null) {
+            savedInstanceState.setClassLoader(guest);
+        }
+    }
+
     @Override
     public void callActivityOnNewIntent(Activity arg0, Intent arg1) {
         super.callActivityOnNewIntent(arg0, arg1);
         // TODO: Implement this method
+    }
+
+    /**
+     * Exit is the mirror image of launch. When the last game window is destroyed
+     * the runtime is still assembled in this process, but nothing of it is on
+     * screen any more, so the state goes back to idle. That is what tells the UI
+     * process it may drop its {@code BIND_AUTO_CREATE} and let the system reclaim
+     * {@code :game} - the launcher's own process is a different one and is never
+     * part of the teardown.
+     */
+    @Override
+    public void callActivityOnDestroy(Activity activity) {
+        super.callActivityOnDestroy(activity);
+        if (activity != null && SplashScreenHook.isGameActivity(activity.getClass())) {
+            Log.i("AlterInstrumentation", "game window destroyed - runtime idle");
+            GameRuntime.setIdle();
+        }
     }
     
     @Override
@@ -403,6 +477,41 @@ public class AlterInstrumentation extends Instrumentation {
     public Activity newActivity(ClassLoader arg0, String arg1, Intent arg2) throws
             ClassNotFoundException, IllegalAccessException, InstantiationException {
         // TODO: Implement this method
+        /*
+         * Extras are unparceled with the class loader the framework puts on the
+         * Intent, and ActivityThread takes that from the base context it built for
+         * the ActivityRecord - the launcher's PathClassLoader. Since the game dex
+         * moved to the guest loader that loader cannot see a single game class, so
+         * any guest activity carrying a Serializable or Parcelable extra dies
+         * before its onCreate. The XAL login page is exactly that:
+         *
+         *   android.os.BadParcelableException: Parcelable encountered
+         *   ClassNotFoundException reading a Serializable object
+         *   (name = com.microsoft.xal.browser.BrowserLaunchActivity$ShowUrlType)
+         *     at android.os.Parcel.readSerializableInternal(Parcel.java:5553)
+         *     at android.os.Parcel$LazyValue.apply(Parcel.java:4840)
+         *   at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4649)
+         *
+         * which is what the user sees as "登录页白屏 / 点了没反应".
+         *
+         * Setting the loader here is NOT enough on its own: android16 reads
+         * ActivityThread.java
+         *
+         *   4173  activity = mInstrumentation.newActivity(cl, component.getClassName(), r.intent);
+         *   4176  r.intent.setExtrasClassLoader(cl);          // back to the launcher's
+         *   4177  r.intent.prepareToEnterProcess(...);        // reads every value now
+         *
+         * so the framework overwrites our loader one line later and materialises
+         * every lazy value with it. What does hold is consuming the extras *here*,
+         * while the guest loader is still installed: BaseBundle.unparcel() drops the
+         * Parcel once read and caches the values, so the later prepareToEnterProcess
+         * finds nothing left to parse and the wrong loader never gets a turn.
+         */
+        ClassLoader guest = Alternative.getManager().getClassLoader();
+        if (guest != null && arg2 != null) {
+            arg2.setExtrasClassLoader(guest);
+            consumeExtras(arg2, guest);
+        }
         if (LauncherConstants.GAME_HOST_ACTIVITY.equals(arg1)) {
             Activity game = newGuestActivity(LauncherConstants.MINECRAFTACTIVITY);
             if (game != null) {

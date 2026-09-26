@@ -180,6 +180,7 @@
             android:process=":game"
             android:resizeableActivity="true"
             android:screenOrientation="sensorLandscape"
+            android:taskAffinity="com.answer.launcher.game"
             android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
             android:windowSoftInputMode="adjustResize"
             tools:ignore="DiscouragedApi" >
@@ -212,6 +213,7 @@
             android:launchMode="singleTask"
             android:process=":game"
             android:screenOrientation="sensorLandscape"
+            android:taskAffinity="com.answer.launcher.game"
             android:theme="@style/AppTheme"
             tools:ignore="DiscouragedApi" >
             <meta-data

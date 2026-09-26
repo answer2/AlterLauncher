@@ -2,7 +2,9 @@ package com.answer.launcher.core.bridge;
 
 import android.app.Service;
 import android.content.Intent;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Process;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
@@ -40,6 +42,30 @@ public class GameBridgeService extends Service {
             new RemoteCallbackList<>();
 
     /**
+     * How long the process lingers once the game window is gone. The UI process
+     * needs a moment to see the idle callback and drop its {@code BIND_AUTO_CREATE};
+     * after that this process has nothing left to show for itself, and keeping it
+     * alive would mean re-entering Minecraft on top of a runtime whose statics were
+     * already torn down. So the process ends here and the next launch is a genuine
+     * cold boot. The launcher's own process is never involved.
+     */
+    private static final long IDLE_REAP_DELAY_MS = 2500L;
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    private final Runnable reaper = new Runnable() {
+        @Override
+        public void run() {
+            if (!GameRuntime.IDLE.equals(GameRuntime.state())) {
+                // Relaunched in the meantime - stay up for it.
+                return;
+            }
+            Log.i(TAG, "runtime idle, reaping the game process (pid " + Process.myPid() + ")");
+            Process.killProcess(Process.myPid());
+        }
+    };
+
+    /**
      * Forwards assembly progress to whoever is watching. Registered in onCreate so
      * a runtime that finished before anyone bound is still reportable — late binders
      * get the current state pushed on register.
@@ -58,6 +84,10 @@ public class GameBridgeService extends Service {
                 }
             } finally {
                 callbacks.finishBroadcast();
+            }
+            mainHandler.removeCallbacks(reaper);
+            if (GameRuntime.IDLE.equals(state)) {
+                mainHandler.postDelayed(reaper, IDLE_REAP_DELAY_MS);
             }
         }
     };
@@ -213,6 +243,7 @@ public class GameBridgeService extends Service {
 
     @Override
     public void onDestroy() {
+        mainHandler.removeCallbacks(reaper);
         GameRuntime.removeStateListener(pump);
         callbacks.kill();
         super.onDestroy();

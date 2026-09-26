@@ -56,6 +56,17 @@ public final class GameBridgeClient {
         @Override
         public void onRuntimeStateChanged(String state) {
             runtimeState = state == null ? GameRuntime.IDLE : state;
+            if (GameRuntime.IDLE.equals(runtimeState)) {
+                /*
+                 * The game window is gone. Holding BIND_AUTO_CREATE any longer would
+                 * keep a dead runtime resident, and the next launch would land in
+                 * that same stale process instead of a fresh one. Downgrade back to
+                 * the parked read-only binding, which costs nothing and reconnects
+                 * by itself whenever :game comes back.
+                 */
+                releaseWake();
+                return;
+            }
             notifyListeners();
         }
 
@@ -204,6 +215,35 @@ public final class GameBridgeClient {
             binding = false;
             boundFlags = 0;
         }
+    }
+
+    /**
+     * Downgrade the wake binding back to the parked read-only one, keeping the
+     * same set of contexts so a later {@link #wake(Context)} still finds them
+     * known and can upgrade again. Nothing here kills {@code :game} — it only
+     * stops the UI process from insisting that it stay resident.
+     */
+    private synchronized void releaseWake() {
+        if (boundFlags == 0) {
+            return;
+        }
+        List<Context> parked = new ArrayList<>(boundContexts);
+        for (Context app : parked) {
+            try {
+                app.unbindService(connection);
+            } catch (IllegalArgumentException ignored) {
+                // Already gone.
+            }
+        }
+        boundContexts.clear();
+        boundFlags = 0;
+        bridge = null;
+        binding = false;
+        runtimeState = GameRuntime.IDLE;
+        for (Context app : parked) {
+            bindInternal(app, 0);
+        }
+        notifyListeners();
     }
 
     public static Intent serviceIntent() {

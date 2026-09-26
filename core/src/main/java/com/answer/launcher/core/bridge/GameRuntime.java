@@ -48,6 +48,16 @@ public final class GameRuntime {
         set(FAILED_PREFIX + (reason == null ? "unknown" : reason));
     }
 
+    /**
+     * The game window went away. The assembly is still in memory, but nothing is
+     * on screen any more, so the UI process may drop its BIND_AUTO_CREATE and let
+     * the system reclaim {@code :game} whenever it likes - while the launcher
+     * process, which never hosted any of this, stays up untouched.
+     */
+    public static void setIdle() {
+        set(IDLE);
+    }
+
     public static void addStateListener(StateListener listener) {
         if (listener != null && !listeners.contains(listener)) {
             listeners.add(listener);
