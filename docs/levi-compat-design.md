@@ -217,22 +217,27 @@ They do **not** delegate login to the guest's XAL SDK and they do not capture th
 ### 6.2 What the game actually stores (measured on device, 2026-09-26)
 
 The scheme above is Levi's, and Levi's file names do **not** match what our guest
-writes. Measured in `/data/user/0/com.answer.launcher/xal/`: eight entries with numeric
-names (`13687287496199607557` 2565 B, `1734634999945796391` 33 B, `23267674985628`,
-`7162984379564848478`, `Skew` 19 B, `default_lock` 0 B, `default_user`,
-`Xal.1734634999945796391.Production`), plus `shared_prefs/com.microsoft.xal.crypto.xml`
-(1561 B) and `games/com.mojang/ud1995949509.dat` (7319 B).
+writes — the game hashes every name. Measured in `/data/user/0/com.answer.launcher/xal/`,
+eight entries, every one of them now accounted for:
 
-Two facts came out of that list.
+| file (name = hash) | bytes | key it was hashed from | content |
+|---|---|---|---|
+| `1734634999945796391` | 30 | `Xal.1739947436.Production.Default` | `{"default":"07cc73f690e1e574"}` |
+| `16049017696330990596` | 87 | `Xal.Production.RETAIL.DeviceIdentity` | `{"Id":"{7f82af9c-…}","Key":"Serialized to SharedPreferences"}` |
+| `14748840670442735584` | 2078 | `Xal.Production.RETAIL.D` | `{"deviceId":…,"token":{IdentityType:"Dtoken",…}}` — singular `token` |
+| `14791165800392185591` | 2075 | `Xal.1739947436.Production.RETAIL.T` | `{"deviceId":…,"tokens":[{IdentityType:"Ttoken",…}]}` |
+| `3773247185338733762` | 1881 | `Xal.1739947436.Production.Msa.MDdjYzczZjY5MGUxZTU3NA` | `{user_id, refresh_token, foci:"", access_tokens:[{access_token:"t=…", xal_expires, scopes}]}` |
+| `13687287496199607557` | 11169 | `Xal.1739947436.Production.RETAIL.User.MDdjYzczZjY5MGUxZTU3NA` | `{deviceId, tokens:[4 envelopes]}` |
+| `8795356459289257587` | 19 | (not recovered) | `{"Skew":"-3009339"}` — clock skew, written by the game |
+| `10337803361694514047` | 193 | (not recovered) | `{WebViewFlowId, WebViewAdditionalArgs:{msaUserId, operation:"WelcomeBackSisu"}}` — transient sign-in UI state |
 
-**The names are hashes, and the hash is FNV-1 64-bit.** `libminecraftpe.so` carries the
-key grammar as format strings — `Xal.%llu.%s.Default` (0x23ccfb4),
-`Xal.%llu.%s.Msa.%s` (0x23f089a), `Xal.%llu.%s.%s.User.%s` (0x2387b62),
-`Xal.%llu.%s.%s.T` (0x24a38e5), `Xal.%s.%s.DeviceIdentity` (0x262c5f9),
-`Xal.%s.%s.D` (0x257aeb2), `Xal.%s.Msa.Foci.1` (0x257adb2) — and the Android platform
-layer turns a key into a file name by hashing it with 64-bit FNV-1 (basis
-`0xCBF29CE484222325`, prime `0x100000001B3`, **multiply-then-xor**, not the FNV-1a
-variant), printed as an unsigned decimal. One exact hit confirms it:
+**The names are FNV-1 64-bit hashes of the keys.** `libminecraftpe.so` carries the key
+grammar as format strings — `Xal.%llu.%s.Default` (0x23ccfb4), `Xal.%llu.%s.Msa.%s`
+(0x23f089a), `Xal.%llu.%s.%s.User.%s` (0x2387b62), `Xal.%llu.%s.%s.T` (0x24a38e5),
+`Xal.%s.%s.DeviceIdentity` (0x262c5f9), `Xal.%s.%s.D` (0x257aeb2), `Xal.%s.Msa.Foci.1`
+(0x257adb2) — and the Android platform layer turns a key into a file name with 64-bit
+FNV-1 (basis `0xCBF29CE484222325`, prime `0x100000001B3`, **multiply-then-xor**, not the
+FNV-1a variant), printed as an unsigned decimal:
 
 ```
 fnv164("Xal.1739947436.Production.Default") == 1734634999945796391
@@ -242,43 +247,69 @@ which is the device file whose content is `{"default":"07cc73f690e1e574"}`. So t
 XAL title id is **1739947436** — the same value Levi hardcodes at `XalExporter.java:81` —
 and *not* the `ms-xal-0000000048183522` (= 1209513250) in our manifest: the redirect
 scheme carries the Azure application id, the storage keys carry the XAL title id, and
-confusing the two writes files the game will never look for. `Skew` is stored under its
-literal key, so only namespaced keys are hashed. The implementation of the naming lives
-in `auth/src/main/java/com/answer/launcher/auth/XalStore.java`; `build/xalhash.py`,
-`build/xalnames.py` and `build/xalinvert.py` are the probes that found it.
+confusing the two writes files the game will never look for.
 
-**The contents are the schema §6.1 describes.** `13687287496199607557` opens with
-`{"deviceId":"{85745666-…}","tokens":[{"MsaUserId":"07cc73f690e1e574",
-"HasSignInDisplayClaims":true,"IdentityType":"MRSI","Environment":"Production",
-"Sandbox":"RETAIL","TokenType":"JWT","RelyingParty":"http://xboxlive.com",
-"TokenData":{"Token":"eyJ0eXAiOiJKV3ci…"` — Levi's `…RETAIL.User.<user>.json` shape
-exactly. So the export is writable, and the device keypair has a known home
-(`com.microsoft.xal.crypto.xml`, named after the SDK's own package, which answers the
-"launcher-derived prefs name" guess in §6.2 below: it is not launcher-derived).
+**The account segment is base64url, not the raw id.** `MDdjYzczZjY5MGUxZTU3NA` is
+`base64url("07cc73f690e1e574")` with the padding stripped — Levi was right; the earlier
+misses came from hashing the raw id. Every per-user key therefore needs
+`XalStore.accountSegment(id)`, and getting that wrong is a silent failure: the file is
+written, reads back perfectly, and is never looked for.
 
-**What is still open, and it is the hard part.** Only the `Default` key has been matched.
-The other seven names are not reproduced by any key built from `1739947436` +
-`07cc73f690e1e574` + `RETAIL` (`build/xalhash2.py` enumerates the guesses and shows the
-misses), so at least one `%s` segment is something else — most likely the *web* account id
-(a GUID) or Levi's `Base64.URL_SAFE(msUserId)` rather than the local id, since
-`XalUserGetLocalId` and `XalUserGetWebAccountId` are separate accessors in the exported
-API. And one entry is only 14 digits (`23267674985628`), far too small to be a 64-bit
-hash, so not everything in that directory is named this way. `build/xalstore.sh` dumps the
-names with sizes and first bytes and is ready for the next device session. Until every
-name is accounted for, an exported token could land under a name the game never looks for
-— a silent failure, which is the kind this launcher has already been bitten by.
+**The envelope schema, field for field.** Top level `{deviceId, tokens:[…]}`; each
+envelope `{MsaUserId, HasSignInDisplayClaims, IdentityType, Environment, Sandbox,
+TokenType:"JWT", RelyingParty, SubRelyingParty:"", TokenData:{Token, NotAfter,
+IssueInstant, ClientAttested:false, DisplayClaims:{xui:[{uhs, gtg, mgt, mgs, umg, xid,
+agg, prv, usr, uer, utr, ugc}]}}}`. The four envelopes are `Xtoken` for
+`http://xboxlive.com` (the only one with `HasSignInDisplayClaims:true` and real claims:
+uhs `181147551632436782`, gamertag `Answer Dev`, xid `2535417119096133`, agg `Adult`),
+`Xtoken` for `https://b980a380.minecraft.playfabapi.com/`, `Xtoken` for
+`https://pocket.realms.minecraft.net/`, and `Utoken` for `http://auth.xboxlive.com`.
+Dates carry seven fractional digits and a literal `Z`; `IssueInstant` is the true issue
+time (NotAfter − 16 h for the user XSTS, − 4 d for the Utoken, − 14 d for the device and
+title tokens). The `Token` values are RSA-OAEP + A128CBC-HS256 JWEs issued by Xbox Live —
+opaque to us, and it does not matter: the launcher's own OAuth run produces the same
+tokens, which are copied verbatim.
+
+**The device keypair lives in `shared_prefs/com.microsoft.xal.crypto.xml`**, named after
+the SDK's own package rather than the host's (which answers the open question in §8.3).
+Exactly three entries: `private` = base64 **URL-safe, unpadded** PKCS#8 EC P-256,
+`public` = the same encoding of the X.509 SubjectPublicKeyInfo, `id` = `{deviceId}`. The
+`DeviceIdentity` file's `"Key":"Serialized to SharedPreferences"` is the pointer to it.
+The keypair is **shared** across installations (the instance's `shared_prefs` is a
+symlink into the launcher's tree), so a second installation reuses the device identity
+and the tokens exported for it decrypt without a fresh sign-in.
+
+The implementation of the naming is `auth/src/main/java/com/answer/launcher/auth/XalStore.java`
+and of the store `…/XalExporter.java`; `build/xalhash.py`, `build/xalnames.py`,
+`build/xalinvert*.py` and `build/xalprove.py` are the probes that found and confirmed it.
 
 ### 6.3 Our design
 
-Same mechanism, adapted to a separate `:game` process and to §2's real data root:
+Same mechanism as Levi, on the naming above, adapted to a separate `:game` process and to
+§2's real data root:
 
-- **Login lives in the launcher process**, in a plain WebView Activity (we already intercept the callback path: `AlterInstrumentation.consumeExtras` handles `com.microsoft.xal.browser.BrowserLaunchActivity$ShowUrlType`, and `hook/XboxHook.java` exists). Prefer the **device-code flow** first — it needs no redirect-uri registration and works on a phone without a custom tab contract.
-- **Vendor `RaphiMC/minecraftauth`** (or port the four request/response shapes) so we own the chain instead of screen-scraping the game's SDK. Its endpoint literals and the title-id client config must be read from that library — not verifiable offline here. **License check required** before it goes into the APK.
-- **Account store** `files/accounts/Xal.Accounts.json`, one record per account, `serializedAuthManager` encrypted (Android Keystore-backed) rather than cleartext.
-- **Export, don't copy.** At launch, `:game` receives the chosen `accountKey` over the existing AIDL bridge (`GameBridgeService`/`GameBridgeClient` already carry plugin state both ways) and the launcher writes the five artifacts above **into the instance's own data root** — `<instance>/files/xal/…` plus the `<instance>/shared_prefs/<prefsName>.xml` keypair — before the Application is created. Because §2 makes the guest's `filesDir`/`shared_prefs` real paths under the instance root, the vanilla XAL SDK reads them with no hooking at all.
-- **The share / don't-share switch is then just a write target**: `isolated` → write into `<instance>/files/xal`; `shared` → all instances' `files/xal` is the same directory (`files/instances/_shared/xal`), so one login serves every instance; `none` → write nothing, the game shows 登录 and 市场 fails with E-0020, which is now a correct and explainable state rather than an accident.
-- **Prefs name is an open question**: Levi's `org.levimc.xal.crypto` is launcher-namespaced, so either their native layer redirects the SDK's prefs name or the SDK derives it from the host package. In our case the host package *is* the launcher, so the name our guest's SDK will ask for is `com.answer.launcher`-derived — measure it by signing in once and diffing `shared_prefs/`, then write to exactly that name.
-- **Feedback loop**: Levi has none (blind export). We add the cheap version — after launch, read whether the guest created `ud*.dat` and whether 市场 loads; if the guest fell back to the login screen, mark the account `rejected` in the store and show it in the UI.
+- **Login lives in the launcher process** via the **device-code flow** — no redirect-uri
+  registration, no custom-tab contract, works on a phone with no Xbox app.
+- **`net.raphimc:MinecraftAuth:5.0.2`** (LGPL-3.0) in its own `:auth` module, so it stays
+  separately replaceable. Android-safe: `ExecutorType.URL_CONNECTION` (the library's
+  `java.net.http` executor is absent on Android), and its one desktop-coupled class
+  (`JfxWebViewMsaAuthService`) is never referenced. `MsaConstants.BEDROCK_ANDROID_TITLE_ID`
+  is the game's own client config, which is what makes the tokens consumable by the game.
+- **Account store** `accounts.json` **outside** `xal/` — XAL enumerates that directory and
+  a foreign file there is a parse error at worst, wasted work at best. Cleartext today,
+  matching what the game itself does; Keystore encryption is a follow-up.
+- **Export, don't copy.** `XalExporter.export(identityRoot, manager)` writes the four
+  user-scoped files, the device identity, and the keypair prefs. The device and title
+  tokens (`…RETAIL.D`, `…RETAIL.T`) are deliberately *not* written: XAL mints those
+  itself from the keypair, and a stale one is a token it cannot refresh.
+- **The share / don't-share switch is just a write target** — the identity root, resolved
+  by `IdentityStore`: `shared` → every installation symlinks at the launcher's tree
+  (default, because XBL refresh tokens *rotate*: a copied token is a stale token, which is
+  what signed the user out under the old copy-per-instance seeding); `isolated` → the
+  instance's own root, costing one sign-in on first launch, which is the point of the mode.
+- **Feedback loop**: after export, `AccountStore` records the account; on the next launch
+  `IdentityStore.readAccount` reports whether the game kept the state, and a session that
+  comes back signed out is surfaced in the account card rather than silently retried.
 
 ---
 
@@ -296,7 +327,8 @@ Each milestone is one commit (`C15`…) with the device measurement in its messa
 
 1. **`preloader-android` has no license** (§4.2) — blocks shipping their source. Ask LiteLDev upstream; Levi itself is Apache-2.0, so the gap looks accidental. Fallback is a clean-room implementation scoped by the undefined-symbol survey of real mods.
 2. `RaphiMC/minecraftauth` is **LGPL-3.0** — resolved, but with a chore: ship it as its own replaceable module, include the license text and a notice, and do not static-merge it into `:core`.
-3. The exact XAL prefs name our guest's SDK reads (§6.2) — one device session to measure.
+3. ~~The exact XAL prefs name our guest's SDK reads~~ — measured: `com.microsoft.xal.crypto`
+   (the SDK's own package, not the host's), holding `private`/`public`/`id`.
 4. Do we keep any anchor install? Recommendation: no — §2/§3 make a path-only guest ApplicationInfo possible, and that is the one place we can be strictly better than Levi.
 5. In-game Mod Menu (⑥b) in scope, or launcher-side enable/disable enough for now?
 6. Instance storage location: private `files/instances` (safe, invisible, deleted on uninstall) vs `Android/media/<pkg>` (Levi's choice — survives uninstall, browsable by users who want to grab their worlds). Recommendation: `files/instances` + an export/import action, since ⑧'s account store must not be world-readable.

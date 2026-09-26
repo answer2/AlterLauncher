@@ -27,9 +27,10 @@ import java.nio.charset.StandardCharsets;
  * <p>Two things fall out of that. The title id inside these keys is {@link #TITLE_ID_XAL} in
  * decimal, which is <em>not</em> the {@code ms-xal-0000000048183522} client id in the manifest —
  * the redirect scheme carries the Azure application id, the storage keys carry the XAL title id,
- * and conflating them writes files the game will never look for. And the clock-skew file is stored
- * under its literal key ({@code xal/Skew}), so the platform only hashes keys that go through the
- * namespaced store; anything guessing at the layout from the file names alone will miss it.
+ * and conflating them writes files the game will never look for. And the account segment inside
+ * the per-user keys is not the id itself but its base64url form ({@link #accountSegment}), so
+ * hashing the raw id produces a name the game never reads: the device's
+ * {@code MDdjYzczZjY5MGUxZTU3NA} is base64url of {@code 07cc73f690e1e574}.
  *
  * <p>Knowing the naming is what makes a host-side sign-in possible at all: the launcher can write
  * the same files the game reads, instead of having to reverse the token format from a directory of
@@ -60,6 +61,28 @@ public final class XalStore {
     /** {@code Xal.<titleId>.<environment>.Msa.<webAccountId>} — the MSA refresh ticket store. */
     public static String msaKey(String webAccountId) {
         return "Xal." + TITLE_ID_XAL + "." + ENVIRONMENT + ".Msa." + webAccountId;
+    }
+
+    /**
+     * The account segment as it appears inside the per-user keys: base64url of the
+     * id with the padding stripped. {@code 07cc73f690e1e574} becomes
+     * {@code MDdjYzczZjY5MGUxZTU3NA}, which is the segment on the device. Pass the
+     * result to {@link #msaKey} or {@link #userKey} — hashing the raw id produces a
+     * file name the game will never look for.
+     */
+    public static String accountSegment(String accountId) {
+        return java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(accountId.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** {@code Xal.<environment>.<sandbox>.D} — the cached device token. */
+    public static String deviceTokenKey() {
+        return "Xal." + ENVIRONMENT + "." + SANDBOX + ".D";
+    }
+
+    /** {@code Xal.<titleId>.<environment>.<sandbox>.T} — the cached title token. */
+    public static String titleTokenKey() {
+        return "Xal." + TITLE_ID_XAL + "." + ENVIRONMENT + "." + SANDBOX + ".T";
     }
 
     /**
