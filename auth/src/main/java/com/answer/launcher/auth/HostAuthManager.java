@@ -54,6 +54,9 @@ public final class HostAuthManager {
     /** The scope the game asks for; anything narrower gets us a token the title will not accept. */
     public static final String SCOPE = MsaConstants.SCOPE_TITLE_AUTH;
 
+    /** How long to wait for the user to enter the code: the code's own lifetime, fifteen minutes. */
+    public static final int CODE_LIFETIME_MS = 15 * 60 * 1000;
+
     private HostAuthManager() {
     }
 
@@ -86,7 +89,11 @@ public final class HostAuthManager {
                 // device to Xbox and the console-privacy checks start failing.
                 .deviceKeyPair(CryptUtil.generateEcdsa256KeyPair())
                 .deviceId(UUID.randomUUID())
-                .login((h, c) -> new DeviceCodeMsaAuthService(h, c, codeSink::accept));
+                // Fifteen minutes, which is how long Microsoft's own code lives. The library's
+                // default is five, and five minutes is not enough for someone to notice the code,
+                // unlock their phone, open a browser and type it — the sign-in then dies on a
+                // perfectly good code.
+                .login((h, c) -> new DeviceCodeMsaAuthService(h, c, codeSink::accept, CODE_LIFETIME_MS));
     }
 
     /** Rebuilds a manager from {@link #serialize}, without touching the network. */

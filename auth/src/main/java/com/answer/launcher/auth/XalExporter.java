@@ -7,6 +7,8 @@ import com.answer.launcher.auth.XalStore;
 import net.raphimc.minecraftauth.bedrock.BedrockAuthManager;
 import net.raphimc.minecraftauth.bedrock.model.MinecraftCertificateChain;
 import net.raphimc.minecraftauth.msa.model.MsaToken;
+import net.raphimc.minecraftauth.xbl.model.XblDeviceToken;
+import net.raphimc.minecraftauth.xbl.model.XblTitleToken;
 import net.raphimc.minecraftauth.xbl.model.XblUserToken;
 import net.raphimc.minecraftauth.xbl.model.XblUserProfile;
 import net.raphimc.minecraftauth.xbl.model.XblXstsToken;
@@ -33,14 +35,19 @@ import java.util.Map;
  *   xal/&lt;fnv("Xal.Production.RETAIL.DeviceIdentity")&gt;       {"Id":"{guid}","Key":"Serialized to SharedPreferences"}
  *   xal/&lt;fnv("Xal.&lt;tid&gt;.Production.Msa.&lt;b64(localId)&gt;")&gt;     {"user_id","refresh_token","foci","access_tokens":[…]}
  *   xal/&lt;fnv("Xal.&lt;tid&gt;.Production.RETAIL.User.&lt;b64(id)&gt;")&gt;  {"deviceId","tokens":[4 envelopes]}
+ *   xal/&lt;fnv("Xal.Production.RETAIL.D")&gt;                   {"deviceId","token":{Dtoken envelope}}
+ *   xal/&lt;fnv("Xal.&lt;tid&gt;.Production.RETAIL.T")&gt;            {"deviceId","tokens":[Ttoken envelope]}
  *   shared_prefs/com.microsoft.xal.crypto.xml                private / public / id
  * </pre>
  *
  * <p>The device and title tokens ({@code …RETAIL.D} and {@code …RETAIL.T}) are
- * deliberately not written: they are minted by XAL itself from the device
- * keypair, and handing it a valid keypair plus the device identity is what
- * lets it do so. Writing a stale one would only make the game trust a token
- * it cannot refresh.
+ * written too. They were left out first, on the theory that XAL mints them from
+ * the keypair — and it does, which is how the export was proven to work: with
+ * only the four files above on disk, the game signed in and then wrote the two
+ * token caches and its clock skew itself, under the names this class chose. But
+ * minting them costs the first launch a tap on the sign-in button, because the
+ * silent restore has no device token to resume from. MinecraftAuth holds real
+ * ones, so there is no reason to make the player wait for it.
  *
  * <p>Everything here takes an identity root rather than a {@code Context},
  * because the root depends on the user's choice in the settings page: the
@@ -52,7 +59,7 @@ public final class XalExporter {
 
     /** The relying parties, in the order the game itself stores them. */
     private static final String RP_XBOX_LIVE = "http://xboxlive.com";
-    private static final String RP_PLAYFab = "https://b980a380.minecraft.playfabapi.com/";
+    private static final String RP_PLAYFAB = "https://b980a380.minecraft.playfabapi.com/";
     private static final String RP_REALMS = "https://pocket.realms.minecraft.net/";
     private static final String RP_AUTH = "http://auth.xboxlive.com";
 
@@ -75,6 +82,13 @@ public final class XalExporter {
      */
     private static final long LIFE_XSTS_MS = 16L * 3600_000L;
     private static final long LIFE_UTOKEN_MS = 4L * 24 * 3600_000L;
+    private static final long LIFE_XBL_MS = 14L * 24 * 3600_000L;
+    /** The XBL device id form: 16 hex digits, as it appears in {@code xdi.did}. */
+    private static final java.util.regex.Pattern DEVICE_ID_PATTERN =
+            java.util.regex.Pattern.compile("[0-9A-Fa-f]{16}");
+    /** A title id is a decimal integer, as it appears in {@code xti.tid}. */
+    private static final java.util.regex.Pattern TITLE_ID_PATTERN =
+            java.util.regex.Pattern.compile("[0-9]{1,19}");
 
     private XalExporter() {
     }
@@ -163,7 +177,7 @@ public final class XalExporter {
         envelopes.add(envelope(localId, true, "Xtoken", RP_XBOX_LIVE,
                 xboxLive.getToken(), xboxLive.getExpireTimeMs(), LIFE_XSTS_MS,
                 claims(xboxLive.getUserHash(), gamertag, xuid, agg, true)));
-        envelopes.add(envelope(localId, false, "Xtoken", RP_PLAYFab,
+        envelopes.add(envelope(localId, false, "Xtoken", RP_PLAYFAB,
                 playFab.getToken(), playFab.getExpireTimeMs(), LIFE_XSTS_MS,
                 claims(playFab.getUserHash(), "", "0", "", false)));
         envelopes.add(envelope(localId, false, "Xtoken", RP_REALMS,
@@ -177,6 +191,58 @@ public final class XalExporter {
         userStore.addProperty("deviceId", deviceId);
         userStore.add("tokens", envelopes);
         write(new File(xal, XalStore.fileName(XalStore.userKey(segment))), toJson(userStore));
+
+        // The device and title caches. Same envelope shape as the user ones, but
+        // not scoped to an account, and the claims name the device or the title
+        // instead of a player. Written because XAL's silent restore looks for
+        // them: without them the first launch falls back to an interactive
+        // sign-in — which does succeed, and then writes them itself.
+        XblDeviceToken device = null;
+        try {
+            device = manager.getXblDeviceToken().getUpToDate();
+        } catch (Throwable ignored) {
+            // A missing device token costs the silent first boot, not the login.
+        }
+        if (device != null && notEmpty(device.getToken())
+                && device.getDeviceId() != null && DEVICE_ID_PATTERN.matcher(device.getDeviceId()).matches()) {
+            // The claim XAL checks is the 64-bit hex device id XBL puts in the
+            // token, not the GUID we named the keypair by. If the library ever
+            // hands us something else, writing it would poison the device
+            // identity — so the shape is checked, and the file left out rather
+            // than guessed at.
+            String did = device.getDeviceId();
+            JsonObject claims = claims("", "", "0", "", false);
+            JsonObject xdi = new JsonObject();
+            xdi.addProperty("did", did);
+            claims.add("xdi", xdi);
+            JsonObject store = new JsonObject();
+            store.addProperty("deviceId", deviceId);
+            store.add("token", envelope(null, false, "Dtoken", RP_AUTH, device.getToken(),
+                    device.getExpireTimeMs(), LIFE_XBL_MS, claims));
+            write(new File(xal, XalStore.fileName(XalStore.deviceTokenKey())), toJson(store));
+        }
+
+        XblTitleToken title = null;
+        try {
+            title = manager.getXblTitleToken().getUpToDate();
+        } catch (Throwable ignored) {
+        }
+        if (title != null && notEmpty(title.getToken())
+                && title.getTitleId() != null && TITLE_ID_PATTERN.matcher(title.getTitleId()).matches()) {
+            JsonObject claims = claims("", "", "0", "", false);
+            JsonObject xti = new JsonObject();
+            // XBL echoes the title the token was minted for, so this stays
+            // consistent with the token even if a future build asks for another.
+            xti.addProperty("tid", title.getTitleId());
+            claims.add("xti", xti);
+            JsonArray titleTokens = new JsonArray();
+            titleTokens.add(envelope(null, false, "Ttoken", RP_AUTH, title.getToken(),
+                    title.getExpireTimeMs(), LIFE_XBL_MS, claims));
+            JsonObject store = new JsonObject();
+            store.addProperty("deviceId", deviceId);
+            store.add("tokens", titleTokens);
+            write(new File(xal, XalStore.fileName(XalStore.titleTokenKey())), toJson(store));
+        }
 
         writeCryptoPrefs(new File(identityRoot, "shared_prefs"), deviceId, manager.getDeviceKeyPair());
 
@@ -202,7 +268,13 @@ public final class XalExporter {
         return store;
     }
 
-    /** One cached token envelope, in the field order the game writes. */
+    /**
+     * One cached token envelope, in the field order the game writes.
+     *
+     * <p>{@code localId} is null for the device and title caches: those are not
+     * scoped to an account, and the game's own files really do omit the field —
+     * adding it would be the one visible difference between our store and its.
+     */
     private static JsonObject envelope(String localId, boolean displayClaims, String identityType,
                                        String relyingParty, String token, long notAfterMs,
                                        long lifetimeMs, JsonObject claims) {
@@ -214,7 +286,9 @@ public final class XalExporter {
         body.add("DisplayClaims", claims);
 
         JsonObject envelope = new JsonObject();
-        envelope.addProperty("MsaUserId", localId);
+        if (localId != null) {
+            envelope.addProperty("MsaUserId", localId);
+        }
         envelope.addProperty("HasSignInDisplayClaims", displayClaims);
         envelope.addProperty("IdentityType", identityType);
         envelope.addProperty("Environment", XalStore.ENVIRONMENT);
@@ -355,6 +429,10 @@ public final class XalExporter {
 
     private static String nz(String value) {
         return value == null ? "" : value;
+    }
+
+    private static boolean notEmpty(String value) {
+        return value != null && !value.isEmpty();
     }
 
     private static void write(File file, JsonObject json) throws IOException {
