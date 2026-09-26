@@ -336,12 +336,21 @@ static void hookGameFunction(uintptr_t address, void *handler, void **real,
         LOGW("signature not found for %s: this Minecraft build is not covered, hook skipped", name);
         return;
     }
+    // Ask the address space before asking shadowhook. On a library mapped as one
+    // huge PT_LOAD the trampoline island has nowhere to go, and that failure is
+    // about where the function sits, not about whether the pattern was right —
+    // without this line the log blames a stale signature for an unmappable hook.
+    std::string reach;
+    if (!RttiLookup::islandReachable(address, &reach)) {
+        LOGW("cannot inline-hook %s at 0x%lx: %s", name, (unsigned long) address, reach.c_str());
+        return;
+    }
     if (shadowhook_hook_func_addr((void *) address, handler, real) == nullptr) {
         LOGE("failed to hook %s at 0x%lx: %s", name, (unsigned long) address,
              shadowhook_to_errmsg(shadowhook_get_errno()));
         return;
     }
-    LOGD("hooked %s at 0x%lx", name, (unsigned long) address);
+    LOGD("hooked %s at 0x%lx (%s)", name, (unsigned long) address, reach.c_str());
 }
 
 // ---------------------------------------------------------------------------

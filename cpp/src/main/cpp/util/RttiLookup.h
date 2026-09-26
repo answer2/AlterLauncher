@@ -52,16 +52,30 @@ uintptr_t slotAt(uintptr_t vtable, size_t index);
 // makes the page writable and restores the protection afterwards.
 //
 // This is how the game's virtual functions get patched. Inline hooking them is
-// not an option here: shadowhook has to allocate a trampoline island within
-// +/-128 MB of the target, and libminecraftpe.so is a single 298 MB r-xp
-// mapping, so `shadowhook_hook_func_addr` on any function inside it fails with
-// "Alloc island for exit failed". A vtable patch needs no trampoline at all,
-// and the mapping is MAP_PRIVATE, so the change is confined to this process.
+// not an option here — see islandReachable(). A vtable patch needs no
+// trampoline at all, and the mapping is MAP_PRIVATE, so the change is confined
+// to this process.
 bool patchSlot(uintptr_t slotAddress, uintptr_t replacement, uintptr_t *original);
 
 // Same, addressed as vtable[index] (the +16 header is applied here).
 bool patchVtableSlot(uintptr_t vtable, size_t index, uintptr_t replacement,
                      uintptr_t *original);
+
+// Whether shadowhook can inline-hook `target` at all.
+//
+// An AArch64 direct branch reaches only +/-2^26 words, so shadowhook must place
+// its trampoline island on a free page within +/-128 MB of the hooked address.
+// libminecraftpe.so is mapped as one enormous r-xp region — Mojang merged every
+// loadable segment into a single PT_LOAD, and on 1.26.45.1 that region is 298 MB
+// wide — so functions in its middle band have no such page anywhere in range
+// and `shadowhook_hook_func_addr` fails with SHADOWHOOK_ERRNO_HOOK_ISLAND_EXIT
+// ("Alloc island for exit failed"). This is a property of where the function
+// sits, not of the pattern matching, and it is why the game's virtuals are
+// patched through their vtable slot instead.
+//
+// Returns true when a free page exists in the window. `*reason` always receives
+// a one-line explanation, for the log.
+bool islandReachable(uintptr_t target, std::string *reason);
 
 // Scan the first `maxOffset` bytes of an object for a pointer to a known
 // vtable, i.e. find a member of that class without calling anything. Returns

@@ -9,6 +9,8 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#include <algorithm>
+
 #include <android/android_log.h>
 
 namespace RttiLookup {
@@ -262,6 +264,85 @@ uintptr_t findMemberByVtable(uintptr_t object, uintptr_t vtable, size_t maxOffse
     if (value == vtable) return object + off;
   }
   return 0;
+}
+
+// Every mapping in this process, sorted and merged. Unlike parseLine() this
+// keeps the anonymous and non-readable ones too, because for the questions
+// below they occupy address space just the same.
+static bool allSpans(std::vector<uintptr_t> *starts, std::vector<uintptr_t> *ends) {
+  std::ifstream maps("/proc/self/maps");
+  if (!maps) return false;
+  std::string line;
+  std::vector<Region> raw;
+  while (std::getline(maps, line)) {
+    uintptr_t start = 0, end = 0;
+    std::istringstream stream(line);
+    std::string range;
+    if (!(stream >> range)) continue;
+    if (sscanf(range.c_str(), "%lx-%lx", &start, &end) != 2) continue;
+    if (end <= start) continue;
+    raw.push_back(Region{start, end, false});
+  }
+  std::sort(raw.begin(), raw.end(), [](const Region &a, const Region &b) {
+    return a.start < b.start;
+  });
+  for (size_t i = 0; i < raw.size(); i++) {
+    uintptr_t start = raw[i].start, end = raw[i].end;
+    while (i + 1 < raw.size() && raw[i + 1].start <= end) {
+      if (raw[i + 1].end > end) end = raw[i + 1].end;
+      i++;
+    }
+    starts->push_back(start);
+    ends->push_back(end);
+  }
+  return !starts->empty();
+}
+
+bool islandReachable(uintptr_t target, std::string *reason) {
+  // An AArch64 direct branch encodes a 26-bit word offset, so shadowhook's
+  // trampoline island has to land within 128 MB of the address being hooked.
+  const uintptr_t reach = 1u << 27;
+  const uintptr_t pageSize = static_cast<uintptr_t>(sysconf(_SC_PAGESIZE));
+  if (pageSize == 0) {
+    if (reason != NULL) *reason = "no page size";
+    return false;
+  }
+  std::vector<uintptr_t> starts, ends;
+  if (!allSpans(&starts, &ends)) {
+    if (reason != NULL) *reason = "cannot read /proc/self/maps";
+    return false;
+  }
+  size_t own = starts.size();
+  for (size_t i = 0; i < starts.size(); i++) {
+    if (target >= starts[i] && target < ends[i]) own = i;
+  }
+  const uintptr_t from = target > reach ? target - reach : 0;
+  uintptr_t cursor = from;
+  for (size_t i = 0; i < starts.size(); i++) {
+    if (ends[i] <= cursor) continue;
+    if (starts[i] >= cursor + pageSize) break;  // a hole opens here
+    cursor = ends[i];
+    if (cursor + pageSize > target + reach) break;
+  }
+  if (cursor + pageSize <= target + reach && cursor >= from) {
+    if (reason != NULL) {
+      std::ostringstream detail;
+      detail << "a free page exists at 0x" << std::hex << cursor;
+      *reason = detail.str();
+    }
+    return true;
+  }
+  std::ostringstream detail;
+  if (own < starts.size()) {
+    detail << "0x" << std::hex << target << " sits inside the mapping 0x" << starts[own] << "-0x"
+           << ends[own] << " (" << std::dec << ((ends[own] - starts[own]) >> 20)
+           << " MB) and every page within +/-128 MB is already mapped, so an inline hook has "
+              "nowhere to put its trampoline island";
+  } else {
+    detail << "every page within +/-128 MB of 0x" << std::hex << target << " is already mapped";
+  }
+  if (reason != NULL) *reason = detail.str();
+  return false;
 }
 
 // Protection bits currently granted to the mapping that covers `addr`, read
