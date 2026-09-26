@@ -10,7 +10,7 @@ android {
     ndkVersion = "27.0.12077973"
     defaultConfig {
         minSdk = 26
-        lint.targetSdk  = 35
+        lint.targetSdk  = 36
     }
     
     compileOptions {

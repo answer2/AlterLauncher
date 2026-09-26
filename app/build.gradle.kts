@@ -23,7 +23,13 @@ android {
     defaultConfig {
         applicationId = "com.answer.launcher"
         minSdk = 26
-        targetSdk = 35
+        // Android 16. The virtualisation path was checked against the android16
+        // sources first: LoadedApk / ContextImpl / ActivityThread have no
+        // targetSdk>=36 gate on getPackageInfoNoCheck, makeApplicationInner or
+        // createAppContext, so raising this does not change how the guest LoadedApk
+        // is assembled. Predictive back is the one 36 behaviour change that reaches
+        // into the game, and it is opted out of in the manifest - see the note there.
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
         

@@ -46,10 +46,30 @@ public class AlternativeApi {
         }
     }
 
+    /*
+     * The interface is matched BY NAME on purpose: a plugin dex carries its own
+     * copy of PluginInit loaded by the plugin's ClassLoader, so it is a different
+     * Class object from the one in this module and `instanceof` / `==` on the Class
+     * would reject a perfectly valid plugin. What was never valid is `==` on the
+     * two name Strings - interned literals happen to make it work for the caller's
+     * own constant, but a name coming out of a loaded dex is not interned and the
+     * test then silently returns false, so the plugin is skipped without a word.
+     */
     private static boolean checkIsPluginInit(Class<?> clazz) {
-        for (Class<?> interfaced : clazz.getInterfaces())
-            if (interfaced.getName() == PluginInit.class.getName()) return true;
-        return false;
+        return implementsByName(clazz, PluginInit.class.getName());
+    }
+
+    /* Direct interfaces only was enough while every plugin implemented PluginInit
+     * itself; anything that reaches it through an intermediate interface was
+     * invisible. Walk the hierarchy instead - cheap, and it cannot loop because a
+     * class's interface graph is acyclic. */
+    private static boolean implementsByName(Class<?> clazz, String name) {
+        if (clazz == null) return false;
+        for (Class<?> interfaced : clazz.getInterfaces()) {
+            if (interfaced.getName().equals(name)) return true;
+            if (implementsByName(interfaced, name)) return true;
+        }
+        return implementsByName(clazz.getSuperclass(), name);
     }
 
     public static void addCallback(SurfaceCallback callback) {
