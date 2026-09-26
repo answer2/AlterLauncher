@@ -133,7 +133,11 @@ void initManagers() {
     // onCreate / android_main hooks, so they are best effort now.
     void *handle = dlopen("libminecraftpe.so", RTLD_LAZY);
     if (handle == nullptr) {
-        LOGW("libminecraftpe.so not reachable from this namespace (%s): game entry points unresolved",
+        // The entry points this handle feeds (ANativeActivity_onCreate,
+        // android_main) are commented out below, and the game hooks that DO run
+        // are resolved by RTTI over /proc/self/maps, so nothing is unresolved.
+        LOGD("libminecraftpe.so not reachable from this namespace (%s): the entry "
+             "points above stay unresolved, the RTTI path does not need them",
              dlerror());
     } else {
         mOnCreateFunc = (void (*)(ANativeActivity *, void *, size_t)) dlsym(handle,

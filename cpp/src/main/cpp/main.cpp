@@ -18,6 +18,7 @@
 #include <util/Utils.h>
 #include <util/FindSignature.h>
 #include <util/RttiLookup.h>
+#include <util/HookRules.h>
 #include <android/android_log.h>
 #include <dl_internal.h>
 
@@ -40,6 +41,14 @@ uintptr_t clientInstanceVtable = 0;
 uintptr_t guiDataVtable = 0;
 long updateCalls = 0;
 
+// The hook rule that covers the running Minecraft build, if any. A copy, not a
+// pointer into the parsed vector, so it stays valid however the vector is later
+// reassigned. `gHasRule` is what distinguishes "no rule matched, use the
+// compiled-in data" from "a rule matched and says this function has no pattern".
+HookRules::Rule gRule;
+bool gHasRule = false;
+std::string gGuestVersion;
+
 // Function declarations
 void initAssets(JNIEnv *env, jobject obj, jobject assetManager);
 
@@ -52,6 +61,10 @@ long findLibBaseAddress_java(JNIEnv *env, jobject obj, jstring library);
 void load(JNIEnv *env, jobject obj);
 
 void loadManager(JNIEnv *env, jobject obj);
+
+// Must run before loadManager: it decides which slot index and which byte
+// patterns the hooks are built from.
+void applyHookRules_java(JNIEnv *env, jobject obj, jstring version, jstring rules);
 
 // Declared here because load() calls it and its definition follows load().
 void installSignatureHooks();
@@ -67,6 +80,8 @@ static JNINativeMethod MethodCalled[] = {
         {"unloadLibrary",      "(J)V",                                  (void *) unloadLibrary_java},
         {"findLibBaseAddress", "(Ljava/lang/String;)J",                 (void *) findLibBaseAddress_java},
         {"loadManager",        "()V",                                   (void *) loadManager},
+        {"applyHookRules",     "(Ljava/lang/String;Ljava/lang/String;)V",
+         (void *) applyHookRules_java},
         {"sendMessage",        "(Ljava/lang/String;)V",                 (void *) sendMessage},
         // NativeCore.hookDlopen was declared on the Java side but never
         // registered here, so any call threw UnsatisfiedLinkError.
@@ -95,6 +110,57 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
 void initAssets(JNIEnv *env, jobject obj, jobject assetManager) {
     Main::manager = AAssetManager_fromJava(env, assetManager);
     initFakeAssets(env, Main::manager);
+}
+
+// NativeCore.applyHookRules: hand the native layer the version-gated hook data.
+// Java owns where it comes from (an asset today, a downloaded file tomorrow) and
+// passes the text in; this only parses and selects. Called before loadManager,
+// and never fatal — an empty or unparseable file leaves the compiled-in defaults
+// in charge, which is what this code did before the file existed.
+void applyHookRules_java(JNIEnv *env, jobject obj, jstring version, jstring rules) {
+    const char *versionChars = version == nullptr ? nullptr : env->GetStringUTFChars(version, nullptr);
+    gGuestVersion = versionChars == nullptr ? "" : versionChars;
+    if (versionChars != nullptr) env->ReleaseStringUTFChars(version, versionChars);
+
+    std::string text;
+    if (rules != nullptr) {
+        const char *rulesChars = env->GetStringUTFChars(rules, nullptr);
+        if (rulesChars != nullptr) {
+            text = rulesChars;
+            env->ReleaseStringUTFChars(rules, rulesChars);
+        }
+    }
+
+    gHasRule = false;
+    gRule = HookRules::Rule();
+    if (text.empty()) {
+        LOGD("hook rules: none supplied for Minecraft %s, using the compiled-in data",
+             gGuestVersion.c_str());
+        return;
+    }
+
+    std::vector<std::string> errors;
+    std::vector<HookRules::Rule> parsed = HookRules::parse(text, &errors);
+    for (size_t i = 0; i < errors.size(); i++) {
+        LOGW("hook rules: %s", errors[i].c_str());
+    }
+    if (parsed.empty()) {
+        LOGW("hook rules: the file parsed to zero rules (%zu byte(s)), using the compiled-in data",
+             text.size());
+        return;
+    }
+
+    const HookRules::Rule *found = HookRules::select(parsed, gGuestVersion);
+    if (found == nullptr) {
+        LOGW("hook rules: none of the %zu rule(s) covers Minecraft %s; the RTTI path still runs "
+             "and the byte signatures fall back to the compiled-in ones",
+             parsed.size(), gGuestVersion.c_str());
+        return;
+    }
+    gRule = *found;
+    gHasRule = true;
+    LOGD("hook rules: rule '%s' active, %zu vtable entr(y|ies) and %zu signature(s)",
+         gRule.name.c_str(), gRule.vtable.size(), gRule.signatures.size());
 }
 
 // NativeCore.loadLibrary is declared `public static native long` and its JNI
@@ -298,6 +364,11 @@ static void hookGameFunction(uintptr_t address, void *handler, void **real,
 namespace {
 
 constexpr const char *kGuestLib = "libminecraftpe.so";
+// The 1.26.45.1 answer, verified on device against the offline anchors: slots
+// 18..55 of this table match the symbolised 1.21.131 build slot for slot by
+// function size, and update(bool) is by far the largest of the group. A rule
+// file may override both the class and the index for other builds.
+constexpr const char *kClientInstanceClass = "ClientInstance";
 constexpr size_t kClientInstanceUpdateSlot = 25;
 
 typedef uintptr_t (*ClientInstance_update)(void *, bool);
@@ -331,41 +402,71 @@ uintptr_t resolveVirtual(uintptr_t vtable, size_t index, size_t slots) {
     return fn;
 }
 
+// Which class holds the per-frame update and at which vtable index. The rule
+// file may name both; otherwise the built-in pair applies.
+struct VirtualTarget {
+    std::string className;
+    size_t slot;
+    const char *key;
+};
+
+VirtualTarget virtualTarget(const char *key, const char *fallbackClass, size_t fallbackSlot) {
+    VirtualTarget target;
+    target.className = fallbackClass;
+    target.slot = fallbackSlot;
+    target.key = key;
+    if (!gHasRule) return target;
+    if (!gRule.lookupVtable(key, &target.className, &target.slot)) {
+        LOGW("rule '%s' names no %s, using %s:%zu", gRule.name.c_str(), key, fallbackClass,
+             fallbackSlot);
+        target.className = fallbackClass;
+        target.slot = fallbackSlot;
+    }
+    return target;
+}
+
 void installRttiHooks() {
     size_t slots = 0;
     guiDataVtable = RttiLookup::findVtable(kGuestLib, "GuiData", NULL);
-    clientInstanceVtable = RttiLookup::findVtable(kGuestLib, "ClientInstance", &slots);
-    uintptr_t update = resolveVirtual(clientInstanceVtable, kClientInstanceUpdateSlot, slots);
+
+    VirtualTarget update_target =
+            virtualTarget("clientInstanceUpdate", kClientInstanceClass, kClientInstanceUpdateSlot);
+    LOGD("resolving %s:%zu through RTTI", update_target.className.c_str(), update_target.slot);
+    clientInstanceVtable = RttiLookup::findVtable(kGuestLib, update_target.className, &slots);
+    uintptr_t update = resolveVirtual(clientInstanceVtable, update_target.slot, slots);
     if (update == 0) {
-        LOGW("ClientInstance::update is not resolvable by RTTI in this build");
+        LOGW("%s::update is not resolvable by RTTI in this build",
+             update_target.className.c_str());
         clientInstanceVtable = 0;
         return;
     }
-    LOGD("resolved ClientInstance vtable %p (%zu slots), update(bool) at 0x%lx",
-         reinterpret_cast<void *>(clientInstanceVtable), slots, (unsigned long) update);
+    LOGD("resolved %s vtable %p (%zu slots), update(bool) at 0x%lx",
+         update_target.className.c_str(), reinterpret_cast<void *>(clientInstanceVtable), slots,
+         (unsigned long) update);
 
     // The vtable slot is patched rather than the function body: shadowhook
     // cannot allocate its trampoline island anywhere inside the guest's 298 MB
     // executable mapping ("Alloc island for exit failed"), and for a virtual
     // function the slot is the natural place to intercept anyway.
     uintptr_t original = 0;
-    if (!RttiLookup::patchVtableSlot(clientInstanceVtable, kClientInstanceUpdateSlot,
+    if (!RttiLookup::patchVtableSlot(clientInstanceVtable, update_target.slot,
                                      reinterpret_cast<uintptr_t>(ClientInstance_update_hook),
                                      &original)) {
-        LOGE("failed to patch ClientInstance::update slot %zu", kClientInstanceUpdateSlot);
+        LOGE("failed to patch %s::update slot %zu", update_target.className.c_str(),
+             update_target.slot);
         clientInstanceVtable = 0;
         return;
     }
     if (original != update) {
-        LOGE("ClientInstance::update slot changed under us: expected 0x%lx, found 0x%lx",
-             (unsigned long) update, (unsigned long) original);
-        RttiLookup::patchVtableSlot(clientInstanceVtable, kClientInstanceUpdateSlot, original,
-                                    nullptr);
+        LOGE("%s::update slot changed under us: expected 0x%lx, found 0x%lx",
+             update_target.className.c_str(), (unsigned long) update, (unsigned long) original);
+        RttiLookup::patchVtableSlot(clientInstanceVtable, update_target.slot, original, nullptr);
         clientInstanceVtable = 0;
         return;
     }
     ClientInstance_update_real = reinterpret_cast<ClientInstance_update>(original);
-    LOGD("hooked ClientInstance::update: original 0x%lx -> handler %p", (unsigned long) original,
+    LOGD("hooked %s::update: original 0x%lx -> handler %p", update_target.className.c_str(),
+         (unsigned long) original,
          reinterpret_cast<void *>(ClientInstance_update_hook));
 }
 
@@ -389,47 +490,79 @@ void load(JNIEnv *env, jobject obj) {
     installSignatureHooks();
 }
 
-// The pinned-prologue path. `Minecraft::update` is only tried when RTTI did not
-// hand us the game instance, so a modern build is not patched twice; the chat
-// and join-game functions are not virtual, so they have no RTTI equivalent and
-// still depend on Mojang not having recompiled them.
+// The patterns this code shipped with. Every one of them belongs to a single
+// pre-1.26 build; the rule file overrides them per Minecraft version, and a rule
+// that names no pattern for a function means that function stays unhooked on
+// purpose instead of pretending the scan was worth running.
+static const char *kPatternMinecraftUpdate =
+        "E8 0F ?? ?? FD 7B 01 A9 FD 43 00 91 FC 6F 02 A9 FA 67 03 A9 F8 5F 04 A9 F6 57 05 A9 F4 4F 06 A9 FF 03 0C D1 5A ?? ?? ?? F3 03 00 AA 48 17";
+static const char *kPatternSendClientMessage =
+        "FF C3 07 D1 FD 7B 1C A9 FD 03 07 91 FC 57 1D A9 F4 4F 1E A9 55 ?? ?? ?? F4 03 03 2A F3 03 00 AA A8 16 ?? ?? E4 03 02 AA E3 03 01 AA A8 83 ?? ?? FF 83 ?? ?? FF 53 ?? ?? FF 23 ?? ?? 45 ?? ?? ?? E6 03 1F 2A E7 03 1F 2A E8 43 00 91 E9 A3 00 91 A0 E3 02 D1 A5 ?? ?? ?? E2 03 01 91 00 ?? ?? ?? 41 ?? ?? ?? E9 23 00 A9 8F ?? ?? ??";
+static const char *kPatternAddMessage =
+        "E8 0F ?? ?? FD 7B 01 A9 FD 43 00 91 FA 67 02 A9 F8 5F 03 A9 F6 57 04 A9 F4 4F 05 A9 F5 03 00 AA 14 20 00 91 F3 03 00 AA E0 03 14 AA F7 03 07 2A F9 03 06 2A A1 06 ?? ?? E1 03 02 AA 08 40 20 1E FA 03 05 AA F8 03 04 AA F6 03 03 AA ?? ?? ?? ??";
+static const char *kPatternJoinMultiplayerGame =
+        "FD 7B BA A9 FC 6F 01 A9 FD 03 00 91 FA 67 02 A9 F8 5F 03 A9 F6 57 04 A9 F4 4F 05 A9 FF 43 17 D1 53 ?? ?? ?? F8 03 08 AA 68 16 ?? ?? F7 03 02 AA F4 03 01 AA F5 03 00 AA A8 83";
+
+// One entry of the byte-signature table: the key it is looked up under in the
+// rule file, the name it is reported as, the built-in pattern, and the pair of
+// handler/original pointers shadowhook fills in.
+struct SignatureHook {
+    const char *key;
+    const char *pretty;
+    const char *fallback;
+    void *handler;
+    void **real;
+};
+
+static void hookBySignature(const ModuleInfo &info, const SignatureHook &entry) {
+    std::string pattern;
+    if (gHasRule) {
+        pattern = gRule.lookupSignature(entry.key);
+        if (pattern.empty()) {
+            LOGW("rule '%s' defines no pattern for %s: this Minecraft build is not covered, "
+                 "hook skipped", gRule.name.c_str(), entry.pretty);
+            return;
+        }
+    } else {
+        pattern = entry.fallback;
+    }
+    hookGameFunction(FindSignature::findSignatureInModule(info, pattern.c_str()), entry.handler,
+                     entry.real, entry.pretty);
+}
+
+// The pinned-prologue path, for the functions RTTI cannot reach because they are
+// not virtual. `Minecraft::update` is only tried when RTTI did not hand us the
+// game instance, so a build is never patched twice for the same purpose.
 void installSignatureHooks() {
-    ModuleInfo info = FindSignature::getModuleInfo("libminecraftpe.so");
-    LOGD("TEST %lu", info.base);
-    LOGD("TEST %zu", info.size);
+    ModuleInfo info = FindSignature::getModuleInfo(kGuestLib);
+    LOGD("scanning %s at 0x%lx (%zu bytes) for %s", kGuestLib, (unsigned long) info.base,
+         info.size, gHasRule ? "the patterns named by the active rule" : "the built-in patterns");
 
     if (clientInstanceVtable == 0) {
-        uintptr_t update = FindSignature::findSignatureInModule(info,
-                                                                "E8 0F ?? ?? FD 7B 01 A9 FD 43 00 91 FC 6F 02 A9 FA 67 03 A9 F8 5F 04 A9 F6 57 05 A9 F4 4F 06 A9 FF 03 0C D1 5A ?? ?? ?? F3 03 00 AA 48 17");
-        hookGameFunction(update, (void *) Minecraft_update_hook,
-                         (void **) &Minecraft_update_real, "Minecraft::update");
-        LOGD("update ： %p", update);
+        const SignatureHook update = {"minecraftUpdate", "Minecraft::update",
+                                      kPatternMinecraftUpdate,
+                                      (void *) Minecraft_update_hook,
+                                      (void **) &Minecraft_update_real};
+        hookBySignature(info, update);
     } else {
         LOGD("Minecraft::update signature skipped: the RTTI hook already owns the game instance");
     }
-    uintptr_t displayClientMessage = FindSignature::findSignatureInModule(info,
-                                                                          "FF C3 07 D1 FD 7B 1C A9 FD 03 07 91 FC 57 1D A9 F4 4F 1E A9 55 ?? ?? ?? F4 03 03 2A F3 03 00 AA A8 16 ?? ?? E4 03 02 AA E3 03 01 AA A8 83 ?? ?? FF 83 ?? ?? FF 53 ?? ?? FF 23 ?? ?? 45 ?? ?? ?? E6 03 1F 2A E7 03 1F 2A E8 43 00 91 E9 A3 00 91 A0 E3 02 D1 A5 ?? ?? ?? E2 03 01 91 00 ?? ?? ?? 41 ?? ?? ?? E9 23 00 A9 8F ?? ?? ??");
-    hookGameFunction(displayClientMessage, (void *) GuiDate_sendClientMessage_hook,
-                     (void **) &GuiDate_sendClientMessage_real,
-                     "GuiData::sendClientMessage");
 
-    LOGD("displayClientMessage ： %p", displayClientMessage);
-
-    uintptr_t addMessage = FindSignature::findSignatureInModule(info,
-                                                                "E8 0F ?? ?? FD 7B 01 A9 FD 43 00 91 FA 67 02 A9 F8 5F 03 A9 F6 57 04 A9 F4 4F 05 A9 F5 03 00 AA 14 20 00 91 F3 03 00 AA E0 03 14 AA F7 03 07 2A F9 03 06 2A A1 06 ?? ?? E1 03 02 AA 08 40 20 1E FA 03 05 AA F8 03 04 AA F6 03 03 AA ?? ?? ?? ??");
-    hookGameFunction(addMessage, (void *) GuiData_addMessage_hook,
-                     (void **) &GuiData_addMessage_real, "GuiData::addMessage");
-    LOGD("addMessage ： %p", addMessage);
-
-    uintptr_t MinecraftGame__joinMultiplayerGame = FindSignature::findSignatureInModule(info,
-                                                                                        "FD 7B BA A9 FC 6F 01 A9 FD 03 00 91 FA 67 02 A9 F8 5F 03 A9 F6 57 04 A9 F4 4F 05 A9 FF 43 17 D1 53 ?? ?? ?? F8 03 08 AA 68 16 ?? ?? F7 03 02 AA F4 03 01 AA F5 03 00 AA A8 83");
-    hookGameFunction(MinecraftGame__joinMultiplayerGame,
-                     (void *) MinecraftGame__joinMultiplayerGame_hook,
-                     (void **) &MinecraftGame__joinMultiplayerGame_real,
-                     "MinecraftGame::joinMultiplayerGame");
-
-    LOGD("MinecraftGame__joinMultiplayerGame ： %p", MinecraftGame__joinMultiplayerGame);
-
+    const SignatureHook entries[] = {
+            {"guiDataSendClientMessage", "GuiData::sendClientMessage", kPatternSendClientMessage,
+             (void *) GuiDate_sendClientMessage_hook,
+             (void **) &GuiDate_sendClientMessage_real},
+            {"guiDataAddMessage",        "GuiData::addMessage",        kPatternAddMessage,
+             (void *) GuiData_addMessage_hook,
+             (void **) &GuiData_addMessage_real},
+            {"joinMultiplayerGame",      "MinecraftGame::joinMultiplayerGame",
+             kPatternJoinMultiplayerGame,
+             (void *) MinecraftGame__joinMultiplayerGame_hook,
+             (void **) &MinecraftGame__joinMultiplayerGame_real},
+    };
+    for (size_t i = 0; i < sizeof(entries) / sizeof(entries[0]); i++) {
+        hookBySignature(info, entries[i]);
+    }
 }
 
 // Main functions

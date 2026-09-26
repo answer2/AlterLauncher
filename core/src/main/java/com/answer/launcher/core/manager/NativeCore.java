@@ -14,6 +14,17 @@ public class NativeCore {
 
   public static native void loadManager();
 
+  /**
+   * Hands the version-gated hook data to the native layer. Must run before
+   * {@link #loadManager()}: it decides which vtable slot the RTTI resolver
+   * patches and which byte patterns the scanner is allowed to look for.
+   *
+   * @param minecraftVersion the guest's versionName, e.g. {@code 1.26.45.1}.
+   * @param rules            the rules file text, or null to keep the data
+   *                         compiled into main.cpp.
+   */
+  public static native void applyHookRules(String minecraftVersion, String rules);
+
   public static native void sendMessage(String msg);
 
 }

@@ -1,11 +1,15 @@
 package com.answer.launcher.core.hook;
 
+import android.content.Context;
 import android.util.Log;
 
+import com.answer.launcher.core.LauncherConstants;
 import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.core.manager.NativeCore;
 import com.answer.launcher.core.tool.SystemUtil;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -28,6 +32,9 @@ public class LoadedAfterHook extends BaseHook {
     private static final String NOTIFICATION_LISTENER =
             "com.mojang.minecraftpe.NotificationListenerService";
 
+    /** Shipped in {@code core/src/main/assets}, read by {@link #applyHookRules()}. */
+    private static final String HOOK_RULES_ASSET = "game-hooks.ini";
+
     private final AtomicBoolean nativeCoreReady = new AtomicBoolean(false);
 
     @Override
@@ -46,11 +53,51 @@ public class LoadedAfterHook extends BaseHook {
 
         if (nativeCoreReady.compareAndSet(false, true)) {
             try {
+                applyHookRules();
                 NativeCore.loadManager();
             } catch (Throwable t) {
                 nativeCoreReady.set(false);
                 Log.e(TAG, "NativeCore.loadManager() failed", t);
             }
+        }
+    }
+
+    /**
+     * Reads {@code assets/game-hooks.ini} and hands it to the native layer, which
+     * decides from it which vtable slot to patch and which byte patterns to scan
+     * for. The file is optional: passing null leaves the data compiled into
+     * {@code main.cpp} in charge, which is what happened before it existed, so a
+     * missing or unreadable asset is a warning and never a reason to skip
+     * {@code loadManager()}.
+     */
+    private void applyHookRules() {
+        String rules = null;
+        try {
+            Context context = Alternative.getManager().getContext();
+            if (context != null) {
+                InputStream in = context.getAssets().open(HOOK_RULES_ASSET);
+                try {
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    byte[] buffer = new byte[4096];
+                    int read;
+                    while ((read = in.read(buffer)) > 0) {
+                        out.write(buffer, 0, read);
+                    }
+                    rules = out.toString("UTF-8");
+                } finally {
+                    in.close();
+                }
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "no readable " + HOOK_RULES_ASSET + " asset, the built-in hook data "
+                    + "stays in charge: " + t);
+        }
+        try {
+            NativeCore.applyHookRules(LauncherConstants.MINECRAFT_VERSION, rules);
+        } catch (Throwable t) {
+            // The native method only stores what it parsed; failing here cannot
+            // be worse than not having called it at all.
+            Log.e(TAG, "NativeCore.applyHookRules() failed", t);
         }
     }
 
