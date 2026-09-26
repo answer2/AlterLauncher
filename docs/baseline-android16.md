@@ -26,16 +26,18 @@ C10 external-storage rules (see the last section).
 Two things the baseline could not have known:
 
 - **Inline hooks inside `libminecraftpe.so` are geometrically impossible in the middle of the
-  mapping.** Mojang merges every loadable segment into one ~298 MB `r-xp` PT_LOAD, and an AArch64
-  direct branch reaches only +/-128 MiB, so shadowhook has nowhere to put its trampoline island for
-  any function between file offsets 128 MB and 170 MB. `ClientInstance::update` (0x943EC54) lands in
-  that band; 1.21's `GuiData::addMessage` (0x5faeef0) did not, which is why the old build worked.
+  mapping.** Mojang merges every loadable segment into one contiguous 284.2 MiB (`0x11C44000`)
+  `r-xp` PT_LOAD, and an AArch64 direct branch reaches only +/-128 MiB, so shadowhook has nowhere
+  to put its trampoline island for any function between 128 MiB and 156.2 MiB into that segment.
+  `ClientInstance::update` (0x943EC54, 148.3 MiB) lands in that band; 1.21's `GuiData::addMessage`
+  (0x5FAEEF0, 95.7 MiB into that build's segment) did not, which is why the old build worked.
   Virtual entry points are patched in the vtable instead (`RttiLookup::patchVtableSlot`), and
   `RttiLookup::islandReachable()` now refuses an inline hook with that explanation rather than
   letting an engine error look like a stale signature.
 - **The signature scan is no longer compiled in.** `core/src/main/assets/game-hooks.ini` carries a
-  version window plus `vtable.<key> = Class:slot` and `sig.<key> = IDA pattern` entries, applied by
-  `NativeCore.applyHookRules()` before `loadManager()`. No matching rule keeps the built-in data;
+  version window plus `vtable.<key> = Class:slot`, `sig.<key> = IDA pattern` and
+  `off.<key> = 0xRVA` entries, applied by `NativeCore.applyHookRules()` before `loadManager()`.
+  An `off.` beats a `sig.` beats the built-in pattern. No matching rule keeps the built-in data;
   a matching rule that omits a key skips that hook and says so.
 
 ## What actually works (contradicts the pre-work analysis)
@@ -157,6 +159,34 @@ shows mtime `2026-09-15 21:32` (untouched by any of our runs) while our tree's
 never touches external storage at all, because its root comes from the redirected internal
 `dataDir`.
 
+## Crossing a function between Minecraft builds (issue ②)
+
+The four interesting functions are not exported, the classes are stripped, and two of the three
+are not even virtual, so there is no name and no vtable slot to follow. Byte patterns die on every
+recompile. What does survive a recompile is *structure*, and this is the recipe that worked —
+`build/fpdump.py`, `build/neigh.py`, `build/a64dis.py` (capstone), `build/mcport.py`,
+`build/ehframe.py`, all gitignored, all offline, no IDA required (the `.i64` packs for these
+binaries are 2.7–3.4 GB and this machine has 1.9 GB free).
+
+1. Start from a build where the pattern still matches. Two old ARM builds in `D:\逆向分析\` do:
+   1.21.91-era `libminecraftpe-1291.so`, 1.21.101-era `libminecraftpe-121101.so`.
+2. Take the function's *callee multiset* (resolve `b #x` thunks first) and its size, and look for
+   the same multiset of *relative* counts in the new build. Counts transfer; addresses do not.
+3. Take the function's neighbours: the same source file compiles to the same order, so a window of
+   function sizes around the target is a second, independent fingerprint.
+4. Where the function does touch literals, they transfer verbatim: `joining_realm_game`,
+   `joining_xboxLive_game`, `ServiceProvider` and the self-naming
+   `MinecraftGame::_joinMultiplayerGame(...)` telemetry string each have exactly one materialising
+   function in 1.26.45.1, and they all agree. That is how `joinMultiplayerGame` was pinned;
+   `addMessage` materialises no literal at all, so it rests on steps 2 and 3 plus the fact that
+   `sendClientMessage` calls it at the same `+0x118` offset in both builds.
+5. Write the result as `off.<key>` inside a version window, and let `build/inicheck.py` prove it
+   decodes as an instruction boundary in `.text` before anything runs on a device.
+
+The offsets are in `core/src/main/assets/game-hooks.ini`; what they do *not* buy yet is a working
+hook — see the geometry paragraph above, all three land inside the dead band of this build. They
+are recorded so that the next build, whose function may sit outside the band, needs one line
+changed rather than another crossing.
 
 ### What stays, and why it is not a bug
 

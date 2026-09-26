@@ -48,7 +48,9 @@ bool numericPrefix(const std::string &version, std::vector<unsigned long> *parts
 std::string describe(const Rule &rule) {
     std::ostringstream out;
     out << rule.name << " [" << (rule.minVersion.empty() ? "*" : rule.minVersion) << ", "
-        << (rule.maxVersion.empty() ? "*" : rule.maxVersion) << "]";
+        << (rule.maxVersion.empty() ? "*" : rule.maxVersion) << "] " << rule.vtable.size()
+        << " vtable / " << rule.signatures.size() << " pattern / " << rule.offsets.size()
+        << " offset";
     return out.str();
 }
 
@@ -99,6 +101,39 @@ bool Rule::lookupVtable(const std::string &key, std::string *className, size_t *
 std::string Rule::lookupSignature(const std::string &key) const {
     std::map<std::string, std::string>::const_iterator found = signatures.find(key);
     return found == signatures.end() ? std::string() : found->second;
+}
+
+bool Rule::lookupOffset(const std::string &key, uintptr_t *rva) const {
+    std::map<std::string, uintptr_t>::const_iterator found = offsets.find(key);
+    if (found == offsets.end()) return false;
+    *rva = found->second;
+    return true;
+}
+
+// `0x923a5d4` or `923a5d4` are hex - the form every one of these comes out of a
+// disassembler in - while a value with no letters at all is read as decimal.
+// Anything else is rejected, so a typo lands in the parse errors instead of
+// quietly becoming an offset of zero.
+static bool parseOffset(const std::string &text, uintptr_t *out) {
+    std::string body = trim(text);
+    if (body.empty()) return false;
+    int base = 10;
+    if (body.size() > 2 && body[0] == '0' && (body[1] == 'x' || body[1] == 'X')) {
+        body = body.substr(2);
+        base = 16;
+    }
+    for (size_t i = 0; i < body.size(); i++) {
+        char c = body[i];
+        bool decimal = isdigit((unsigned char) c);
+        bool hexLetter = (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+        if (!decimal && !hexLetter) return false;
+        if (hexLetter) base = 16;
+    }
+    char *stop = nullptr;
+    unsigned long long value = strtoull(body.c_str(), &stop, base);
+    if (stop == nullptr || *stop != '\0' || value == 0) return false;
+    *out = static_cast<uintptr_t>(value);
+    return true;
 }
 
 std::vector<Rule> parse(const std::string &text, std::vector<std::string> *errors) {
@@ -173,6 +208,15 @@ std::vector<Rule> parse(const std::string &text, std::vector<std::string> *error
             rule.vtable[trim(key.substr(7))] = value;
         } else if (key.compare(0, 4, "sig.") == 0) {
             rule.signatures[trim(key.substr(4))] = value;
+        } else if (key.compare(0, 4, "off.") == 0) {
+            uintptr_t rva = 0;
+            if (parseOffset(value, &rva)) {
+                rule.offsets[trim(key.substr(4))] = rva;
+            } else if (errors) {
+                std::ostringstream out;
+                out << "line " << lineNumber << ": offset " << value << " is not a number";
+                errors->push_back(out.str());
+            }
         } else if (errors) {
             std::ostringstream out;
             out << "line " << lineNumber << ": unknown key " << key;

@@ -532,12 +532,23 @@ struct SignatureHook {
 };
 
 static void hookBySignature(const ModuleInfo &info, const SignatureHook &entry) {
+    // An explicit offset is the strongest handle the rule file can carry: no
+    // scan, no pattern to rot. It is also build-specific, which is why it only
+    // ever sits inside a version window.
+    uintptr_t rva = 0;
+    if (gHasRule && gRule.lookupOffset(entry.key, &rva)) {
+        uintptr_t address = info.base + rva;
+        LOGD("%s: rule '%s' pins it at 0x%llx (library base + 0x%llx)", entry.pretty,
+             gRule.name.c_str(), (unsigned long long) address, (unsigned long long) rva);
+        hookGameFunction(address, entry.handler, entry.real, entry.pretty);
+        return;
+    }
     std::string pattern;
     if (gHasRule) {
         pattern = gRule.lookupSignature(entry.key);
         if (pattern.empty()) {
-            LOGW("rule '%s' defines no pattern for %s: this Minecraft build is not covered, "
-                 "hook skipped", gRule.name.c_str(), entry.pretty);
+            LOGW("rule '%s' defines no pattern or offset for %s: this Minecraft build is not "
+                 "covered, hook skipped", gRule.name.c_str(), entry.pretty);
             return;
         }
     } else {

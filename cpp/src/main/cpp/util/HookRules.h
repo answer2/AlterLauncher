@@ -34,6 +34,11 @@ struct Rule {
     std::map<std::string, std::string> vtable;
     // key -> IDA-style pattern, e.g. "48 8B ?? ?? FF 23 ?? ??".
     std::map<std::string, std::string> signatures;
+    // key -> file-relative offset (RVA) of the function inside the library. The
+    // most direct handle there is: no scan, no pattern to rot. It is also the
+    // least portable one, so it only ever applies to the exact build it was
+    // recovered from, and the version window above is what keeps it honest.
+    std::map<std::string, uintptr_t> offsets;
 
     // True when `version` falls inside [minVersion, maxVersion].
     bool covers(const std::string &version) const;
@@ -44,6 +49,11 @@ struct Rule {
 
     // The pattern stored under `key`, or an empty string.
     std::string lookupSignature(const std::string &key) const;
+
+    // The file-relative offset stored under `key` as `off.<key> = 0x...`. False
+    // when the key is absent. An offset beats a pattern at use time: it is the
+    // one handle that cannot silently stop matching.
+    bool lookupOffset(const std::string &key, uintptr_t *rva) const;
 };
 
 // Compare dotted versions numerically on the shared numeric prefix; a shorter
