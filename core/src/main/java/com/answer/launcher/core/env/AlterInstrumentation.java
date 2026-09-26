@@ -88,6 +88,13 @@ public class AlterInstrumentation extends Instrumentation {
                 // The exchange that newActivity() performed has already been undone by
                 // Activity#attach, so it has to happen again here.
                 exchangeResourcesOfActivity(activity);
+                // Private directories, same problem one level down: this Context came
+                // from the launcher's LoadedApk, so getFilesDir() would hand the native
+                // engine the launcher's tree and libminecraftpe.so would build
+                // games/com.mojang -- the launcher's worlds -- beneath it. Has to happen
+                // before Activity#onCreate, because the first read of any of those
+                // getters caches the value and creates the directory at the same time.
+                AlterEnvironment.adoptGuestDirs(activity);
                 // Same story for a restore: the framework put the launcher's loader on
                 // the saved-state Bundle before handing it to us.
                 adoptSavedState(arg1);

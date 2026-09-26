@@ -258,7 +258,7 @@ something calls them", not "broken".
   `LoadedApk.mPackageName` is therefore deliberately off the table; redirecting storage paths
   is the surgical half.
 
-## One data set per installation (issue ④, C13–C14)
+## One data set per installation (issue ④, C13–C17)
 
 A version string is not an identity: two different APKs can report the same `versionName`,
 and a launcher that hosts more than one Minecraft build needs each one's worlds, packs and
@@ -352,6 +352,56 @@ Consequences, all of them deliberate:
   write target instead of a filesystem trick.
 * The migration and seeding run before the LoadedApk is built, not inside `enableRedirect()`,
   which happens later in `createApplication()`.
+
+### The host's root has to move too (C17, actually closes issue ④)
+
+C15 was not enough, and it took three measurements on the device to see why. Each one refuted the
+model before it:
+
+1. *The activity's cached `File` fields are the leak.* `AlterEnvironment.adoptGuestDirs()` wrote
+   all seven before `Activity.onCreate`, and the log confirmed it — while the engine went on
+   writing `<launcher dataDir>/games/com.mojang/minecraftpe/options.txt`. The fields are not what
+   the game asks.
+2. *`ApplicationInfo.dataDir` is the string it asks.* Rewriting that from the activity's
+   `ApplicationInfo` measured unchanged: the probe printed
+   `activity filesDir=<isolated>/files dataDir=/data/user/0/com.answer.launcher`. A `ContextImpl`
+   does not answer `getDataDir()` from the field — it asks the **LoadedApk it was bound to**, which
+   derived its three directory `File`s once, in `setApplicationInfo()` (`LoadedApk.java:412-414`,
+   read back at `:1355-1365`).
+3. *Hook the accessor instead.* An installed `replace` on `ContextImpl#getDataDir()` was never
+   reached: ART inlines the three-branch accessor into its callers inside the same class, so entry
+   hooks observe no invocation (the sibling `ensurePrivateDirExists` has a real body and does
+   fire — that is how the mangling was caught at all).
+
+Bedrock builds its content root as `getDataDir() + "/games/com.mojang"`, and the context it asks
+through is the one its `Application` runs on: `activity.getApplication()` is the **launcher's**
+`AlterApplication`, bound to the launcher's LoadedApk, so it answered the launcher's real root no
+matter what the guest's `ApplicationInfo` claimed. (It also refutes the claim carried over from the
+stock `GameActivity` source that the engine is handed `absPath(getFilesDir())` — it is handed
+nothing of the sort; the clone in `core/src/main/java/com/google/androidgamesdk/` is not even the
+class that runs, it logs different strings.)
+
+So `:game` repoints that LoadedApk. `Alternative.retargetHostLoadedApk()`, called at the end of
+`createLoadedApk()` once the roots exist, sets `mCredentialProtectedDataDirFile` and `mDataDirFile`
+to the instance's credential-protected root and `mDeviceProtectedDataDirFile` to its
+device-protected one. It runs only in `:game`, which exists to serve one installation, so the state
+that root holds in that process belongs to that installation; the launcher UI process keeps the real
+root, and everything derived before the repoint (the legacy root used for seeding and migration, the
+redirect rules) is already resolved into strings. Measured, one run after the last leak: the
+instance tree holds a 14797-byte `options.txt` stamped 21:47 while the launcher's copy stayed frozen
+at 21:38, and `PackManifestFactoryCache`, `premium_cache/`, `treatments/` and `app_plugin/` were
+created inside the instance for the first time. `find <launcher dataDir> -type f -newermt '21:46'
+-not -path '*/mc/*'` returns 15 files and not one of them is game content — `app_webview/**`,
+`shared_prefs/WebViewChromiumPrefs.xml`, `no_backup/.webview/BrowserMetrics-spare.pma`,
+`cache/Crash Reports/ANR Variations/<hash>`, `files/profileInstalled`, `oat/arm64/…vdex`.
+
+That WebView residue is the one part of isolation still not per-installation, and it is not a
+path-rewrite problem either: `MinecraftLoader.initializeWebView()` runs against the launcher's
+Application context before a guest exists — an ordering that is itself the fix for the
+`BIND_EXTERNAL_SERVICE` `SecurityException` — so Chromium captures its data directory before the
+instance root is a thing. Making it follow the instance is exactly the question the login-data share
+switch answers (`docs/levi-compat-design.md` §6.1): a decision about where the account lives, not
+another filesystem trick.
 
 What this buys for the features the user asked for: a per-installation root is exactly the
 `VersionManager.Installation.paths()` shape, so ⑤ (import an APK, keep several versions) has

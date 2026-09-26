@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.Gravity;
@@ -115,6 +116,16 @@ public class MainActivity extends AppCompatActivity {
 
     public void requestManageExternalStoragePermission(Context context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            /*
+             * Only ask when it is actually missing. Unconditionally starting the
+             * settings page sent every launch — including every automated run —
+             * straight out of the launcher and onto "allow management of all
+             * files", where the Settings window then held focus and the game never
+             * got its turn to come up.
+             */
+            if (Environment.isExternalStorageManager()) {
+                return;
+            }
             // 跳转到设置页面，以请求用户授予权限
             Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
             Uri uri = Uri.fromParts("package", context.getPackageName(), null);

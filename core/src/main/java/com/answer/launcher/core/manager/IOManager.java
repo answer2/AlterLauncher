@@ -385,6 +385,44 @@ public class IOManager {
     }
 
     /**
+     * True when {@code path} already lives under the root this installation was given.
+     *
+     * <p>The package-name substitutions elsewhere ({@code EnvironmentHook},
+     * {@code AlterEnvironment}) exist because the framework computes paths from the
+     * <em>guest</em> package name, which the host uid may not create. Once C15 handed
+     * the guest a root of its own, the package name stopped being only a package name:
+     * it is a piece of the installation slug. Rewriting that produced
+     * {@code mc/com.answer.launcher@1.26.45.1/databases} — a directory nobody ever
+     * created, measured as {@code W/ContextImpl: Failed to ensure ...} followed by
+     * {@code SQLITE_CANTOPEN} in the Firebase transport database. A path already inside
+     * our root is therefore left exactly as it is.
+     */
+    public static boolean isIsolated(String path) {
+        if (path == null) {
+            return false;
+        }
+        Alternative manager = Alternative.getManager();
+        if (manager == null) {
+            return false;
+        }
+        // Both credential stores: the device-protected one is a separate tree
+        // (/data/user_de) and measured the same mangling one run after the first fix —
+        // {@code W/ContextImpl: Failed to ensure .../mc/com.answer.launcher@1.26.45.1
+        // /shared_prefs: mkdir failed: ENOENT}, where mkdir is not mkdirs and the
+        // invented parent has no ancestor to create it.
+        return under(manager.getIsolatedDataRoot(), path)
+                || under(manager.getGuestDeviceProtectedRoot(), path);
+    }
+
+    private static boolean under(File root, String path) {
+        if (root == null) {
+            return false;
+        }
+        String prefix = root.getAbsolutePath();
+        return path.equals(prefix) || path.startsWith(prefix + File.separator);
+    }
+
+    /**
      * One-shot move of the pre-isolation tree into the isolated one. A rename, so it
      * is instant and atomic for the whole directory, and it only ever runs while the
      * destination is still absent — after that both launcher and game only ever see

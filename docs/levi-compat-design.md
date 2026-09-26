@@ -60,7 +60,11 @@ Android/media/<launcherPkg>/minecraft/<profileId>/
 Ours — same idea, our names, and one level of indirection that Levi lacks (a profile is not a version: two profiles can point at one APK):
 
 ```
-files/instances/<instanceId>/            instanceId = <package>@<versionName>[+n]  (C13 slug rule)
+files/instances/<instanceId>/            instanceId = <guest package name>[@<versionName>][#<n>]
+                                                             (C13 slug rule; the *whole* package
+                                                             name, never an abbreviation, so two
+                                                             forks of the same version can never
+                                                             land in one directory)
     instance.json                        { id, label, sourceApk, versionName, versionCode,
                                            abi, createdAt, isolation, account, enabledMods[] }
     base.apk  splits/*.apk               the imported archive, renamed, never modified
@@ -71,7 +75,20 @@ files/instances/<instanceId>/            instanceId = <package>@<versionName>[+n
 files/instances/_shared/                 the "don't isolate" target (login, prefs, packs)
 ```
 
-Import flow: SAF `OpenDocument` → verify it is a Minecraft APK (`getPackageArchiveInfo(path, GET_ACTIVITIES|GET_PROVIDERS)` and `packageName == com.mojang.minecraftpe`; Levi checks only the version name — we check the package too) → confirm the label and the version directory name (their `ApkVersionConfirmDialog` equivalent) → copy to `base.apk` → extract `lib/<abi>/` → write `instance.json` → offer "share login with this instance?".
+### 3.1 Naming and identity (decided 2026-09-26)
+
+Two names exist per instance and they are not the same thing:
+
+| | what it is | default | collision policy |
+|---|---|---|---|
+| `id` | the filesystem + `dataDir` identity; the slug C13/C15 isolate under | `<package>@<versionName>` | **cannot** collide: the importer appends `#2`, `#3`, … until the directory is free. The package name is always spelled in full — an id that is only a version name would put two forks of `1.26.45.1` in one tree. |
+| `label` | what the UI shows and what the user types | `versionName` (e.g. `1.26.45.1`) | **checked at creation**: if another instance already carries this label, the create/import dialog says so and offers a distinct label (`1.26.45.1 (2)`). A duplicate label never silently reuses an id. |
+
+That answers the question "what if two imports have the same version name": the *label* may repeat only after the user confirms it; the *id* never repeats, because the id is `package@version#n` and the directory is claimed before the copy starts. Renaming a label later touches only `instance.json` — the id, and therefore the data, does not move.
+
+`IOManager.isolationSlug(package, versionName)` (`core/src/main/java/com/answer/launcher/core/manager/IOManager.java`) stays the sanitizer for the *derived* default id; the importer owns the uniqueness loop, so the slug function must not be the only place a `#n` can appear.
+
+Import flow: SAF `OpenDocument` → verify it is a Minecraft APK (`getPackageArchiveInfo(path, GET_ACTIVITIES|GET_PROVIDERS)` and `packageName == com.mojang.minecraftpe`; Levi checks only the version name — we check the package too) → confirm the label (default `versionName`, rejected if taken) and the resulting id → copy to `base.apk` → extract `lib/<abi>/` → write `instance.json` → offer "share login with this instance?".
 
 Two things Levi does that we should **not**:
 - `setReadOnly()` on extracted `.so` files plus a `.extraction_manifest` token cache — we keep a manifest but compare on `(path, size, mtime)` like they do; the token in theirs is `NativeImageGuard.TOKEN`, which we do not have.
@@ -117,6 +134,12 @@ Measured on 2026-09-26 from the GitHub API:
 - **C. Do not claim Levi compatibility.** Ship only our own v2 protocol (§5). Cheapest, but it is the feature the user asked for, so it is the last resort.
 
 **Scoping exercise that makes B tractable** (do this before writing any code): take real Levi mods and list their undefined `pl::`/`ll::` symbols — `llvm-readelf --dyn-syms lib<mod>.so | grep 'UND _Z'`. That yields the exact minimum surface a real mod needs, which is almost certainly a small fraction of their 60 KB Mod-Menu implementation. Until we have a sample mod in hand, B's cost is a guess.
+
+**Decision (2026-09-26, user):** proceed as if `preloader-android` were Apache-2.0 like its parent — route A is treated as settled, so we may vendor and link it, and the licence no longer gates M4. The engineering consequences we take on from that:
+
+- Ship the text of the Apache-2.0 licence in `LICENSES/preloader-android.txt`, list the vendored path in `NOTICE`, and keep the upstream copyright header on every imported file (§7 of the licence: unmodified files keep their headers — and files we edit must carry a prominent notice of the change, §4(b)).
+- Add `LiteLDev/preloader-android` (and `LiteLDev/LeviLaunchroid`, and `RaphiMC/minecraftauth` with its LGPL-3.0 terms) to the attribution screen in the launcher's About page.
+- Still open the upstream issue asking them to state a licence. It costs one message, and if they answer "keep it closed" we are the ones who have to un-vendor it — which is why this stays in writing here rather than only in a commit message.
 
 ### 4.3 If we build on their source (route A)
 

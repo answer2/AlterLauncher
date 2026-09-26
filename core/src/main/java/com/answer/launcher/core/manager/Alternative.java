@@ -8,6 +8,7 @@ import android.app.LoadedApk;
 import android.app.Service;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
@@ -119,10 +120,33 @@ public class Alternative {
      * native one. Everything downstream reads these two fields.
      */
     private File guestDataRoot;
+    private File guestDeviceProtectedRoot;
     private String isolationSlug;
 
     public File getGuestDataRoot() {
         return guestDataRoot != null ? guestDataRoot : mContext.getDataDir();
+    }
+
+    /**
+     * The root prepared for this installation, or {@code null} while the assembly has
+     * not reached {@code createLoadedApk()} yet. Distinct from {@link #getGuestDataRoot()}
+     * because callers that ask "is this path already inside our root?" must get a
+     * definite no before the root exists, not the launcher's own directory.
+     */
+    public File getIsolatedDataRoot() {
+        return guestDataRoot;
+    }
+
+    /**
+     * The device-protected sibling of {@link #getIsolatedDataRoot()}, also {@code null}
+     * before the assembly decides it. Android keeps {@code /data/user} and
+     * {@code /data/user_de} as separate trees and the guest is given a slug in both, so
+     * "is this path already ours?" has to look at both — checking only the credential
+     * encrypted one left {@code ContextImpl} rewriting the device-protected
+     * {@code shared_prefs} path and failing its mkdir with ENOENT.
+     */
+    public File getGuestDeviceProtectedRoot() {
+        return guestDeviceProtectedRoot;
     }
 
     public String getIsolationSlug() {
@@ -429,6 +453,64 @@ public class Alternative {
     }
 
     /**
+     * Repoint the launcher's own LoadedApk at this installation's data root.
+     *
+     * A ContextImpl does not answer {@code getDataDir()} from
+     * {@code ApplicationInfo.dataDir}: it asks the LoadedApk it was bound to,
+     * which derived the three directory Files once in
+     * {@code setApplicationInfo()} (LoadedApk.java:412-414). Measured on device:
+     * with every cached File field of the activity context already moved, and
+     * with {@code ApplicationInfo.dataDir} rewritten, {@code getDataDir()} still
+     * answered the launcher's real root — and that string is what Bedrock builds
+     * its content root from, so {@code games/com.mojang} kept growing under
+     * {@code /data/user/0/com.answer.launcher} while the instance tree stayed
+     * empty. The accessor cannot be entry-hooked instead: ART inlines it, so an
+     * installed replace was never reached.
+     *
+     * This runs in the {@code :game} process only, which exists to serve exactly
+     * one installation; the state this root holds in that process — the WebView
+     * profile and the crash directory — belongs to that installation too. The
+     * launcher UI process is untouched, and the paths derived before this point
+     * (the legacy root that seeding and migration read, the redirect rules) are
+     * already resolved into strings.
+     */
+    private void retargetHostLoadedApk(File credentialRoot, File deviceProtectedRoot) {
+        try {
+            Context impl = mContext;
+            for (int depth = 0; depth < 4; depth++) {
+                if (!(impl instanceof ContextWrapper)) {
+                    break;
+                }
+                Context wrapped = ((ContextWrapper) impl).getBaseContext();
+                if (wrapped == null || wrapped == impl) {
+                    break;
+                }
+                impl = wrapped;
+            }
+            Object loadedApk = Reflector.on("android.app.ContextImpl")
+                    .field("mPackageInfo").get(impl);
+            if (loadedApk == null) {
+                Log.w(TAG, "no LoadedApk behind the host context, staying on the shared root");
+                return;
+            }
+            setHostDirField(loadedApk, "mCredentialProtectedDataDirFile", credentialRoot);
+            setHostDirField(loadedApk, "mDataDirFile", credentialRoot);
+            setHostDirField(loadedApk, "mDeviceProtectedDataDirFile", deviceProtectedRoot);
+            Log.i(TAG, "host LoadedApk repointed at " + credentialRoot.getAbsolutePath());
+        } catch (Throwable t) {
+            Log.w(TAG, "cannot repoint the host LoadedApk: " + t);
+        }
+    }
+
+    private void setHostDirField(Object loadedApk, String name, File value) {
+        try {
+            Reflector.on(loadedApk.getClass()).field(name).set(loadedApk, value);
+        } catch (Throwable t) {
+            Log.w(TAG, "host LoadedApk." + name + ": " + t);
+        }
+    }
+
+    /**
      * 创建 LoadedApk
      * <p>
      * 核心修改：
@@ -497,8 +579,9 @@ public class Alternative {
         guestDataRoot = IOManager.prepareDataRoot(mContext, isolationSlug);
         String guestRootPath = guestDataRoot.getAbsolutePath();
         applicationInfo.dataDir = guestRootPath;
-        applicationInfo.deviceProtectedDataDir = IOManager.prepareDeviceProtectedRoot(
-                new File(deviceProtectedDirPath()), isolationSlug).getAbsolutePath();
+        guestDeviceProtectedRoot = IOManager.prepareDeviceProtectedRoot(
+                new File(deviceProtectedDirPath()), isolationSlug);
+        applicationInfo.deviceProtectedDataDir = guestDeviceProtectedRoot.getAbsolutePath();
         // ApplicationInfo.credentialProtectedDataDir is @hide in the SDK, so it
         // has to be written reflectively; LoadedApk tolerates a null one.
         try {
@@ -509,6 +592,7 @@ public class Alternative {
         }
         Log.i(TAG, "guest data root = " + guestRootPath
                 + ", installation = " + isolationSlug);
+        retargetHostLoadedApk(guestDataRoot, guestDeviceProtectedRoot);
 
         /*
          * Provider

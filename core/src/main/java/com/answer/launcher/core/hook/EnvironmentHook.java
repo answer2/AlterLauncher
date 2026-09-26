@@ -43,6 +43,11 @@ public class EnvironmentHook extends BaseHook {
      * {@code ContextImpl#ensurePrivateDirExists(File, int, int, String)} - the
      * game asks for directories named after its own package, which the host uid
      * may not create. Rewrite the package segment instead of letting mkdir fail.
+     *
+     * <p>A path already under this installation's own data root (C15) is left
+     * alone: there the package name is part of the isolation slug, and rewriting
+     * it invents a sibling directory nobody created — measured as
+     * {@code SQLITE_CANTOPEN} on {@code .../mc/com.answer.launcher@1.26.45.1/databases}.
      */
     private void hookEnsurePrivateDirExists() {
         Class<?> contextImpl = HookProvider.clazz("android.app.ContextImpl");
@@ -51,12 +56,36 @@ public class EnvironmentHook extends BaseHook {
                         File.class, int.class, int.class, String.class),
                 params -> {
                     File file = (File) params.args[0];
-                    if (file != null && file.getAbsolutePath().contains(LauncherConstants.MINECRAFTPACKAGE)) {
-                        params.args[0] = new File(file.getAbsolutePath()
-                                .replace(LauncherConstants.MINECRAFTPACKAGE, LauncherConstants.PACKAGE));
+                    if (file == null) {
+                        return;
                     }
+                    String path = file.getAbsolutePath();
+                    if (!path.contains(LauncherConstants.MINECRAFTPACKAGE)) {
+                        return;
+                    }
+                    if (IOManager.isIsolated(path)) {
+                        return;
+                    }
+                    params.args[0] = new File(
+                            path.replace(LauncherConstants.MINECRAFTPACKAGE, LauncherConstants.PACKAGE));
                 });
     }
+
+    /*
+     * The activity's own private directories are deliberately NOT fixed here.
+     * Replacing {@code ContextImpl#getDataDir()} installs cleanly and is never
+     * called: it is a three-branch accessor, so ART inlines it into
+     * {@code getFilesDir()} and the other getters, and an entry hook only patches
+     * the standalone body. Measured over a whole game boot —
+     * {@code installed replace -> android.app.ContextImpl#getDataDir()} with zero
+     * invocations, while {@code ensurePrivateDirExists()} just above, which has a
+     * real body, fired in the same process.
+     *
+     * Why a guest activity needs them at all, and where they are written instead:
+     * see {@code AlterEnvironment#adoptGuestDirs(Activity)}.
+     */
+
+
 
     /** {@code libcore.io.IoBridge#open(String, int)} - the single choke point for java.io opens. */
     private void hookIoBridgeOpen() {
