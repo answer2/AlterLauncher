@@ -22,6 +22,7 @@ import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.core.manager.IdentityStore;
 import com.answer.launcher.core.manager.MultiVersionManager;
 import com.answer.launcher.databinding.FragmentHomeBinding;
+import com.answer.launcher.ui.SignInSheet;
 import com.answer.launcher.ui.activity.CrashActivity;
 import com.hjq.permissions.OnPermissionCallback;
 import com.hjq.permissions.Permission;
@@ -170,18 +171,19 @@ public class HomeFragment extends Fragment {
         });
 
         /*
-         * Sign-in is a conversation between the game and Xbox Live: the token envelopes
-         * the SDK writes are JWEs sealed with the title key and this device's keypair, so
-         * the launcher cannot mint them and does not try to. What it can do is start the
-         * runtime that owns the flow and report the result afterwards, which is what this
-         * button does — and the account card above it reads the store back, so the state
-         * the user sees here is the state the game will boot into.
+         * Sign-in used to be the game's job because the token envelopes the SDK writes are
+         * JWEs sealed with the title key and this device's keypair. It is not: the launcher can
+         * run the device-code flow itself and hand XAL the store it expects to find, which is
+         * what this button does now. The card above still reads the state back from disk, so
+         * what the player sees here is what the game will boot into either way.
          */
-        binding.accountLogin.setOnClickListener(view -> {
-            Toast.makeText(requireContext(), "登录在游戏内完成，完成后这里会显示账号",
-                    Toast.LENGTH_LONG).show();
-            Alternative.getManager().LaunchMinecraft(requireActivity());
-        });
+        binding.accountLogin.setOnClickListener(view -> SignInSheet.show(requireActivity(),
+                (success, message) -> {
+                    Toast.makeText(requireContext(),
+                            success ? "登录完成，启动游戏即是已登录状态" : "登录失败：" + message,
+                            Toast.LENGTH_LONG).show();
+                    refresh();
+                }));
 
         binding.versionSetting.setOnClickListener(view -> {
             Intent intent = new Intent(getActivity(), CrashActivity.class);

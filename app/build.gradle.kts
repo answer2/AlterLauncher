@@ -83,6 +83,8 @@ dependencies {
     implementation(project(":api"))
     implementation(project(":core"))
     implementation(project(":cpp"))
+    // Host-side Microsoft sign-in: the launcher owns the XAL store the game reads.
+    implementation(project(":auth"))
     
     
     implementation(libs.lsp.hiddenpass)
