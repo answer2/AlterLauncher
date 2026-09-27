@@ -122,6 +122,13 @@ public class Alternative {
     private File guestDataRoot;
     private File guestDeviceProtectedRoot;
     private String isolationSlug;
+    /**
+     * The instance selected for this launch, or {@code null} when the
+     * system-installed Minecraft is used. Set in {@link #initPackage()} from
+     * {@link InstanceStore#getActiveInstance(Context)}; read in
+     * {@link #createLoadedApk()} to pin the data-root slug to the instance id.
+     */
+    private Instance activeInstance;
 
     public File getGuestDataRoot() {
         return guestDataRoot != null ? guestDataRoot : mContext.getDataDir();
@@ -313,26 +320,67 @@ public class Alternative {
         PackageManager packageManager =
                 mContext.getPackageManager();
 
-        packageInfo =
-                packageManager.getPackageInfo(
-                        LauncherConstants.MINECRAFTPACKAGE,
-                        PackageManager.GET_PROVIDERS
-                );
-
-        if (packageInfo == null) {
-            throw new IllegalStateException(
-                    "Minecraft PackageInfo is null: "
-                            + LauncherConstants.MINECRAFTPACKAGE
-            );
+        /*
+         * M2 (issue 5): when the user selected an imported instance, assemble
+         * the guest from that instance's own base.apk and extracted lib tree
+         * instead of the system-installed anchor — the import holds a complete
+         * Minecraft installation, so the game needs nothing pre-installed
+         * (levi-compat-design.md 8.4). With no active instance the path below
+         * is unchanged: the system package is used exactly as before.
+         */
+        Instance instance = InstanceStore.getActiveInstance(mContext);
+        if (instance != null) {
+            File apkRoot = InstanceStore.instancesRoot(mContext);
+            File baseApk = instance.baseApk(apkRoot);
+            if (baseApk != null && baseApk.isFile()) {
+                packageInfo = packageManager.getPackageArchiveInfo(
+                        baseApk.getAbsolutePath(),
+                        PackageManager.GET_PROVIDERS);
+                if (packageInfo != null && packageInfo.applicationInfo != null) {
+                    applicationInfo = packageInfo.applicationInfo;
+                    // getPackageArchiveInfo already points sourceDir at the
+                    // archive; pin it (and the pre-extracted nativeLibraryDir)
+                    // so the guest ClassLoader and nativeloader read our tree.
+                    applicationInfo.sourceDir = baseApk.getAbsolutePath();
+                    applicationInfo.publicSourceDir = baseApk.getAbsolutePath();
+                    File libDir = instance.libDir(apkRoot);
+                    if (instance.abi != null && !instance.abi.isEmpty()
+                            && libDir != null && libDir.isDirectory()) {
+                        applicationInfo.nativeLibraryDir = libDir.getAbsolutePath();
+                    }
+                    activeInstance = instance;
+                } else {
+                    Log.w(TAG, "instance " + instance.id
+                            + " archive unreadable; falling back to system package");
+                }
+            } else {
+                Log.w(TAG, "instance " + instance.id
+                        + " base.apk missing; falling back to system package");
+            }
         }
 
-        applicationInfo = packageInfo.applicationInfo;
-
         if (applicationInfo == null) {
-            throw new IllegalStateException(
-                    "Minecraft ApplicationInfo is null for "
+            packageInfo =
+                    packageManager.getPackageInfo(
+                            LauncherConstants.MINECRAFTPACKAGE,
+                            PackageManager.GET_PROVIDERS
+                    );
+
+            if (packageInfo == null) {
+                throw new IllegalStateException(
+                        "Minecraft PackageInfo is null: "
+                                + LauncherConstants.MINECRAFTPACKAGE
+                );
+            }
+
+            applicationInfo = packageInfo.applicationInfo;
+
+            if (applicationInfo == null) {
+                throw new IllegalStateException(
+                        "Minecraft ApplicationInfo is null for "
                             + LauncherConstants.MINECRAFTPACKAGE
-            );
+                );
+            }
         }
 
         // Must run before anything reads applicationInfo.uid: LoadedApk
@@ -589,9 +637,11 @@ public class Alternative {
          * the same run. Pointing the root here makes the two sides unable to
          * disagree, because the game's content root is a child of it.
          */
-        isolationSlug = IOManager.isolationSlug(
-                LauncherConstants.MINECRAFTPACKAGE,
-                LauncherConstants.MINECRAFT_VERSION);
+        isolationSlug = activeInstance != null
+                ? activeInstance.id
+                : IOManager.isolationSlug(
+                        LauncherConstants.MINECRAFTPACKAGE,
+                        LauncherConstants.MINECRAFT_VERSION);
         guestDataRoot = IOManager.prepareDataRoot(mContext, isolationSlug);
         String guestRootPath = guestDataRoot.getAbsolutePath();
         applicationInfo.dataDir = guestRootPath;
