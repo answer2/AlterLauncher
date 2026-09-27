@@ -60,6 +60,22 @@ public class LoadedAfterHook extends BaseHook {
                 Log.e(TAG, "NativeCore.loadManager() failed", t);
             }
         }
+
+        // Surface the live game Activity to v2 plugins (ACTIVITY_CREATED). The
+        // loader has already subscribed plugins at the splash, before this
+        // onCreate runs, so handlers see it; on reload the bus is cleared and
+        // plugins re-subscribe in onLoad.
+        try {
+            android.app.Activity activity =
+                    com.answer.launcher.core.manager.MinecraftManager.getManager().getActivity();
+            if (activity != null) {
+                com.answer.launcher.core.plugin.PluginEventBus.emit(
+                        com.answer.launcher.api.GameEvents.ACTIVITY_CREATED,
+                        new com.answer.launcher.api.ActivityCreatedEvent(activity));
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "ACTIVITY_CREATED emit failed", t);
+        }
     }
 
     /**

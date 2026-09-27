@@ -1,68 +1,61 @@
 package com.answer.launcher.api;
 
 import android.util.Log;
+
 import java.lang.reflect.Method;
 
 /**
- * @Author AnswerDev
- * @Date 2024/07/11 21:16
+ * v1 plugin entry, kept as a compat shim (levi-compat-design.md §5.6).
+ *
+ * <p>An existing plugin that implements {@link PluginInit} still resolves here.
+ * The init-field bug is fixed: the v2 {@code PluginLoader} passes the real entry
+ * class name in {@link LauncherInfo#getInit()} (discovered by scanning the dex
+ * for a {@link PluginInit} implementer), so {@link #init(LauncherInfo)} loads
+ * that class instead of a non-existent one named after the file stem. The
+ * handshake still matches {@code PluginInit} by name (a plugin may carry its
+ * own :api copy), and logs a deprecation nudging migration to
+ * {@code alter-plugin.json} + {@link AlterPlugin}.
  */
 public class AlternativeApi {
 
-    private static PluginInfo mPluginInfo;
-    private static LauncherInfo mLauncherInfo;
+    private static final String TAG = "AlternativeApi";
 
-    private static PluginInfo init(LauncherInfo LauncherInfo) {
-        if (mLauncherInfo == null) mLauncherInfo = LauncherInfo;
-        checkLauncherIsNull();
+    /**
+     * v1 handshake. Public so the v2 {@code PluginLoader} can call it directly
+     * for manifest-less plugins that still implement {@link PluginInit}.
+     *
+     * @param launcherInfo carries the real entry class name + the plugin's dex classloader
+     * @return the plugin's {@link PluginInfo}, or null if it could not load
+     */
+    public static PluginInfo init(LauncherInfo launcherInfo) {
+        if (launcherInfo == null) return null;
         try {
-            Class<?> clazz = Class.forName(mLauncherInfo.getInit(), true, LauncherInfo.getClassLoader());
+            Class<?> clazz = Class.forName(launcherInfo.getInit(), true, launcherInfo.getClassLoader());
             if (checkIsPluginInit(clazz)) {
                 PluginInit object = (PluginInit) clazz.newInstance();
-                object.load(mLauncherInfo);
-                if (object.initInfo() == null) mPluginInfo = new PluginInfo();
-                else mPluginInfo = object.initInfo();
+                object.load(launcherInfo);
+                PluginInfo info = object.initInfo();
+                Log.w(TAG, "loaded v1 plugin " + launcherInfo.getInit()
+                        + " via the compat shim; migrate to alter-plugin.json + AlterPlugin (api v2)");
+                return info == null ? new PluginInfo() : info;
             }
-
+            Log.w(TAG, launcherInfo.getInit() + " is not a PluginInit; skipping v1 shim");
         } catch (Exception e) {
-            Log.e("PluginLoader", "Error", e);
+            Log.e(TAG, "Error loading " + launcherInfo.getInit(), e);
         }
-        return mPluginInfo;
+        return null;
     }
 
     /*
-     * @name 插件名称
-     * @author 插件作者
-     * @version 插件版本
-     * @init 插件的入口
-     */
-    private static void initInfo(String name, String author, String version, String description) {
-        if (mPluginInfo == null) mPluginInfo = new PluginInfo(name, author, version, description);
-    }
-
-    private static void checkLauncherIsNull() {
-        if (mLauncherInfo == null) {
-            throw new NullPointerException("mLauncherInfo cannot be null");
-        }
-    }
-
-    /*
-     * The interface is matched BY NAME on purpose: a plugin dex carries its own
-     * copy of PluginInit loaded by the plugin's ClassLoader, so it is a different
-     * Class object from the one in this module and `instanceof` / `==` on the Class
-     * would reject a perfectly valid plugin. What was never valid is `==` on the
-     * two name Strings - interned literals happen to make it work for the caller's
-     * own constant, but a name coming out of a loaded dex is not interned and the
-     * test then silently returns false, so the plugin is skipped without a word.
+     * The interface is matched BY NAME on purpose: a plugin dex may carry its
+     * own copy of PluginInit loaded by the plugin's ClassLoader, so it is a
+     * different Class object from the one in this module and `instanceof` /
+     * `==` on the Class would reject a valid plugin.
      */
     private static boolean checkIsPluginInit(Class<?> clazz) {
         return implementsByName(clazz, PluginInit.class.getName());
     }
 
-    /* Direct interfaces only was enough while every plugin implemented PluginInit
-     * itself; anything that reaches it through an intermediate interface was
-     * invisible. Walk the hierarchy instead - cheap, and it cannot loop because a
-     * class's interface graph is acyclic. */
     private static boolean implementsByName(Class<?> clazz, String name) {
         if (clazz == null) return false;
         for (Class<?> interfaced : clazz.getInterfaces()) {
@@ -72,16 +65,22 @@ public class AlternativeApi {
         return implementsByName(clazz.getSuperclass(), name);
     }
 
+    /**
+     * Registers a surface redraw callback. v2 plugins should use
+     * {@code PluginContext.events()} instead; this is kept for v1 callers and
+     * reaches into core by reflection because the API module has no
+     * compile-time contract with the implementation.
+     */
     public static void addCallback(SurfaceCallback callback) {
-        if(callback != null){
-            try{
-            Class<?> clazz = Class.forName("com.answer.launcher.core.manager.MinecraftManager");
-            Method manager = clazz.getDeclaredMethod("getManager");
-            Method add = clazz.getDeclaredMethod("addCallbacks", SurfaceCallback.class);
-            add.invoke(manager.invoke(null), callback);
-         }catch(Exception e){
-             e.printStackTrace();
-         }
-        } 
+        if (callback != null) {
+            try {
+                Class<?> clazz = Class.forName("com.answer.launcher.core.manager.MinecraftManager");
+                Method manager = clazz.getDeclaredMethod("getManager");
+                Method add = clazz.getDeclaredMethod("addCallbacks", SurfaceCallback.class);
+                add.invoke(manager.invoke(null), callback);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 }
