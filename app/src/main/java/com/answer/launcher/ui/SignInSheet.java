@@ -9,6 +9,7 @@ import android.os.Build;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -22,6 +23,7 @@ import androidx.appcompat.app.AlertDialog;
 import com.answer.launcher.auth.AccountStore;
 import com.answer.launcher.auth.HostAuthManager;
 import com.answer.launcher.auth.XalExporter;
+import com.answer.launcher.core.LauncherConstants;
 import com.answer.launcher.core.bridge.GameBridgeClient;
 import com.answer.launcher.core.bridge.GameRuntime;
 import com.answer.launcher.core.manager.IdentityStore;
@@ -52,6 +54,8 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class SignInSheet {
 
+    private static final String TAG = "SignInSheet";
+
     /** Reports the outcome on the main thread. {@code message} is null on success. */
     public interface Callback {
         void onFinished(boolean success, @Nullable String message);
@@ -80,7 +84,6 @@ public final class SignInSheet {
         code.setLetterSpacing(0.18f);
         code.setTypeface(code.getTypeface(), android.graphics.Typeface.BOLD);
         code.setGravity(Gravity.CENTER);
-        code.setTextIsSelectable(true);
         code.setPadding(0, dp(activity, 14), 0, dp(activity, 4));
         code.setVisibility(View.GONE);
 
@@ -168,6 +171,7 @@ public final class SignInSheet {
                 callback.onFinished(true, null);
             });
         } catch (Throwable failure) {
+            Log.w(TAG, "device-code sign-in failed for version " + version, failure);
             String message = describe(failure);
             ui.post(() -> {
                 if (dialog.isShowing()) {
@@ -201,22 +205,38 @@ public final class SignInSheet {
     }
 
     private static String describe(Throwable failure) {
-        String message = HostAuthManager.lastError();
-        if (message == null || message.isEmpty()) {
-            message = failure.getClass().getSimpleName()
-                    + (failure.getMessage() == null ? "" : ": " + failure.getMessage());
+        String direct = failure.getClass().getSimpleName()
+                + (failure.getMessage() == null ? "" : ": " + failure.getMessage());
+        String detail = HostAuthManager.lastError();
+        /*
+         * lastError() is only written by the refresh/chain helpers, so on the sign-in path it
+         * is still the empty-slot placeholder — and preferring it printed "登录失败：unknown"
+         * over the exception that actually said what went wrong.
+         */
+        if (detail == null || detail.isEmpty() || "unknown".equals(detail)) {
+            return direct;
         }
-        return message;
+        return direct + "（" + detail + "）";
     }
 
-    /** The guest's own version name — XAL ties the token request to the title build. */
+    /**
+     * The guest's own version name, trimmed to the three parts an XAL request carries. The
+     * installed build reports a fourth hotfix component; every sign-in that has ever worked
+     * from this code path sent the release ("1.26.45"), and the store endpoint is picky.
+     */
     private static String gameVersion(Context app) {
+        String version = null;
         try {
-            return app.getPackageManager()
-                    .getPackageInfo("com.mojang.minecraftpe", 0).versionName;
+            version = app.getPackageManager()
+                    .getPackageInfo(LauncherConstants.MINECRAFTPACKAGE, 0).versionName;
         } catch (Throwable ignored) {
+            // Not installed as its own package; fall through to whatever we can guess.
+        }
+        if (version == null || version.isEmpty()) {
             return "1.0.0";
         }
+        String[] parts = version.split("\\.");
+        return parts.length >= 4 ? parts[0] + "." + parts[1] + "." + parts[2] : version;
     }
 
     private static String userAgent(String version) {

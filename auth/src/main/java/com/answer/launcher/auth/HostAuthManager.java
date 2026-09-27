@@ -6,7 +6,7 @@ import net.raphimc.minecraftauth.bedrock.BedrockAuthManager;
 import net.raphimc.minecraftauth.msa.data.MsaConstants;
 import net.raphimc.minecraftauth.msa.model.MsaApplicationConfig;
 import net.raphimc.minecraftauth.msa.model.MsaDeviceCode;
-import net.raphimc.minecraftauth.msa.service.impl.DeviceCodeMsaAuthService;
+// The library's own DeviceCodeMsaAuthService is used through RetryingDeviceCodeMsaService.
 import net.raphimc.minecraftauth.util.CryptUtil;
 import net.raphimc.minecraftauth.bedrock.model.MinecraftCertificateChain;
 
@@ -93,7 +93,8 @@ public final class HostAuthManager {
                 // default is five, and five minutes is not enough for someone to notice the code,
                 // unlock their phone, open a browser and type it — the sign-in then dies on a
                 // perfectly good code.
-                .login((h, c) -> new DeviceCodeMsaAuthService(h, c, codeSink::accept, CODE_LIFETIME_MS));
+                .login((h, c) -> new RetryingDeviceCodeMsaService(h, c, codeSink::accept,
+                        CODE_LIFETIME_MS));
     }
 
     /** Rebuilds a manager from {@link #serialize}, without touching the network. */
