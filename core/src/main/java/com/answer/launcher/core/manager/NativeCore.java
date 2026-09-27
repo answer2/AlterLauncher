@@ -27,4 +27,11 @@ public class NativeCore {
 
   public static native void sendMessage(String msg);
 
+  /**
+   * Menu state as the game sees it (M4): pause/hud/showingMenu flags plus event
+   * counts, formatted by cpp/main.cpp menuState_java. Only meaningful in the
+   * process that runs the game (:game).
+   */
+  public static native String menuState();
+
 }

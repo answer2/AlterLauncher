@@ -15,6 +15,10 @@ interface IGameBridge {
     // HookManager stats line: "installed=N failed=N missingTargets=N duplicatesSuppressed=N"
     String getHookStats();
 
+    // Native menu-state line from the :game process (M4):
+    // "pause=<0|1>,hud=<0|1>,showingMenu=<0|1>,pauseEvents=N,hudEvents=N,menuCalls=N"
+    String getMenuState();
+
     // Absolute paths under filesDir/plugin and filesDir/nativePlugin.
     List<String> getPluginFiles();
 

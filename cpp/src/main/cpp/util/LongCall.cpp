@@ -23,25 +23,90 @@ constexpr ptrdiff_t kBranchReach = 1 << 27;    // +/-128 MB, the direct-branch l
 constexpr size_t kWord = 4;
 constexpr size_t kPatchWords = 4;  // LDR + BR + the 8-byte address they load
 
-// Non-null when the instruction cannot be executed from another address.
-//
-// Everything PC-relative resolves against the instruction's own address, so a
-// copy in another page would compute something else; and the HINT space (BTI,
-// PACIA/AUTIA) is refused because those encode properties of the address they
-// sit at, which a copy loses.
-const char *relocationProblem(uint32_t w) {
-    if ((w & 0xFC000000u) == 0x14000000u) return "B (direct branch)";
-    if ((w & 0xFC000000u) == 0x94000000u) return "BL (direct call)";
-    if ((w & 0x7F000000u) == 0x54000000u) return "B.cond (conditional branch)";
-    if ((w & 0x7E000000u) == 0x34000000u) return "CBZ/TBZ (branch if zero)";
-    if ((w & 0x7E000000u) == 0x36000000u) return "CBNZ/TBNZ (branch if nonzero)";
-    if ((w & 0x9F000000u) == 0x10000000u) return "ADR (PC-relative address)";
-    if ((w & 0x9F000000u) == 0x90000000u) return "ADRP (PC-relative page)";
-    if ((w & 0x3F000000u) == 0x18000000u) return "LDR (PC-relative literal)";
-    if ((w & 0x3F000000u) == 0x1C000000u) return "LDRSW/PRFM (PC-relative literal)";
+// Classes of displaced word for the bridge emitter below.
+enum WordKind {
+    kPlain,          // position-independent: copied verbatim into the trampoline
+    kMaterialize,    // ADRP/ADR/LDR-literal: rewritten as an absolute-address load
+    kRefusedBranch,  // B/BL/B.cond/CBZ/TBZ/CBNZ/TBNZ: fixed-pc-range branches
+    kRefusedOther,   // anything else whose meaning depends on its own address
+};
+
+// Classify one instruction word. The three PC-relative addressing forms are
+// NOT refused outright any more: their effective address is a pure function of
+// the instruction itself plus its (known, fixed) location, so the bridge can
+// materialize that address absolutely instead -- see emitTrampoline. Branches
+// stay refused because a relocated branch would need the *target* within
+// +/-128 MB of the bridge, which is exactly what a far bridge cannot promise.
+int classifyWord(uint32_t w) {
+    if ((w & 0xFC000000u) == 0x14000000u) return kRefusedBranch;  // B
+    if ((w & 0xFC000000u) == 0x94000000u) return kRefusedBranch;  // BL
+    if ((w & 0x7F000000u) == 0x54000000u) return kRefusedBranch;  // B.cond
+    if ((w & 0x7E000000u) == 0x34000000u) return kRefusedBranch;  // CBZ/TBZ
+    if ((w & 0x7E000000u) == 0x36000000u) return kRefusedBranch;  // CBNZ/TBNZ
+    if ((w & 0x9F000000u) == 0x10000000u) return kMaterialize;    // ADR
+    if ((w & 0x9F000000u) == 0x90000000u) return kMaterialize;    // ADRP
+    if ((w & 0x3F000000u) == 0x18000000u) return kRefusedOther;    // LDR lit
+    if ((w & 0x3F000000u) == 0x1C000000u) return kRefusedOther;    // LDRSW/PRFM
     if ((w & 0xFFFFFC00u) >= 0xD5032000u && (w & 0xFFFFFC00u) <= 0xD5032400u)
-        return "HINT/BTI/PAC (address-sensitive)";
-    return nullptr;
+        return kRefusedOther;  // HINT/BTI/PAC: address-sensitive
+    return kPlain;
+}
+
+const char *refusalName(int kind, uint32_t w) {
+    if (kind == kRefusedBranch) return "branch (fixed pc range)";
+    if ((w & 0x3F000000u) == 0x18000000u || (w & 0x3F000000u) == 0x1C000000u)
+        return "PC-relative literal load";
+    return "address-sensitive hint";
+}
+
+// Sign-extend a value occupying the low `bits` bits.
+int64_t signExtend(uint64_t value, unsigned bits) {
+    uint64_t top = UINT64_C(1) << (bits - 1);
+    value &= (UINT64_C(1) << bits) - 1;
+    return (int64_t)((value ^ top) - top);
+}
+
+// The absolute address a kMaterialize-class word computes when executed at
+// `at`. Valid only for the classes classifyWord tags kMaterialize.
+uint64_t pcRelativeTarget(uint32_t w, uintptr_t at) {
+    if ((w & 0x9F000000u) == 0x90000000u) {  // ADRP: immhi:immlo << 12 + page(PC)
+        uint64_t imm = (((uint64_t)(w >> 5) & 0x7FFFFu) << 2) | ((w >> 29) & 3u);
+        return (uint64_t)((uintptr_t)(at & ~(uintptr_t) 0xFFF) +
+                          signExtend(imm, 21) * 4096);
+    }
+    if ((w & 0x9F000000u) == 0x10000000u) {  // ADR: immhi:immlo + PC
+        uint64_t imm = (((uint64_t)(w >> 5) & 0x7FFFFu) << 2) | ((w >> 29) & 3u);
+        return (uint64_t)((uintptr_t) at + signExtend(imm, 21));
+    }
+    // LDR (literal) / LDRSW / PRFM: signed imm7 * scale (4 or 8 bytes).
+    uint64_t imm7 = (w >> 5) & 0x7Fu;
+    uint64_t scale = ((w >> 30) & 3u) == 0 ? 4u : 8u;  // size=00 -> 32-bit, else 64
+    return (uint64_t)((uintptr_t) at + signExtend(imm7, 7) * (int64_t) scale);
+}
+
+// MOVZ Xd, #imm16 shifted left by hw*16; MOVK keeps the other halves.
+uint32_t movz(unsigned rd, uint16_t imm16, unsigned hw) {
+    return 0xD2800000u | ((uint32_t) hw << 21) | ((uint32_t) imm16 << 5) | rd;
+}
+uint32_t movk(unsigned rd, uint16_t imm16, unsigned hw) {
+    return 0xF2800000u | ((uint32_t) hw << 21) | ((uint32_t) imm16 << 5) | rd;
+}
+
+// Emit an absolute-address load of `value` into register `rd`, starting at
+// `out`; returns how many words were written (4 or 5).
+size_t emitLoadAbs(uint32_t *out, unsigned rd, uint64_t value) {
+    // MOVZ/MOVK build bits [15:0], [31:16], [47:32]; the top half arrives via
+    // a literal-free fourth pair when needed. AArch64 addresses use <= 48 bits
+    // in practice, so three chunks plus this tail cover every real target.
+    out[0] = movz(rd, (uint16_t)(value & 0xFFFFu), 0);
+    out[1] = movk(rd, (uint16_t)((value >> 16) & 0xFFFFu), 1);
+    out[2] = movk(rd, (uint16_t)((value >> 32) & 0xFFFFu), 2);
+    uint16_t top = (uint16_t)((value >> 48) & 0xFFFFu);
+    if (top != 0) {
+        out[3] = movk(rd, top, 3);
+        return 4;
+    }
+    return 3;
 }
 
 // Non-null when the instruction transfers control away, which means the target
@@ -153,14 +218,42 @@ bool hook(uintptr_t target, void *handler, void **original, std::string *reason)
     memcpy(words, (const void *) target, sizeof(words));
 
     char detail[256];
+    // Effective address of each word at its true site, and whether we must
+    // materialize it instead of copying (kMaterialize). Branches/literals/hints
+    // are refused outright; register branches mean the function is shorter than
+    // the patch.
+    uint64_t eff[kPatchWords] = {0};
+    bool materialize[kPatchWords] = {false};
     for (size_t i = 0; i < kPatchWords; ++i) {
-        const char *problem = relocationProblem(words[i]);
-        if (problem == nullptr) problem = overrunProblem(words[i]);
-        if (problem != nullptr) {
+        const uintptr_t at = target + i * kWord;
+        const int kind = classifyWord(words[i]);
+        if (kind == kRefusedBranch || kind == kRefusedOther) {
             snprintf(detail, sizeof(detail), "word[%u]=0x%08x is %s", (unsigned) i,
-                     words[i], problem);
+                     words[i], refusalName(kind, words[i]));
             if (reason != nullptr) *reason = detail;
             return false;
+        }
+        const char *over = overrunProblem(words[i]);
+        if (over != nullptr) {
+            snprintf(detail, sizeof(detail), "word[%u]=0x%08x is %s", (unsigned) i,
+                     words[i], over);
+            if (reason != nullptr) *reason = detail;
+            return false;
+        }
+        if (kind == kMaterialize) {
+            materialize[i] = true;
+            eff[i] = pcRelativeTarget(words[i], at);
+            if ((words[i] & 0x9F000000u) == 0x90000000u)
+                eff[i] &= ~(uint64_t) 0xFFFu;  // ADRP yields a page base
+            // The Rd field sits at bits [4:0] in both ADR/ADRP and LDR-literal.
+            unsigned rd = words[i] & 0x1Fu;
+            if (rd >= 29) {  // X29/X30 or Z/S view of them: cannot clobber scratch
+                snprintf(detail, sizeof(detail),
+                         "word[%u]=0x%08x materializes into a reserved register x%u",
+                         (unsigned) i, words[i], rd);
+                if (reason != nullptr) *reason = detail;
+                return false;
+            }
         }
     }
 
@@ -205,8 +298,21 @@ bool hook(uintptr_t target, void *handler, void **original, std::string *reason)
         thunk[1] = kBrX16;
         memcpy(thunk + 2, &handler, sizeof(handler));
     }
-    memcpy(trampoline, words, displaced * kWord);
-    size_t at = displaced;
+    // Replay the displaced words. Plain words copy verbatim; materialized ones
+    // become an absolute-address load of the SAME effective address they would
+    // have computed at the original site, which is position-independent by
+    // construction. For ADRP the low-12 offset stays folded out -- the next
+    // ADD/ldr imm12 restores it -- so we materialize the page base only.
+    size_t at = 0;
+    for (size_t i = 0; i < displaced; ++i) {
+        if (materialize[i]) {
+            at += emitLoadAbs(trampoline + at, words[i] & 0x1Fu, eff[i]);
+        } else {
+            trampoline[at++] = words[i];
+        }
+    }
+    // The entry patch always displaces exactly kPatchWords bytes of the target,
+    // so control resumes there regardless of how many words we replayed.
     if ((at & 1) != 0) {
         trampoline[at] = kBrkCanary;
         ++at;

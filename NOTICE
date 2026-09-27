@@ -1,0 +1,40 @@
+NOTICE
+======
+
+AlterLauncher bundles or derives from the following third-party works.
+
+1. preloader-android (LiteLDev/preloader-android)
+   https://github.com/LiteLDev/preloader-android
+   The signature-rule data reproduced in core/src/main/assets/game-hooks.ini
+   ([rule levi-1.26.30] / [rule levi-1.26.40] / [rule levi-1.26.50] blocks, and
+   the pauseMenuDtor/pauseMenuOpen/hudScreenDtor/hudScreenOpen/isShowingMenu
+   keys), plus the menu-state semantics mirrored by the PauseMenu/HudScreen/
+   isShowingMenu hooks in cpp/src/main/cpp/main.cpp, are derived from this
+   project's resources/preloader/preloader_signature_rules_source.json
+   (schemaVersion 1, revision 3).
+   Licensed under the Apache License, Version 2.0
+   (see LICENSES/Apache-2.0.txt). This project did not publish a license file;
+   it is treated as Apache-2.0 per the upstream parent repository
+   LiteLDev/LeviLaunchroid, and an upstream issue requesting an explicit
+   license has been noted in docs/levi-compat-design.md section 4.2. If the
+   maintainers state otherwise, this attribution must be revisited and the
+   derived data re-evaluated.
+
+2. LeviLaunchroid (LiteLDev/LeviLaunchroid)
+   https://github.com/LiteLDev/LeviLaunchroid
+   Apache License, Version 2.0. Design reference for instance import, XAL
+   naming and the host-login flow (docs/levi-compat-design.md).
+
+3. MinecraftAuth (RaphiMC/minecraftauth)
+   https://github.com/RaphiMC/MinecraftAuth
+   GNU LGPL, Version 3.0. Used as a separate replaceable Gradle module (:auth);
+   see auth/build.gradle.kts. LGPL terms require that the library remain
+   swappable — shipping it as its own artifact satisfies this.
+
+4. shadowhook (bytedance/shadowhook)
+   https://github.com/bytedance/shadowhook
+   GNU LGPL, Version 3.0 with an MIT-style exception... vendored as a prebuilt
+   static library in cpp/; remains separately replaceable at source level.
+
+The full text of the Apache License, Version 2.0 is included at
+LICENSES/Apache-2.0.txt.

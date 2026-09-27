@@ -4,6 +4,7 @@
 #include <dlfcn.h>
 #include <cstdio>
 #include <stdint.h>
+#include <atomic>
 #include <sys/system_properties.h>
 #include <android/asset_manager_jni.h>
 
@@ -42,6 +43,17 @@ uintptr_t clientInstanceVtable = 0;
 uintptr_t guiDataVtable = 0;
 long updateCalls = 0;
 
+// Menu state, mirroring preloader-android's GameHooks.cpp flags (Apache-2.0,
+// see LICENSES/preloader-android.txt + NOTICE): PauseMenu and HudScreen
+// ctor/dtor plus ClientInstance::isShowingMenu together answer "is a menu on
+// screen right now?", which is what the Levi mod surface (mod menu, input
+// routing) keys off. Written from hook handlers on the game thread, read by
+// Java through NativeCore.menuState() — atomics so that read is well defined.
+std::atomic<bool> g_isPauseMenuOpen{false};
+std::atomic<bool> g_isHudScreenOpen{false};
+std::atomic<bool> g_isShowingMenu{false};
+long pauseMenuEvents = 0, hudScreenEvents = 0, showingMenuCalls = 0;
+
 // The hook rule that covers the running Minecraft build, if any. A copy, not a
 // pointer into the parsed vector, so it stays valid however the vector is later
 // reassigned. `gHasRule` is what distinguishes "no rule matched, use the
@@ -72,6 +84,8 @@ void installSignatureHooks();
 
 void sendMessage(JNIEnv *env, jobject obj, jstring msg);
 
+jstring menuState_java(JNIEnv *env, jobject obj);
+
 void hookDlopen_java(JNIEnv *env, jobject obj);
 
 // JNI methods array
@@ -84,6 +98,7 @@ static JNINativeMethod MethodCalled[] = {
         {"applyHookRules",     "(Ljava/lang/String;Ljava/lang/String;)V",
          (void *) applyHookRules_java},
         {"sendMessage",        "(Ljava/lang/String;)V",                 (void *) sendMessage},
+        {"menuState",          "()Ljava/lang/String;",                  (void *) menuState_java},
         // NativeCore.hookDlopen was declared on the Java side but never
         // registered here, so any call threw UnsatisfiedLinkError.
         {"hookDlopen",         "()V",                                   (void *) hookDlopen_java}
@@ -318,6 +333,20 @@ void sendMessage(JNIEnv *env, jobject obj, jstring msg) {
     env->ReleaseStringUTFChars(msg, text);
 }
 
+// Menu state for Java (NativeCore.menuState()). The About page surfaces it so
+// a device test can read the flags without logcat archaeology. Format is
+// fixed: "pause=<0|1>,hud=<0|1>,showingMenu=<0|1>,pauseEvents=<n>,
+// hudEvents=<n>,menuCalls=<n>".
+jstring menuState_java(JNIEnv *env, jobject obj) {
+    char buf[160];
+    snprintf(buf, sizeof(buf), "pause=%d,hud=%d,showingMenu=%d,pauseEvents=%ld,hudEvents=%ld,menuCalls=%ld",
+             g_isPauseMenuOpen.load() ? 1 : 0,
+             g_isHudScreenOpen.load() ? 1 : 0,
+             g_isShowingMenu.load() ? 1 : 0,
+             pauseMenuEvents, hudScreenEvents, showingMenuCalls);
+    return env->NewStringUTF(buf);
+}
+
 void* (*MinecraftGame__joinMultiplayerGame_real)(void*, std::string const&, void*);
 void *MinecraftGame__joinMultiplayerGame_hook(void* minecraftGame, std::string const& a1, void* a2){
     LOGD("Minecraft Hook MinecraftGame__joinMultiplayerGame : %p  %s %p", minecraftGame, a1.c_str(), a2);
@@ -326,16 +355,73 @@ void *MinecraftGame__joinMultiplayerGame_hook(void* minecraftGame, std::string c
 }
 
 
+// ---------------------------------------------------------------------------
+// Menu-state hooks (M4, docs/levi-compat-design.md 4.4)
+//
+// Same semantics as preloader-android's GameHooks.cpp (Apache-2.0, vendored
+// under LICENSES/ + NOTICE): the four non-virtual PauseMenu/HudScreen
+// functions are reached by byte pattern through hookBySignature; the virtual
+// ClientInstance::isShowingMenu is patched at its RTTI vtable slot like
+// clientInstanceUpdate. Every handler forwards to the original first — a
+// wrong pattern costs a missed flag, never the game.
+// ---------------------------------------------------------------------------
+
+void (*PauseMenu_dtor_real)(void *);
+void PauseMenu_dtor_hook(void *self) {
+    g_isPauseMenuOpen.store(false);
+    pauseMenuEvents++;
+    LOGD("PauseMenu dtor: menu closed");
+    PauseMenu_dtor_real(self);
+}
+
+void (*PauseMenu_open_real)(void *);
+void PauseMenu_open_hook(void *self) {
+    g_isPauseMenuOpen.store(true);
+    g_isShowingMenu.store(true);
+    pauseMenuEvents++;
+    LOGD("PauseMenu open");
+    PauseMenu_open_real(self);
+}
+
+void (*HudScreen_dtor_real)(void *);
+void HudScreen_dtor_hook(void *self) {
+    g_isHudScreenOpen.store(false);
+    g_isPauseMenuOpen.store(false);
+    g_isShowingMenu.store(false);
+    hudScreenEvents++;
+    LOGD("HudScreen dtor: screens gone");
+    HudScreen_dtor_real(self);
+}
+
+void (*HudScreen_open_real)(void *);
+void HudScreen_open_hook(void *self) {
+    g_isHudScreenOpen.store(true);
+    g_isPauseMenuOpen.store(false);
+    g_isShowingMenu.store(false);
+    hudScreenEvents++;
+    LOGD("HudScreen open");
+    HudScreen_open_real(self);
+}
+
+typedef bool (*ClientInstance_isShowingMenu)(void *);
+ClientInstance_isShowingMenu ClientInstance_isShowingMenu_real = nullptr;
+bool ClientInstance_isShowingMenu_hook(void *self) {
+    bool res = ClientInstance_isShowingMenu_real(self);
+    g_isShowingMenu.store(res);
+    showingMenuCalls++;
+    return res;
+}
+
 // The signatures below are pinned to one Minecraft build. A build that does not
 // contain the pattern yields address 0, and handing that to shadowhook used to be
 // invisible because shadowhook itself could not initialise on Android 16 (errno 12)
 // and every call failed anyway. Now that inline hooking works, report each miss and
 // each failed install instead of pretending the function was patched.
-static void hookGameFunction(uintptr_t address, void *handler, void **real,
+static bool hookGameFunction(uintptr_t address, void *handler, void **real,
                              const char *name) {
     if (address == 0) {
         LOGW("signature not found for %s: this Minecraft build is not covered, hook skipped", name);
-        return;
+        return false;
     }
     // Ask the address space before asking shadowhook. On a library mapped as one
     // huge PT_LOAD the trampoline island has nowhere to go, and that failure is
@@ -352,18 +438,19 @@ static void hookGameFunction(uintptr_t address, void *handler, void **real,
         if (LongCall::hook(address, handler, real, &why)) {
             LOGD("hooked %s at 0x%lx by long-reach patch (%s)", name,
                  (unsigned long) address, why.c_str());
-            return;
+            return true;
         }
         LOGW("cannot inline-hook %s at 0x%lx: %s; long-reach patch refused: %s", name,
              (unsigned long) address, reach.c_str(), why.c_str());
-        return;
+        return false;
     }
     if (shadowhook_hook_func_addr((void *) address, handler, real) == nullptr) {
         LOGE("failed to hook %s at 0x%lx: %s", name, (unsigned long) address,
              shadowhook_to_errmsg(shadowhook_get_errno()));
-        return;
+        return false;
     }
     LOGD("hooked %s at 0x%lx (%s)", name, (unsigned long) address, reach.c_str());
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -498,6 +585,50 @@ void installRttiHooks() {
     LOGD("hooked %s::update: original 0x%lx -> handler %p", update_target.className.c_str(),
          (unsigned long) original,
          reinterpret_cast<void *>(ClientInstance_update_hook));
+
+    // ClientInstance::isShowingMenu — virtual, so it goes through the SAME vtable
+    // we just validated. The slot index comes from the rule file only (Levi's
+    // windows name it 150/151; there is no safe built-in guess, and a wrong slot
+    // patched blindly would corrupt every call through it). No rule, no key →
+    // skipped with a log, exactly like the sig path.
+    if (gHasRule) {
+        VirtualTarget menu_target;
+        std::string cls;
+        size_t slot = 0;
+        if (gRule.lookupVtable("isShowingMenu", &cls, &slot)) {
+            if (cls == update_target.className) {
+                menu_target.className = cls;
+                menu_target.slot = slot;
+                menu_target.key = "isShowingMenu";
+            } else {
+                LOGW("isShowingMenu names class '%s' but update resolved '%s': not one table, "
+                     "skipping the vtable patch", cls.c_str(), update_target.className.c_str());
+            }
+        } else {
+            LOGD("rule '%s' defines no vtable.isShowingMenu: menu-state flag stays at its "
+                 "PauseMenu/HudScreen estimate", gRule.name.c_str());
+        }
+        if (!menu_target.className.empty()) {
+            uintptr_t fn = resolveVirtual(clientInstanceVtable, menu_target.slot, slots);
+            uintptr_t orig2 = 0;
+            if (fn != 0 && RttiLookup::patchVtableSlot(clientInstanceVtable, menu_target.slot,
+                                                       reinterpret_cast<uintptr_t>(
+                                                               ClientInstance_isShowingMenu_hook),
+                                                       &orig2) && orig2 == fn) {
+                ClientInstance_isShowingMenu_real =
+                        reinterpret_cast<ClientInstance_isShowingMenu>(orig2);
+                LOGD("hooked %s::isShowingMenu slot %zu: original 0x%lx",
+                     menu_target.className.c_str(), menu_target.slot, (unsigned long) orig2);
+            } else if (fn != 0) {
+                if (orig2 != 0 && orig2 != fn) {
+                    RttiLookup::patchVtableSlot(clientInstanceVtable, menu_target.slot, orig2,
+                                                nullptr);  // restore what we touched
+                }
+                LOGW("isShowingMenu slot %zu (0x%lx) could not be patched safely",
+                     menu_target.slot, (unsigned long) fn);
+            }
+        }
+    }
 }
 
 }  // namespace
@@ -542,6 +673,9 @@ struct SignatureHook {
     const char *fallback;
     void *handler;
     void **real;
+    // Bare class name for the RTTI fallback below, or "" when the function is
+    // not virtual and a failed body patch simply means "skip this build".
+    const char *rttiClass;
 };
 
 static void hookBySignature(const ModuleInfo &info, const SignatureHook &entry) {
@@ -567,8 +701,42 @@ static void hookBySignature(const ModuleInfo &info, const SignatureHook &entry) 
     } else {
         pattern = entry.fallback;
     }
-    hookGameFunction(FindSignature::findSignatureInModule(info, pattern.c_str()), entry.handler,
-                     entry.real, entry.pretty);
+    uintptr_t found = FindSignature::findSignatureInModule(info, pattern.c_str());
+    if (found != 0) {
+        LOGD("%s: pattern matched at 0x%lx (library base + 0x%llx)", entry.pretty,
+             (unsigned long) found, (unsigned long long) (found - info.base));
+    }
+    if (hookGameFunction(found, entry.handler, entry.real, entry.pretty)) return;
+
+    // The body refused the patch (island dead band + unrelocatable prologue, or a
+    // shadowhook failure). If this is a virtual function — the rule author names
+    // its class in the table — the RTTI chain still knows who dispatches to it:
+    // find the vtable slot equal to the matched address and patch THAT instead.
+    // One pointer store, no trampoline, no island, MAP_PRIVATE so process-local.
+    if (found != 0 && entry.rttiClass != nullptr && entry.rttiClass[0] != '\0') {
+        uintptr_t table = 0;
+        size_t slot = 0;
+        uintptr_t original = 0;
+        if (RttiLookup::findVirtualSlotForFunction(kGuestLib, entry.rttiClass, found, &table,
+                                                   &slot) &&
+            RttiLookup::patchVtableSlot(table, slot,
+                                        reinterpret_cast<uintptr_t>(entry.handler), &original) &&
+            // The resolver guarantees the slot IS the matched body or its deleting-
+            // destructor wrapper (which BLs into it), so any nonzero read-back is the
+            // untouched table value and forwarding to it keeps both call kinds
+            // covered — same semantics as Levi's body patch.
+            original != 0) {
+            *entry.real = reinterpret_cast<void *>(original);
+            LOGD("hooked %s at slot %zu of vtable %p by vtable patch (body unpatchable)",
+                 entry.pretty, slot, reinterpret_cast<void *>(table));
+        } else if (original != 0 && original != found) {
+            RttiLookup::patchVtableSlot(table, slot, original, nullptr);  // restore
+            LOGW("%s: vtable slot %zu changed under us, restored", entry.pretty, slot);
+        } else {
+            LOGW("%s: no vtable slot of '%s' dispatches to 0x%lx; hook skipped", entry.pretty,
+                 entry.rttiClass, (unsigned long) found);
+        }
+    }
 }
 
 // The pinned-prologue path, for the functions RTTI cannot reach because they are
@@ -576,8 +744,11 @@ static void hookBySignature(const ModuleInfo &info, const SignatureHook &entry) 
 // game instance, so a build is never patched twice for the same purpose.
 void installSignatureHooks() {
     ModuleInfo info = FindSignature::getModuleInfo(kGuestLib);
-    LOGD("scanning %s at 0x%lx (%zu bytes) for %s", kGuestLib, (unsigned long) info.base,
-         info.size, gHasRule ? "the patterns named by the active rule" : "the built-in patterns");
+    size_t scannedBytes = 0;
+    for (const auto &r : info.regions) scannedBytes += r.second;
+    LOGD("scanning %s: %zu executable region(s), %zu bytes total (first at 0x%lx, %zu bytes) for %s",
+         kGuestLib, info.regions.size(), scannedBytes, (unsigned long) info.base, info.size,
+         gHasRule ? "the patterns named by the active rule" : "the built-in patterns");
 
     if (clientInstanceVtable == 0) {
         const SignatureHook update = {"minecraftUpdate", "Minecraft::update",
@@ -592,14 +763,31 @@ void installSignatureHooks() {
     const SignatureHook entries[] = {
             {"guiDataSendClientMessage", "GuiData::sendClientMessage", kPatternSendClientMessage,
              (void *) GuiDate_sendClientMessage_hook,
-             (void **) &GuiDate_sendClientMessage_real},
+             (void **) &GuiDate_sendClientMessage_real, ""},
             {"guiDataAddMessage",        "GuiData::addMessage",        kPatternAddMessage,
              (void *) GuiData_addMessage_hook,
-             (void **) &GuiData_addMessage_real},
+             (void **) &GuiData_addMessage_real, ""},
             {"joinMultiplayerGame",      "MinecraftGame::joinMultiplayerGame",
              kPatternJoinMultiplayerGame,
              (void *) MinecraftGame__joinMultiplayerGame_hook,
-             (void **) &MinecraftGame__joinMultiplayerGame_real},
+             (void **) &MinecraftGame__joinMultiplayerGame_real, ""},
+            // M4 menu-state hooks. No built-in fallback pattern: these keys only
+            // exist in the levi-* rule windows, and outside them the hook is
+            // skipped with a log rather than guessed. The dtors are virtual, so
+            // they name their class for the vtable-slot fallback when the body
+            // patch is refused (no island + unrelocatable prologue words).
+            {"pauseMenuDtor",            "PauseMenu::~PauseMenu",           "",
+             (void *) PauseMenu_dtor_hook,
+             (void **) &PauseMenu_dtor_real, "PauseMenu"},
+            {"pauseMenuOpen",            "PauseMenu::_openPauseScreen",     "",
+             (void *) PauseMenu_open_hook,
+             (void **) &PauseMenu_open_real, ""},
+            {"hudScreenDtor",            "HudScreen::~HudScreen",           "",
+             (void *) HudScreen_dtor_hook,
+             (void **) &HudScreen_dtor_real, "HudScreen"},
+            {"hudScreenOpen",            "HudScreen::_openHudScreen",       "",
+             (void *) HudScreen_open_hook,
+             (void **) &HudScreen_open_real, ""},
     };
     for (size_t i = 0; i < sizeof(entries) / sizeof(entries[0]); i++) {
         hookBySignature(info, entries[i]);

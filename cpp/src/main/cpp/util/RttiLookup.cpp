@@ -103,20 +103,37 @@ class Scanner {
   // .rodata into the same PT_LOAD as .text, so on the device the type-name
   // strings live inside a single `r-xp` mapping (70f663b000-710827f000 covers
   // file offsets 0..0x11c44000). Skipping those finds nothing at all.
-  uintptr_t findBytes(const char *pattern, size_t length, uintptr_t after) const {
+  // Returns the match address and, through *resumeAt, the cursor the NEXT call
+  // must use. The cursor cannot be derived from the returned address alone:
+  // regions are not contiguous in the order scanned, so resuming at hit+1 would
+  // re-enter the same region from its start on the next call whenever a later
+  // region matched first — an infinite scan loop capped only by the caller's
+  // own iteration limit.
+  uintptr_t findBytes(const char *pattern, size_t length, uintptr_t after,
+                      uintptr_t *resumeAt) const {
+    uintptr_t resume = 0;
     for (size_t i = 0; i < regions_.size(); i++) {
       const Region &r = regions_[i];
       uintptr_t begin = r.start > after ? r.start : after;
-      if (begin + length > r.end) continue;
+      if (begin >= r.end) continue;
+      if (begin + length > r.end) {
+        resume = std::max(resume, r.end);  // fully consumed for this pattern
+        continue;
+      }
+      resume = std::max(resume, r.end);
       const char *p = reinterpret_cast<const char *>(begin);
       const char *last = reinterpret_cast<const char *>(r.end - length);
       while (p <= last) {
         const char *hit = static_cast<const char *>(memchr(p, pattern[0], (last - p) + 1));
         if (hit == NULL) break;
-        if (memcmp(hit, pattern, length) == 0) return reinterpret_cast<uintptr_t>(hit);
+        if (memcmp(hit, pattern, length) == 0) {
+          if (resumeAt != NULL) *resumeAt = resume;
+          return reinterpret_cast<uintptr_t>(hit);
+        }
         p = hit + 1;
       }
     }
+    if (resumeAt != NULL) *resumeAt = resume;
     return 0;
   }
 
@@ -182,9 +199,10 @@ uintptr_t findVtable(const std::string &libName, const std::string &mangledName,
   std::vector<uintptr_t> names;
   uintptr_t cursor = 0;
   while (names.size() < 16) {
-    uintptr_t name = scan.findBytes(needle.c_str(), needle.size(), cursor);
+    uintptr_t resumeAt = 0;
+    uintptr_t name = scan.findBytes(needle.c_str(), needle.size(), cursor, &resumeAt);
     if (name == 0) break;
-    cursor = name + 1;
+    cursor = std::max(cursor, resumeAt);
     char prev = ' ';
     if (scan.readable(name - 1, 1)) prev = *reinterpret_cast<const volatile char *>(name - 1);
     // Reject only the tail of a longer length-prefixed component (`114ClientInstance`
@@ -364,6 +382,149 @@ static int protectionOf(uintptr_t addr) {
            (perms[2] == 'x' ? PROT_EXEC : 0);
   }
   return 0;
+}
+
+// For a virtual function whose body cannot be patched, locate the vtable slot
+// that dispatches to it. See the header for the contract.
+// Does the function at `candidate` contain a direct BL to `target` in its first
+// `window` bytes? A deleting destructor is exactly that shape: prologue, one BL
+// to the complete-object dtor, epilogue, RET. Scanning only a short window keeps
+// this cheap and specific — an unrelated body rarely calls the target within its
+// first 512 bytes AND ends in RET right after.
+static bool callsFunction(const Scanner &scan, uintptr_t candidate, uintptr_t target) {
+  if (candidate == 0 || candidate == target) return false;
+  const size_t window = 512;
+  for (size_t off = 0; off + 4 <= window; off += 4) {
+    uintptr_t addr = candidate + off;
+    if (!scan.readable(addr, 4)) break;
+    uint32_t w = *reinterpret_cast<const volatile uint32_t *>(addr);
+    if ((w & 0xFC000000u) != 0x94000000u) continue;  // not BL imm26
+    int32_t offset = static_cast<int32_t>(w << 6) >> 4;  // sign-extended words
+    if (static_cast<uintptr_t>((ptrdiff_t) addr + offset) == target) return true;
+  }
+  return false;
+}
+
+bool findVirtualSlotForFunction(const std::string &libName, const std::string &className,
+                                uintptr_t fnAddress, uintptr_t *vtable, size_t *slotIndex) {
+  LOGD("RttiLookup: %s probe ENTER (lib %s, target 0x%lx)", className.c_str(), libName.c_str(),
+       (unsigned long) fnAddress);
+  if (fnAddress == 0) return false;
+  std::vector<Region> regions = regionsOf(libName);
+  LOGD("RttiLookup: %s probe: %zu regions", className.c_str(), regions.size());
+  if (regions.empty()) return false;
+  Scanner scan(regions);
+
+  // Step 1: every standalone copy of "<len><class>", the same spelling
+  // findVtable validates. Destructor variants keep their own typeinfo objects
+  // but share this identifier component, so one probe covers them all.
+  std::ostringstream encoded;
+  encoded << className.size() << className;
+  const std::string needle = encoded.str();
+
+  std::vector<uintptr_t> names;
+  uintptr_t cursor = 0;
+  while (names.size() < 64) {
+    uintptr_t resumeAt = 0;
+    uintptr_t name = scan.findBytes(needle.c_str(), needle.size(), cursor, &resumeAt);
+    if (name == 0) break;
+    cursor = std::max(cursor, resumeAt);
+    char prev = ' ';
+    if (scan.readable(name - 1, 1)) prev = *reinterpret_cast<const volatile char *>(name - 1);
+    if (isdigit(static_cast<unsigned char>(prev))) {
+      LOGD("RttiLookup: %s: name copy at 0x%lx rejected, prev byte is digit '%c'", className.c_str(),
+           (unsigned long) name, prev);
+      continue;  // tail of a longer number
+    }
+    char next = 'x';
+    if (scan.readable(name + needle.size(), 1)) {
+      next = *reinterpret_cast<const volatile char *>(name + needle.size());
+    }
+    if (next != '\0') {
+      LOGD("RttiLookup: %s: name copy at 0x%lx rejected, next byte is '%c' (0x%02x)",
+           className.c_str(), (unsigned long) name, (next >= 32 && next < 127) ? next : '?',
+           (unsigned) next);
+      continue;  // substring of a sentence or a longer name
+    }
+    names.push_back(name);
+  }
+  if (names.empty()) {
+    // Retry WITHOUT the standalone filters: Mojang's linker suffix-merging can
+    // glue our component inside a longer string on EITHER side (a preceding
+    // digit tail like "...19" before "9PauseMenu", or a following member name),
+    // and GuiData proves the real __name pointer may sit mid-string ("A7GuiData").
+    cursor = 0;
+    while (names.size() < 64) {
+      uintptr_t resumeAt = 0;
+      uintptr_t name = scan.findBytes(needle.c_str(), needle.size(), cursor, &resumeAt);
+      if (name == 0) break;
+      cursor = std::max(cursor, resumeAt);
+      char prev = ' ';
+      if (scan.readable(name - 1, 1)) prev = *reinterpret_cast<const volatile char *>(name - 1);
+      if (prev == '\0') continue;  // already accepted above as standalone
+      LOGD("RttiLookup: %s: loose name copy candidate at 0x%lx (prev '%c'), accepting",
+           className.c_str(), (unsigned long) name, (prev >= 32 && prev < 127) ? prev : '?');
+      names.push_back(name);
+    }
+  }
+  LOGD("RttiLookup: %s probe: step 1 kept %zu name copies of '%s'", className.c_str(),
+       names.size(), needle.c_str());
+  if (names.empty()) return false;
+
+  // Step 2: the slot holding the name lives inside the typeinfo object.
+  std::vector<Hit> nameSlots;
+  scan.findAll(names, &nameSlots);
+  std::vector<uintptr_t> typeinfos;
+  for (size_t i = 0; i < nameSlots.size(); i++) typeinfos.push_back(nameSlots[i].slot - kNameDelta);
+  if (typeinfos.empty()) return false;
+
+  // Step 3: the slot holding the typeinfo lives inside a vtable. Unlike
+  // findVtable there is no "best" table to pick: check every validated one for
+  // a slot equal to fnAddress, because the matched function may sit in ANY of
+  // the class's tables (primary vs. destructor variants).
+  std::vector<Hit> tiSlots;
+  scan.findAll(typeinfos, &tiSlots);
+  LOGD("RttiLookup: %s probe: %zu name copies, %zu typeinfos, %zu tables, target 0x%lx",
+       className.c_str(), names.size(), typeinfos.size(), tiSlots.size(),
+       (unsigned long) fnAddress);
+  for (size_t i = 0; i < tiSlots.size(); i++) {
+    uintptr_t table = tiSlots[i].slot - kVtableDelta;
+    uintptr_t offsetToTop = 0, backRef = 0;
+    if (!scan.ptrAt(table, &offsetToTop)) continue;
+    if (!scan.ptrAt(table + kNameDelta, &backRef) || backRef != typeinfos[tiSlots[i].wanted])
+      continue;
+    size_t slots = countSlots(scan, table);
+    LOGD("RttiLookup: %s candidate table %p (offset_to_top %lu, %zu slots)", className.c_str(),
+         reinterpret_cast<void *>(table), (unsigned long) offsetToTop, slots);
+    for (size_t s = 0; s < slots; s++) {
+      uintptr_t value = 0;
+      if (!scan.ptrAt(table + kHeaderSize + s * 8, &value)) continue;
+      // The matched function may sit in this slot directly...
+      if (value == fnAddress) {
+        if (vtable != NULL) *vtable = table;
+        if (slotIndex != NULL) *slotIndex = s;
+        LOGD("RttiLookup: %s slot %zu dispatches to 0x%lx (table %p, offset_to_top %lu)",
+             className.c_str(), s, (unsigned long) fnAddress, reinterpret_cast<void *>(table),
+             (unsigned long) offsetToTop);
+        return true;
+      }
+      // ...or be reached THROUGH this slot: the Itanium ABI gives every virtual
+      // destructor two bodies, and the vtable stores only the deleting dtor while
+      // the signature names the complete-object one. Recognise that wrapper by
+      // its prologue — SUB SP / STP x19,x30 / ... / BL <fn> / ... / RET — which
+      // is exactly what LongCall::hook already refuses to relocate (the BL).
+      if (callsFunction(scan, value, fnAddress)) {
+        if (vtable != NULL) *vtable = table;
+        if (slotIndex != NULL) *slotIndex = s;
+        LOGD("RttiLookup: %s slot %zu is the deleting wrapper 0x%lx around 0x%lx "
+             "(table %p, offset_to_top %lu)", className.c_str(), s, (unsigned long) value,
+             (unsigned long) fnAddress, reinterpret_cast<void *>(table),
+             (unsigned long) offsetToTop);
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 bool patchVtableSlot(uintptr_t vtable, size_t index, uintptr_t replacement,

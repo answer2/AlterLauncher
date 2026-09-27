@@ -82,6 +82,17 @@ bool islandReachable(uintptr_t target, std::string *reason);
 // the member address, or 0. Read-only, so it cannot crash the game.
 uintptr_t findMemberByVtable(uintptr_t object, uintptr_t vtable, size_t maxOffset);
 
+// For a virtual function whose BODY cannot be patched (no island in reach and
+// LongCall refuses its prologue), find the vtable slot that dispatches to it.
+// `fnAddress` is a signature match on the function entry; `className` is the
+// bare class name as findVtable takes it ("PauseMenu"). Walks the same RTTI
+// chain, but instead of picking one "best" table it checks EVERY table whose
+// typeinfo names this class (primary, complete-object and deleting-destructor
+// variants all share the identifier prefix) for a slot equal to fnAddress.
+// Returns true and fills *vtable/*slotIndex on the first hit; read-only.
+bool findVirtualSlotForFunction(const std::string &libName, const std::string &className,
+                                uintptr_t fnAddress, uintptr_t *vtable, size_t *slotIndex);
+
 }  // namespace RttiLookup
 
 #endif  // ALTER_LAUNCHER_RTTI_LOOKUP_H

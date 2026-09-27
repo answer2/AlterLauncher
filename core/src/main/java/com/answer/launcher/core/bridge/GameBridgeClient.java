@@ -399,6 +399,16 @@ public final class GameBridgeClient {
         }, "no runtime connected");
     }
 
+    /** Native menu-state line (M4); see IGameBridge.getMenuState for the format. */
+    public String menuState() {
+        return call(new Caller<String>() {
+            @Override
+            public String call(IGameBridge bridge) throws RemoteException {
+                return bridge.getMenuState();
+            }
+        }, "no runtime connected");
+    }
+
     public List<String> pluginFiles() {
         return call(new Caller<List<String>>() {
             @Override

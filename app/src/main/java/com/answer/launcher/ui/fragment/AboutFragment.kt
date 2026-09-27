@@ -80,7 +80,12 @@ class AboutFragment : Fragment() {
         text.append("游戏进程  ").append(if (pid > 0) "pid $pid" else "未运行").append('\n')
         text.append("运行状态  ").append(bridge.runtimeState()).append('\n')
         text.append("引擎钩子  ").append(bridge.hookStats()).append('\n')
-        text.append("游戏版本  ").append(bridge.minecraftVersion())
+        text.append("菜单状态  ").append(bridge.menuState()).append('\n')
+        text.append("游戏版本  ").append(bridge.minecraftVersion()).append('\n')
+        // M4 license obligation (docs/levi-compat-design.md 4.2): the menu-state
+        // hooks derive from LiteLDev/preloader-android signature rules, treated as
+        // Apache-2.0; attribution ships with the app, full text in NOTICE.
+        text.append("第三方  ").append("preloader-android / LeviLaunchroid (LiteLDev, Apache-2.0) · MinecraftAuth (RaphiMC, LGPL-3.0) — 见项目根 NOTICE")
 
         appendFiles(text, "Dex/Apk 插件", bridge.pluginFiles())
         appendFiles(text, "Native 插件", bridge.nativePluginFiles())

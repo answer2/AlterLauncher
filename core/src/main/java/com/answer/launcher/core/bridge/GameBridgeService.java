@@ -15,6 +15,7 @@ import com.answer.launcher.core.LauncherConstants;
 import com.answer.launcher.core.hook.HookProvider;
 import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.core.manager.NativePluginManager;
+import com.answer.launcher.core.manager.NativeCore;
 import com.answer.launcher.core.manager.PluginManager;
 
 import java.util.ArrayList;
@@ -117,6 +118,15 @@ public class GameBridgeService extends Service {
                 return HookProvider.stats();
             } catch (Throwable t) {
                 return "stats unavailable: " + t;
+            }
+        }
+
+        @Override
+        public String getMenuState() {
+            try {
+                return NativeCore.menuState();
+            } catch (Throwable t) {
+                return "menu state unavailable: " + t;
             }
         }
 
