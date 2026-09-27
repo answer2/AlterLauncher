@@ -29,6 +29,7 @@ import com.answer.launcher.ui.fragment.AboutFragment;
 import com.answer.launcher.ui.fragment.DownloadFragment;
 import com.answer.launcher.ui.fragment.HomeFragment;
 import com.answer.launcher.ui.fragment.HomePagerAdapter;
+import com.answer.launcher.ui.fragment.InstancesFragment;
 import com.answer.launcher.ui.fragment.SettingFragment;
 import com.answer.launcher.utils.ThemeUtils;
 import com.google.android.material.tabs.TabLayoutMediator;
@@ -68,6 +69,7 @@ public class MainActivity extends AppCompatActivity {
     private void initView() {
         List<Fragment> fragments = new ArrayList<>();
         fragments.add(new HomeFragment());
+        fragments.add(new InstancesFragment());
         fragments.add(new DownloadFragment());
         fragments.add(new SettingFragment());
         fragments.add(new AboutFragment());
@@ -93,14 +95,18 @@ public class MainActivity extends AppCompatActivity {
                     tabView.setText(R.string.title_launch);
                     break;
                 case 1:
+                    imageView.setImageResource(R.drawable.ic_action_instance);
+                    tabView.setText(R.string.title_instance);
+                    break;
+                case 2:
                     imageView.setImageResource(R.drawable.ic_action_download);
                     tabView.setText(R.string.title_download);
                     break;
-                case 2:
+                case 3:
                     imageView.setImageResource(R.drawable.ic_action_setting);
                     tabView.setText(R.string.title_setting);
                     break;
-                case 3:
+                case 4:
                     imageView.setImageResource(R.drawable.ic_action_about);
                     tabView.setText(R.string.title_about);
                     break;

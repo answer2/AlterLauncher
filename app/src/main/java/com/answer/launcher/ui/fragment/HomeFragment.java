@@ -79,7 +79,7 @@ public class HomeFragment extends Fragment {
             binding.accountLogin.setText("重新登录");
         } else {
             binding.userId.setText("未登录");
-            binding.userStatus.setText("登录在游戏内完成，启动器只负责保管和显示状态");
+            binding.userStatus.setText("未登录 · 点击下方按钮使用微软账号登录");
             binding.accountLogin.setText("登录");
         }
         String version = guestVersion(host);
