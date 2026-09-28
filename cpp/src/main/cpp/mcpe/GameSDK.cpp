@@ -449,18 +449,24 @@ bool isInGame() {
     return reinterpret_cast<BoolGetter>(fn)(reinterpret_cast<void *>(ci));
 }
 
-// The chat route: GuiData::addMessage, reached through the SDK layer rather
-// than a blind vtable index. Two ways in, tried in order:
+// The chat route: the game's own TYPE-1 chat wrapper (pinned as
+// off.guiDataAddMessage, 0x923ab54 on 1.26.45.1), reached through the SDK layer
+// rather than a blind vtable index. The wrapper takes the real GuiData pointer,
+// five std::string references (sender, message, three trailing metadata strings
+// the vanilla callers always fill) and a float duration, then constructs the
+// GuiMessage and pushes it onto GuiData's deque itself — so string lifetime and
+// the deque bookkeeping stay entirely inside game code. Two ways in, tried in
+// order:
 
-//   1. the hooked addMessage (its original-function bridge is a plain callable
+//   1. the hooked wrapper (its original-function bridge is a plain callable
 //      with the game's own signature) on the discovered GuiData instance;
 //   2. no hook installed yet -> call base+off.guiDataAddMessage directly on the
 //      instance, which is what a mod loader would do.
 
 // Both need guiData() to have resolved; otherwise this reports and returns
-// false. Argument shapes mirror the game's own callers (the same eleven the
-// addMessage hook forwards): type 1 = raw text line, empty sender, null UUID,
-// not system, duration 5 seconds — matching vanilla chat pop-up behaviour.
+// false. The trailing strings are passed as real EMPTY std::string objects:
+// the GuiMessage ctor dereferences every string argument unconditionally, so
+// nullptr is never an acceptable stand-in (that was the 1.26.45.1 crash).
 bool deliverMessage(const std::string &message) {
     uintptr_t gd = guiData();
     if (gd == 0 && g_lastSeenGuiData != 0 && state.addMessageRoute != 0) {
@@ -481,9 +487,9 @@ bool deliverMessage(const std::string &message) {
                             reinterpret_cast<void *>(state.clientInstance));
         return false;
     }
-    typedef void (*AddMessage)(void *, int, const std::string &, const std::string &, void *,
-                               const std::string &, void *, void *, float, const std::string &,
-                               const std::string &);
+    typedef void (*AddMessage)(void *, const std::string &, const std::string &,
+                               const std::string &, const std::string &,
+                               const std::string &, float);
     AddMessage fn = nullptr;
     if (state.addMessageRoute != 0) {
         fn = reinterpret_cast<AddMessage>(state.addMessageRoute);
@@ -513,11 +519,7 @@ bool deliverMessage(const std::string &message) {
         return false;
     }
     static const std::string empty;
-    static const std::string ustring;
-    static const std::string team;
-    static const std::string xuid;
-    fn(reinterpret_cast<void *>(gd), 1, empty, message, nullptr, ustring, nullptr, nullptr,
-       5.0f, team, xuid);
+    fn(reinterpret_cast<void *>(gd), empty, message, empty, empty, empty, 5.0f);
     return true;
 }
 

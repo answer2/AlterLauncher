@@ -251,77 +251,44 @@ void *Minecraft_update_hook(MinecraftGame *minecraftGame_) {
     return nullptr;//
 }
 
-// 保存目标函数的原始地址
-void *(*GuiData_addMessage_real)(void *unknow, int type,
-                                 const std::string &sender,
-                                 const std::string &message,
-                                 void *uuid,
-                                 const std::string &ustring,
-                                 void *isSystem,
-                                 void *bbool,
-                                 float duration,
-                                 const std::string &senderTeam,
-                                 const std::string &senderXUID);
+// The pinned chat entry on 1.26.45.1 (off.guiDataAddMessage = 0x923ab54) is the
+// TYPE-1 chat wrapper: it builds a GuiMessage{type=1, sender, message, ...} on the
+// stack and hands it to GuiData::addMessageWithFilter. Its first argument is the
+// REAL GuiData — the strongest proof of identity the game can hand us. (The old
+// pin 0x923a5d4 was the GuiMessage CONSTRUCTOR: forwarding an 11-arg addMessage
+// shape into it dereferenced our nullptr string and crashed the game.)
+void (*GuiData_addMessage_real)(void *guiData,
+                                const std::string &sender,
+                                const std::string &message,
+                                const std::string &s3,
+                                const std::string &s4,
+                                const std::string &s5,
+                                float duration);
 
 // 保存目标函数的原始地址
-void (*GuiData_addMessage)(
-        void *unknow, int type,
-        const std::string &sender,
-        const std::string &message,
-        void *uuid,
-        const std::string &ustring,
-        void *isSystem,
-        void *bbool,
-        float duration,
-        const std::string &senderTeam,
-        const std::string &senderXUID);
-
-// 保存目标函数的原始地址
-void *
-(*GuiDate_sendClientMessage_real)(void *void1, const std::string &msg, const std::string &msg2);
-
-static bool isfrist = false;
-
+void *(*GuiDate_sendClientMessage_real)(void *void1, const std::string &msg, const std::string &msg2);
 // Hook函数实现
-void *GuiData_addMessage_hook(void *guidate,
-                              int type,
-                              const std::string &sender,
-                              const std::string &message,
-                              void *uuid,
-                              const std::string &ustring,
-                              void *isSystem,
-                              void *bbool,
-                              float duration,
-                              const std::string &senderTeam,
-                              const std::string &senderXUID) {
-    LOGD("GuiData Address : %p", guidate);
-    // The game hands us its own GuiData on every chat line: the strongest
-    // possible proof of identity. Publish it through the SDK's validated setter.
+void GuiData_addMessage_hook(void *guiData,
+                             const std::string &sender,
+                             const std::string &message,
+                             const std::string &s3,
+                             const std::string &s4,
+                             const std::string &s5,
+                             float duration) {
+    LOGD("GuiData::addChatMessage gd=%p sender=%s is : %s", guiData, sender.c_str(),
+         message.c_str());
+    // The game hands us its own GuiData on every chat line. Publish it through
+    // the SDK's validated setter (it re-checks the vtable against the RTTI
+    // tables) and flush any queued line while we are on the game thread.
     if (GameSdk::clientInstance() != 0) {
-        static bool published = false;
-        if (!published) {
-            published = true;
-            GameSdk::setGuiDataFromHook(reinterpret_cast<uintptr_t>(guidate));
-        }
-        // This hook runs on the game thread with a PROVEN GuiData in hand:
-        // flush any chat line queued before the SDK could resolve it. Cheap
-        // no-op when nothing is pending.
+        GameSdk::setGuiDataFromHook(reinterpret_cast<uintptr_t>(guiData));
         GameSdk::pumpFromAddMessageHook();
     }
-
-    LOGD("Minecraft Hook sendMessage %s -Type %d UUID %d isSystem %s is %s: %s", sender.c_str(),
-         type, uuid, senderTeam.c_str(), senderXUID.c_str(),
-         message.c_str());
     //print_callstack_unwind();
 
-    GuiData_addMessage_real(guidate, type, sender, message, uuid, ustring, isSystem, bbool,
-                            duration,
-                            senderTeam, senderXUID);
-
-
-    return nullptr;//
+    if (GuiData_addMessage_real)
+        GuiData_addMessage_real(guiData, sender, message, s3, s4, s5, duration);
 }
-
 
 // Hook函数实现
 void *GuiDate_sendClientMessage_hook(void *void1, const std::string &msg, const std::string &msg2) {
@@ -698,7 +665,7 @@ static const char *kPatternMinecraftUpdate =
 static const char *kPatternSendClientMessage =
         "FF C3 07 D1 FD 7B 1C A9 FD 03 07 91 FC 57 1D A9 F4 4F 1E A9 55 ?? ?? ?? F4 03 03 2A F3 03 00 AA A8 16 ?? ?? E4 03 02 AA E3 03 01 AA A8 83 ?? ?? FF 83 ?? ?? FF 53 ?? ?? FF 23 ?? ?? 45 ?? ?? ?? E6 03 1F 2A E7 03 1F 2A E8 43 00 91 E9 A3 00 91 A0 E3 02 D1 A5 ?? ?? ?? E2 03 01 91 00 ?? ?? ?? 41 ?? ?? ?? E9 23 00 A9 8F ?? ?? ??";
 static const char *kPatternAddMessage =
-        "E8 0F ?? ?? FD 7B 01 A9 FD 43 00 91 FA 67 02 A9 F8 5F 03 A9 F6 57 04 A9 F4 4F 05 A9 F5 03 00 AA 14 20 00 91 F3 03 00 AA E0 03 14 AA F7 03 07 2A F9 03 06 2A A1 06 ?? ?? E1 03 02 AA 08 40 20 1E FA 03 05 AA F8 03 04 AA F6 03 03 AA ?? ?? ?? ??";
+        "? ? ? D1 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? 91 59 D0 3B D5 F3 03 00 AA F4 03 05 AA 28 17 40 F9";
 static const char *kPatternJoinMultiplayerGame =
         "FD 7B BA A9 FC 6F 01 A9 FD 03 00 91 FA 67 02 A9 F8 5F 03 A9 F6 57 04 A9 F4 4F 05 A9 FF 43 17 D1 53 ?? ?? ?? F8 03 08 AA 68 16 ?? ?? F7 03 02 AA F4 03 01 AA F5 03 00 AA A8 83";
 
@@ -802,7 +769,7 @@ void installSignatureHooks() {
             {"guiDataSendClientMessage", "GuiData::sendClientMessage", kPatternSendClientMessage,
              (void *) GuiDate_sendClientMessage_hook,
              (void **) &GuiDate_sendClientMessage_real, ""},
-            {"guiDataAddMessage",        "GuiData::addMessage",        kPatternAddMessage,
+            {"guiDataAddMessage",        "GuiData::addChatMessage(wrapper)", kPatternAddMessage,
              (void *) GuiData_addMessage_hook,
              (void **) &GuiData_addMessage_real, ""},
             {"joinMultiplayerGame",      "MinecraftGame::joinMultiplayerGame",

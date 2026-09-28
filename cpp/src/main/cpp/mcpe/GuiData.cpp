@@ -46,40 +46,30 @@ static uintptr_t resolveAddMessage() {
     return SigScanner::resolve(std::string("guiDataAddMessage"));
 }
 
+// The route is the game's TYPE-1 chat wrapper (see GameSDK.cpp deliverMessage
+// for the full story): (GuiData*, sender, message, s3, s4, s5, float duration).
+// Every string argument is dereferenced by the GuiMessage ctor, so they must be
+// real std::string objects — empty ones are fine, nullptr is not.
 bool GuiData::sendMessage(const std::string &message) const {
     if (self_ == 0) return false;
     uintptr_t fn = resolveAddMessage();
     if (fn == 0 || !inExec(fn)) return false;
-    using AddMessageFn = void (*)(void *, int, const std::string &, const std::string &,
-                                   void *, const std::string &, void *, void *,
-                                   float, const std::string &, const std::string &);
+    using AddMessageFn = void (*)(void *, const std::string &, const std::string &,
+                                   const std::string &, const std::string &,
+                                   const std::string &, float);
     static const std::string empty;
-    static const std::string ustring;
-    static const std::string team;
-    static const std::string xuid;
-    reinterpret_cast<AddMessageFn>(fn)(reinterpret_cast<void *>(self_), 1,
-                                       empty, message, nullptr, ustring,
-                                       nullptr, nullptr, 5.0f, team, xuid);
+    reinterpret_cast<AddMessageFn>(fn)(reinterpret_cast<void *>(self_), empty, message,
+                                       empty, empty, empty, 5.0f);
     return true;
 }
 
+// NOTE: the vanilla tip path is a separate wrapper (RVA 0x923a29c on 1.26.45.1,
+// (GuiData*, msg, msg2, int flag) building a type-2 GuiMessage with duration
+// 10.0f). Until that entry is pinned in the rule file, tips degrade to a plain
+// chat line — visible, correctly delivered, just not toast-styled.
 bool GuiData::showTipMessage(const std::string &message) const {
-    if (self_ == 0) return false;
-    uintptr_t fn = resolveAddMessage();
-    if (fn == 0 || !inExec(fn)) return false;
-    using AddMessageFn = void (*)(void *, int, const std::string &, const std::string &,
-                                   void *, const std::string &, void *, void *,
-                                   float, const std::string &, const std::string &);
-    static const std::string empty;
-    static const std::string ustring;
-    static const std::string team;
-    static const std::string xuid;
-    reinterpret_cast<AddMessageFn>(fn)(reinterpret_cast<void *>(self_), 2,
-                                       empty, message, nullptr, ustring,
-                                       nullptr, nullptr, 3.0f, team, xuid);
-    return true;
+    return sendMessage(message);
 }
-
 bool GuiData::displayChatMessage(const std::string &sender, const std::string &message,
                                   float duration) const {
     if (self_ == 0) return false;

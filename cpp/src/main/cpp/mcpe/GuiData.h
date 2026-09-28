@@ -25,7 +25,8 @@ public:
     // Uses GameSdk::addMessageRouteRef() or sig.guiDataAddMessage.
     bool sendMessage(const std::string &message) const;
 
-    // showTipMessage: calls GuiData::addMessage with type=2 (tip/toast).
+    // showTipMessage: currently delivered as a plain chat line (the vanilla
+  // type-2 tip wrapper is not pinned yet — see GuiData.cpp).
     bool showTipMessage(const std::string &message) const;
 
     // displayChatMessage: calls GuiData::displayChatMessage (sig key).
