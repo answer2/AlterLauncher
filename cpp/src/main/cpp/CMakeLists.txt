@@ -11,7 +11,7 @@ find_library(GLESv2_LIB GLESv2)
 
 
 # 指定 C++ 标准
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # 16 KB 页面对齐。NDK 27 默认仍按 4 KB 生成 PT_LOAD p_align，
@@ -37,6 +37,33 @@ set(SRC_FILES
     util/RttiLookup.cpp
     util/HookRules.cpp
     util/LongCall.cpp
+    util/SigScanner.cpp
+    mcpe/GameSDK.cpp
+    mcpe/ClientInstance.cpp
+    mcpe/MinecraftGame.cpp
+    mcpe/GuiData.cpp
+    mcpe/LevelRenderer.cpp
+    mcpe/Network.cpp
+    mcpe/Actor.cpp
+    mcpe/Types.cpp
+    mcpe/ModApi.cpp
+    mcpe/Reflection.cpp
+    mcpe/ClassTree.cpp
+    mcpe/Level.cpp
+    mcpe/Dimension.cpp
+    mcpe/BlockSource.cpp
+    mcpe/Block.cpp
+    mcpe/GameMode.cpp
+    mcpe/Options.cpp
+    mcpe/Camera.cpp
+    mcpe/Item.cpp
+    mcpe/ItemStack.cpp
+    mcpe/CompoundTag.cpp
+    mcpe/ContainerScreenController.cpp
+    mcpe/MoveInputHandler.cpp
+    mcpe/ClientInstanceScreenModel.cpp
+    mcpe/MobEffectInstance.cpp
+    mcpe/LevelRendererPlayer.cpp
 )
 
 # 添加头文件目录

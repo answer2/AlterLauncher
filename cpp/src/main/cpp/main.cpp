@@ -21,6 +21,8 @@
 #include <util/RttiLookup.h>
 #include <util/LongCall.h>
 #include <util/HookRules.h>
+#include <mcpe/GameSDK.h>
+#include <util/SigScanner.h>
 #include <android/android_log.h>
 #include <dl_internal.h>
 
@@ -136,6 +138,7 @@ void initAssets(JNIEnv *env, jobject obj, jobject assetManager) {
 void applyHookRules_java(JNIEnv *env, jobject obj, jstring version, jstring rules) {
     const char *versionChars = version == nullptr ? nullptr : env->GetStringUTFChars(version, nullptr);
     gGuestVersion = versionChars == nullptr ? "" : versionChars;
+    GameSdk::setVersion(gGuestVersion.c_str());
     if (versionChars != nullptr) env->ReleaseStringUTFChars(version, versionChars);
 
     std::string text;
@@ -175,6 +178,8 @@ void applyHookRules_java(JNIEnv *env, jobject obj, jstring version, jstring rule
     }
     gRule = *found;
     gHasRule = true;
+    GameSdk::setRule(&gRule, gHasRule);
+    SigScanner::init(&gRule);  // same rule, now also pattern-resolvable
     LOGD("hook rules: rule '%s' active, vtable=%zu signature=%zu",
          gRule.name.c_str(), gRule.vtable.size(), gRule.signatures.size());
 }
@@ -241,6 +246,7 @@ void *(*Minecraft_update_real)(MinecraftGame *minecraftGame);
 void *Minecraft_update_hook(MinecraftGame *minecraftGame_) {
     //LOGD("Minecraft Hook Update : %p", minecraftGame_);
     minecraftGame = minecraftGame_;
+    GameSdk::setMinecraftGameFromHook(reinterpret_cast<uintptr_t>(minecraftGame_));
     Minecraft_update_real(minecraftGame_);
     return nullptr;//
 }
@@ -289,6 +295,19 @@ void *GuiData_addMessage_hook(void *guidate,
                               const std::string &senderTeam,
                               const std::string &senderXUID) {
     LOGD("GuiData Address : %p", guidate);
+    // The game hands us its own GuiData on every chat line: the strongest
+    // possible proof of identity. Publish it through the SDK's validated setter.
+    if (GameSdk::clientInstance() != 0) {
+        static bool published = false;
+        if (!published) {
+            published = true;
+            GameSdk::setGuiDataFromHook(reinterpret_cast<uintptr_t>(guidate));
+        }
+        // This hook runs on the game thread with a PROVEN GuiData in hand:
+        // flush any chat line queued before the SDK could resolve it. Cheap
+        // no-op when nothing is pending.
+        GameSdk::pumpFromAddMessageHook();
+    }
 
     LOGD("Minecraft Hook sendMessage %s -Type %d UUID %d isSystem %s is %s: %s", sender.c_str(),
          type, uuid, senderTeam.c_str(), senderXUID.c_str(),
@@ -322,14 +341,14 @@ void sendMessage(JNIEnv *env, jobject obj, jstring msg) {
         env->ReleaseStringUTFChars(msg, text);
         return;
     }
-    // The old code called vtable slot 218 of the captured game object blind.
-    // Slot numbering drifts between builds — 1.21 puts getGuiData at 219/220,
-    // 1.26 has 8-byte stubs there — and invoking an unknown virtual is a crash
-    // waiting to happen, so the chat route has to be resolved explicitly before
-    // this can do anything beyond reporting the state we reached.
-    LOGI("sendMessage(\"%s\"): ClientInstance=%p MinecraftGame=%p updateCalls=%ld "
-         "guiDataVtable=%p", text, clientInstance, minecraftGame, updateCalls,
-         reinterpret_cast<void *>(guiDataVtable));
+    // The chat route through the SDK layer: the request is parked and delivered
+    // on the next game-thread tick via the validated GuiData instance and the
+    // published addMessage pointer. No blind vtable indexes anywhere.
+    const bool queued = GameSdk::requestMessage(text);
+    char sdk[192];
+    GameSdk::describe(sdk, sizeof(sdk));
+    LOGI("sendMessage(\"%s\"): %s queued=%d updateCalls=%ld", text, sdk, queued ? 1 : 0,
+         updateCalls);
     env->ReleaseStringUTFChars(msg, text);
 }
 
@@ -344,7 +363,11 @@ jstring menuState_java(JNIEnv *env, jobject obj) {
              g_isHudScreenOpen.load() ? 1 : 0,
              g_isShowingMenu.load() ? 1 : 0,
              pauseMenuEvents, hudScreenEvents, showingMenuCalls);
-    return env->NewStringUTF(buf);
+    char full[420];
+    char sdk[192];
+    GameSdk::describe(sdk, sizeof(sdk));
+    snprintf(full, sizeof(full), "%s,%s", buf, sdk);
+    return env->NewStringUTF(full);
 }
 
 void* (*MinecraftGame__joinMultiplayerGame_real)(void*, std::string const&, void*);
@@ -486,11 +509,13 @@ ClientInstance_update ClientInstance_update_real = nullptr;
 uintptr_t ClientInstance_update_hook(void *self, bool paused) {
     if (clientInstance == nullptr) {
         clientInstance = self;
+        GameSdk::setClientInstance(reinterpret_cast<uintptr_t>(self));
         LOGI("ClientInstance captured at %p (vtable %p, guiData vtable %p)", self,
              reinterpret_cast<void *>(clientInstanceVtable),
              reinterpret_cast<void *>(guiDataVtable));
     }
     updateCalls++;
+    GameSdk::pumpMessages();  // chat requests parked by Java land here, on the game thread
     return ClientInstance_update_real(self, paused);
 }
 
@@ -537,6 +562,13 @@ VirtualTarget virtualTarget(const char *key, const char *fallbackClass, size_t f
 void installRttiHooks() {
     size_t slots = 0;
     guiDataVtable = RttiLookup::findVtable(kGuestLib, "GuiData", NULL);
+    // Collect every validated GuiData table (primary + aux/subobject variants):
+    // on 1.26.x the live instance carries one of the aux tables, so identity
+    // checks need the full set. The primary answer above still seeds gdVtable.
+    uintptr_t gdTables[8];
+    size_t gdTableCount = RttiLookup::findVtables(kGuestLib, "GuiData", gdTables, 8);
+    LOGD("GuiData RTTI: %zu validated table(s), primary %p", gdTableCount,
+         reinterpret_cast<void *>(guiDataVtable));
 
     VirtualTarget update_target =
             virtualTarget("clientInstanceUpdate", kClientInstanceClass, kClientInstanceUpdateSlot);
@@ -585,6 +617,11 @@ void installRttiHooks() {
     LOGD("hooked %s::update: original 0x%lx -> handler %p", update_target.className.c_str(),
          (unsigned long) original,
          reinterpret_cast<void *>(ClientInstance_update_hook));
+
+    // Hand the validated tables to the SDK layer so its getters resolve through
+    // exactly what the hooks proved live, not a second RTTI walk.
+    GameSdk::setClientInstanceTables(clientInstanceVtable, slots, guiDataVtable);
+    if (gdTableCount != 0) GameSdk::setGuiDataTables(gdTables, gdTableCount);
 
     // ClientInstance::isShowingMenu — virtual, so it goes through the SAME vtable
     // we just validated. The slot index comes from the rule file only (Levi's
@@ -642,6 +679,7 @@ void load(JNIEnv *env, jobject obj) {
     }
 
     LOGD("Minecraft Handle : %lx", Main::baseAddress);
+    GameSdk::init(static_cast<uintptr_t>(Main::baseAddress));
 
     // RTTI first: it works on any build whose class layout is unchanged, and
     // needs no dlopen of the guest library (which our linker namespace cannot
@@ -792,6 +830,25 @@ void installSignatureHooks() {
     for (size_t i = 0; i < sizeof(entries) / sizeof(entries[0]); i++) {
         hookBySignature(info, entries[i]);
     }
+
+    // Publish the chat route to the SDK layer: the real (pre-hook or bridge)
+    // addMessage if the hook installed, else the rule-pinned address itself.
+    if (reinterpret_cast<uintptr_t>(GuiData_addMessage_real) != 0) {
+        GameSdk::addMessageRouteRef() = reinterpret_cast<uintptr_t>(GuiData_addMessage_real);
+    } else {
+        uintptr_t rva = 0;
+        if (gHasRule && gRule.lookupOffset(std::string("guiDataAddMessage"), &rva)) {
+            GameSdk::addMessageRouteRef() = info.base + rva;
+        } else if (gHasRule) {
+            // No hook bridge and no offset pin: the BedrockTools route. The
+            // pattern scan resolves an address we can CALL even though the
+            // island dead band forbids PATCHING it. One cached scan.
+            uintptr_t sig = SigScanner::resolve(std::string("guiDataAddMessage"));
+            if (sig != 0) GameSdk::addMessageRouteRef() = sig;
+        }
+    }
+    LOGD("SigScanner: %zu/%zu signature key(s) resolved so far", SigScanner::hitCount(),
+         SigScanner::scannedCount());
 }
 
 // Main functions

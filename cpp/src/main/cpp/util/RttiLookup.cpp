@@ -527,6 +527,79 @@ bool findVirtualSlotForFunction(const std::string &libName, const std::string &c
   return false;
 }
 
+
+// Enumerate every validated vtable of a class (see the header). Shares the
+// chain walk of findVtable; the only difference is that no "best" table is
+// picked — each validated candidate is reported, primary first.
+size_t findVtables(const std::string &libName, const std::string &mangledName,
+                   uintptr_t *outTables, size_t capacity) {
+  if (outTables == NULL || capacity == 0) return 0;
+  size_t found = 0;
+
+  std::vector<Region> regions = regionsOf(libName);
+  if (regions.empty()) return 0;
+  Scanner scan(regions);
+
+  std::ostringstream encoded;
+  encoded << mangledName.size() << mangledName;
+  const std::string needle = encoded.str();
+
+  std::vector<uintptr_t> names;
+  uintptr_t cursor = 0;
+  while (names.size() < 16) {
+    uintptr_t resumeAt = 0;
+    uintptr_t name = scan.findBytes(needle.c_str(), needle.size(), cursor, &resumeAt);
+    if (name == 0) break;
+    cursor = std::max(cursor, resumeAt);
+    char prev = ' ';
+    if (scan.readable(name - 1, 1)) prev = *reinterpret_cast<const volatile char *>(name - 1);
+    if (isdigit(static_cast<unsigned char>(prev))) continue;
+    char next = 'x';
+    if (scan.readable(name + needle.size(), 1)) {
+      next = *reinterpret_cast<const volatile char *>(name + needle.size());
+    }
+    if (next != '\0') continue;
+    names.push_back(name);
+  }
+  if (names.empty()) return 0;
+
+  std::vector<Hit> nameSlots;
+  scan.findAll(names, &nameSlots);
+  std::vector<uintptr_t> typeinfos;
+  for (size_t i = 0; i < nameSlots.size(); i++) typeinfos.push_back(nameSlots[i].slot - kNameDelta);
+  if (typeinfos.empty()) return 0;
+
+  std::vector<Hit> tiSlots;
+  scan.findAll(typeinfos, &tiSlots);
+  for (size_t i = 0; i < tiSlots.size() && found < capacity; i++) {
+    uintptr_t table = tiSlots[i].slot - kVtableDelta;
+    uintptr_t offsetToTop = 0, backRef = 0;
+    if (!scan.ptrAt(table, &offsetToTop)) continue;
+    if (!scan.ptrAt(table + kNameDelta, &backRef) || backRef != typeinfos[tiSlots[i].wanted])
+      continue;
+    if (countSlots(scan, table) == 0) continue;
+    // De-duplicate: several typeinfo copies can point at one table.
+    bool seen = false;
+    for (size_t k = 0; k < found; k++)
+      if (outTables[k] == table) { seen = true; break; }
+    if (seen) continue;
+    outTables[found++] = table;
+  }
+  // Primary table first so callers can index [0] as "the" table when they want
+  // findVtable's answer without walking twice.
+  for (size_t i = 1; i < found; i++) {
+    uintptr_t top = 0;
+    if (!scan.ptrAt(outTables[i], &top) || top != 0) continue;
+    for (size_t k = 0; k < i; k++) {
+      uintptr_t kt = 0;
+      if (scan.ptrAt(outTables[k], &kt) && kt == 0) continue;
+      uintptr_t tmp = outTables[i]; outTables[i] = outTables[k]; outTables[k] = tmp;
+      break;
+    }
+  }
+  return found;
+}
+
 bool patchVtableSlot(uintptr_t vtable, size_t index, uintptr_t replacement,
                      uintptr_t *original) {
   if (vtable == 0) return false;

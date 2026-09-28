@@ -50,7 +50,7 @@ std::string describe(const Rule &rule) {
     out << rule.name << " [" << (rule.minVersion.empty() ? "*" : rule.minVersion) << ", "
         << (rule.maxVersion.empty() ? "*" : rule.maxVersion) << "] " << rule.vtable.size()
         << " vtable / " << rule.signatures.size() << " pattern / " << rule.offsets.size()
-        << " offset";
+        << " offset / " << rule.dataOffsets.size() << " data";
     return out.str();
 }
 
@@ -107,6 +107,16 @@ bool Rule::lookupOffset(const std::string &key, uintptr_t *rva) const {
     std::map<std::string, uintptr_t>::const_iterator found = offsets.find(key);
     if (found == offsets.end()) return false;
     *rva = found->second;
+    return true;
+}
+
+// Object-relative field pins (dat.<key>=d0x458): same storage shape as offsets
+// but a different namespace, because an offset like 0x458 is meaningless as a
+// library RVA and dangerous to confuse with one.
+bool Rule::lookupDataOffset(const std::string &key, uintptr_t *out) const {
+    std::map<std::string, uintptr_t>::const_iterator found = dataOffsets.find(key);
+    if (found == dataOffsets.end()) return false;
+    *out = found->second;
     return true;
 }
 
@@ -208,6 +218,19 @@ std::vector<Rule> parse(const std::string &text, std::vector<std::string> *error
             rule.vtable[trim(key.substr(7))] = value;
         } else if (key.compare(0, 4, "sig.") == 0) {
             rule.signatures[trim(key.substr(4))] = value;
+        } else if (key.compare(0, 4, "dat.") == 0) {
+            uintptr_t dataOff = 0;
+            std::string marked = trim(value);
+            bool ok = !marked.empty() && (marked[0] == 'd' || marked[0] == 'D') &&
+                      parseOffset(marked.substr(1), &dataOff);
+            if (ok) {
+                rule.dataOffsets[trim(key.substr(4))] = dataOff;
+            } else if (errors) {
+                std::ostringstream out;
+                out << "line " << lineNumber << ": data offset " << value
+                    << " must look like d0x458";
+                errors->push_back(out.str());
+            }
         } else if (key.compare(0, 4, "off.") == 0) {
             uintptr_t rva = 0;
             if (parseOffset(value, &rva)) {

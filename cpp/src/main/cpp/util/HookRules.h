@@ -39,6 +39,13 @@ struct Rule {
     // least portable one, so it only ever applies to the exact build it was
     // recovered from, and the version window above is what keeps it honest.
     std::map<std::string, uintptr_t> offsets;
+    // key -> object-relative data offset (a plain hex delta like d0x458), NOT a
+    // library RVA. The prefix keeps the two kinds apart in one file: an off.*
+    // entry is base+RVA and dies with the build; a dat.* entry is an offset
+    // INSIDE a heap object (ClientInstance's projection matrix at +0x458 on
+    // 1.26.x, GuiData's window size pair, ...) and only rots when Mojang
+    // changes the class layout, which the version window still guards.
+    std::map<std::string, uintptr_t> dataOffsets;
 
     // True when `version` falls inside [minVersion, maxVersion].
     bool covers(const std::string &version) const;
@@ -54,6 +61,9 @@ struct Rule {
     // when the key is absent. An offset beats a pattern at use time: it is the
     // one handle that cannot silently stop matching.
     bool lookupOffset(const std::string &key, uintptr_t *rva) const;
+
+    // The value stored under `key` as `dat.<key> = d0x...`. False when absent.
+    bool lookupDataOffset(const std::string &key, uintptr_t *offset) const;
 };
 
 // Compare dotted versions numerically on the shared numeric prefix; a shorter

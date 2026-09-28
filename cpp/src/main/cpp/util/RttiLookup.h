@@ -93,6 +93,14 @@ uintptr_t findMemberByVtable(uintptr_t object, uintptr_t vtable, size_t maxOffse
 bool findVirtualSlotForFunction(const std::string &libName, const std::string &className,
                                 uintptr_t fnAddress, uintptr_t *vtable, size_t *slotIndex);
 
+// Same chain walk as findVtable, but returns EVERY validated table whose
+// typeinfo names this class — primary (offset_to_top 0), complete-object and
+// aux/subobject variants included. GuiData on 1.26.x is a base subobject with
+// three live tables; an object pointer observed in the game may carry any of
+// them, so identity checks need the full set, not just the longest one.
+size_t findVtables(const std::string &libName, const std::string &mangledName,
+                   uintptr_t *outTables, size_t capacity);
+
 }  // namespace RttiLookup
 
 #endif  // ALTER_LAUNCHER_RTTI_LOOKUP_H
