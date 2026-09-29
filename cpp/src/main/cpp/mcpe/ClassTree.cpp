@@ -49,7 +49,8 @@ const Regions &regions() {
 }
 
 bool inWritable(uintptr_t addr) {
-    return RttiLookup::inRegions(regions().writable, addr, false);
+    // Strip the scudo top-byte tag: maps regions are recorded untagged.
+    return RttiLookup::inRegions(regions().writable, addr & 0x00ffffffffffffffULL, false);
 }
 
 bool safeReadPtr(uintptr_t object, uintptr_t offset, uintptr_t *out) {
@@ -126,6 +127,11 @@ bool inExec(uintptr_t addr) {
         if (addr >= r.start && addr < r.end) return true;
     }
     return false;
+}
+
+bool inGuestLib(uintptr_t addr) {
+    const auto regions = RttiLookup::regionsOf(kGuestLib);
+    return RttiLookup::inRegions(regions, addr, false);
 }
 
 bool safeReadU8(uintptr_t addr, uintptr_t offset, uint8_t *out) {

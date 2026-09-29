@@ -16,6 +16,7 @@ namespace mcpe {
 
 using detail::inWritable;
 using detail::inExec;
+using detail::inGuestLib;
 using detail::safeReadPtr;
 using detail::safeReadF32;
 using detail::safeReadU8;
@@ -50,7 +51,7 @@ bool Actor::getPos(Vec3 *out) const {
         // callVirtual with dynamic slot isn't possible in C++ templates;
         // use the manual path instead:
         uintptr_t vt = 0;
-        if (safeReadPtr(self_, 0, &vt) && inExec(vt)) {
+        if (safeReadPtr(self_, 0, &vt) && inGuestLib(vt)) {
             uintptr_t fn = 0;
             memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
             if (fn != 0 && inExec(fn)) {
@@ -130,7 +131,7 @@ bool Actor::lerpMotion(const Vec3 &motion) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("actorLerpMotion"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -145,7 +146,7 @@ bool Actor::jumpFromGround() const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("actorJump"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -187,7 +188,7 @@ bool Actor::swing() const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("actorSwing"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -312,7 +313,7 @@ bool Actor::stopRiding() const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("actorStopRiding"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -327,7 +328,7 @@ bool Actor::actorTeleportTo(const Vec3 &pos) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("actorTeleportTo"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -342,7 +343,7 @@ bool Actor::startSpinAttack() const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("actorStartSpinAttack"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -357,7 +358,7 @@ bool Actor::stopSpinAttack() const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("actorStopSpinAttack"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -372,7 +373,7 @@ bool Actor::startSwimming() const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("actorStartSwimming"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -387,7 +388,7 @@ bool Actor::stopSwimming() const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("actorStopSwimming"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -469,7 +470,7 @@ bool Player::setPlayerGameType(int type) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("playerSetGameType"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -512,7 +513,7 @@ bool Player::setArmor(int slot, uintptr_t itemStack) const {
     uintptr_t vslot = 0;
     if (!rule || !rule->lookupVtable(std::string("playerSetArmor"), nullptr, &vslot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + vslot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -528,7 +529,7 @@ Handle Player::getArmor(int slot) const {
     uintptr_t vslot = 0;
     if (!rule || !rule->lookupVtable(std::string("playerGetArmor"), nullptr, &vslot)) return Handle{};
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return Handle{};
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return Handle{};
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + vslot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return Handle{};
@@ -548,7 +549,7 @@ bool Player::canOpenContainerScreen() const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("playerCanOpenContainer"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -593,7 +594,7 @@ bool LocalPlayer::snapToHeadRot(float pitch, float yaw) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("localPlayerSnapToHeadRot"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -608,7 +609,7 @@ bool LocalPlayer::setSprinting(bool enable) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("localPlayerSetSprinting"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -623,7 +624,7 @@ bool LocalPlayer::applyTurnDelta(float pitchDelta, float yawDelta) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("localPlayerApplyTurnDelta"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -640,7 +641,7 @@ bool LocalPlayer::addEffect(uintptr_t effectInstance) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("playerAddEffect"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -656,7 +657,7 @@ bool LocalPlayer::removeAllEffects() const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("playerRemoveAllEffects"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -692,7 +693,7 @@ Handle LocalPlayer::getItemStack(int slot) const {
     uintptr_t vslot = 0;
     if (!rule || !rule->lookupVtable(std::string("playerGetCarriedItem"), nullptr, &vslot)) return Handle{};
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return Handle{};
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return Handle{};
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + vslot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return Handle{};

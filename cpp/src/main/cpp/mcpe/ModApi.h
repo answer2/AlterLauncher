@@ -108,6 +108,12 @@ uintptr_t resolveSignature(const std::string &key);
 uintptr_t resolveOffset(const std::string &key);
 uintptr_t callPointerGetter(uintptr_t object, uintptr_t getterAddress);
 
+// One-shot SDK self-test: exercises every acquisition ladder and
+// mod-facing entry point from the game thread, logging OK/FAIL per function.
+// Triggered once by the ClientInstance::update hook when a local player is
+// live (i.e. really in a world), so the numbers mean something.
+void selfTest();
+
 }  // namespace mcpe
 
 #endif  // ALTER_LAUNCHER_MCPE_MOD_API_H

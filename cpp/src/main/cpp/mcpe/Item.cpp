@@ -67,7 +67,7 @@ bool Item::isFood() const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("itemIsFood"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!detail::safeReadPtr(self_, 0, &vt) || !detail::inExec(vt)) return false;
+    if (!detail::safeReadPtr(self_, 0, &vt) || !detail::inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !detail::inExec(fn)) return false;
@@ -81,7 +81,7 @@ bool Item::isWeapon() const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("itemIsWeapon"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!detail::safeReadPtr(self_, 0, &vt) || !detail::inExec(vt)) return false;
+    if (!detail::safeReadPtr(self_, 0, &vt) || !detail::inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !detail::inExec(fn)) return false;
@@ -95,7 +95,7 @@ bool Item::getArmorSlot(int *out) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("itemGetArmorSlot"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!detail::safeReadPtr(self_, 0, &vt) || !detail::inExec(vt)) return false;
+    if (!detail::safeReadPtr(self_, 0, &vt) || !detail::inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !detail::inExec(fn)) return false;

@@ -9,6 +9,7 @@ using detail::safeReadF32;
 using detail::dataPin;
 using detail::inWritable;
 using detail::inExec;
+using detail::inGuestLib;
 
 bool LevelRendererPlayer::getCameraPos(Vec3 *out) const {
     if (self_ == 0 || out == nullptr) return false;
@@ -26,7 +27,7 @@ bool LevelRendererPlayer::getCameraPos(Vec3 *out) const {
         return true;
     }
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -41,7 +42,7 @@ bool LevelRendererPlayer::getFov(float *out) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("lrpGetFov"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;

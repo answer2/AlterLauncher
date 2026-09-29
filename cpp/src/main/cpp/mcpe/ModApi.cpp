@@ -2,6 +2,7 @@
 // ClassTree's typed accessors, and SigScanner's rule-driven pattern cache.
 #include <mcpe/ModApi.h>
 
+#include <android/log.h>
 #include <cstring>
 
 #include <mcpe/ClassTree.h>
@@ -207,4 +208,118 @@ uintptr_t callPointerGetter(uintptr_t object, uintptr_t getterAddress) {
     return result;
 }
 
+
+// --------------------------------------------------------------------------
+// selfTest — one decisive pass over the whole API surface.
+// --------------------------------------------------------------------------
+#define STLOG(...) __android_log_print(ANDROID_LOG_INFO, "AlterSelfTest", __VA_ARGS__)
+
+void selfTest() {
+    char buf[256];
+    GameSdk::describe(buf, sizeof(buf));
+    STLOG("state: %s", buf);
+
+    BuildInfo info = buildInfo();
+    STLOG("buildInfo: version=%s rule=%s base=%p active=%d", info.version,
+          info.ruleName, reinterpret_cast<void *>(info.libraryBase), info.ruleActive ? 1 : 0);
+
+    // Root objects through the SDK ladders.
+    uintptr_t mg = GameSdk::minecraftGame();
+    STLOG("minecraftGame: %p", reinterpret_cast<void *>(mg));
+    uintptr_t gd = GameSdk::guiData();
+    STLOG("guiData: %p (%s)", reinterpret_cast<void *>(gd), GameSdk::guiDataSource());
+
+    // GuiData metrics + send path.
+    if (gd != 0) {
+        GuiData gui(gd);
+        Vec2 game{}, real{};
+        if (gui.windowSize(&game, &real))
+            STLOG("windowSize OK game=%.1f,%.1f real=%.1f,%.1f", game.x, game.y, real.x, real.y);
+        else
+            STLOG("windowSize FAIL (pin dat.guiDataWindowSize)");
+    }
+
+    // ClientInstance subsystem handles.
+    ClientInstance ci(GameSdk::clientInstance());
+    struct { const char *name; Handle h; } subs[] = {
+        {"minecraft", ci.minecraft()},
+        {"levelRenderer", ci.levelRenderer()},
+        {"loopbackPacketSender", ci.loopbackPacketSender()},
+        {"getOptions", ci.getOptions()},
+        {"getRegion", ci.getRegion()},
+        {"getCamera", ci.getCamera()},
+        {"getLevel", ci.getLevel()},
+        {"getLocalPlayer", ci.getLocalPlayer()},
+    };
+    for (auto &s : subs)
+        STLOG("ci.%s: %s %p", s.name, s.h.valid() ? "OK" : "--", reinterpret_cast<void *>(s.h.ptr));
+
+    // Projection math with the pinned matrix/fov.
+    Mat4 m{};
+    Vec2 fov{};
+    if (ci.readProjection(&m, &fov)) {
+        STLOG("readProjection OK fov=%.3f,%.3f m00=%.3f", fov.x, fov.y, m.m[0]);
+        Vec2 out{};
+        if (ci.worldToScreenWithCamera(Vec3{0.f, 0.f, 0.f}, Vec3{0.f, 0.f, -4.f}, &out))
+            STLOG("worldToScreen OK -> %.1f,%.1f", out.x, out.y);
+        else
+            STLOG("worldToScreen FAIL");
+    } else {
+        STLOG("readProjection FAIL (pins dat.projectionMatrix/fovXY)");
+    }
+
+    // Actor surface on the local player.
+    uintptr_t lp = ci.getLocalPlayer().ptr;
+    if (lp != 0) {
+        Actor actor(lp);
+        Vec3 pos{};
+        STLOG("actor.getPos: %s", actor.getPos(&pos) ? "OK" : "-- (pin vtable.actorGetPos)");
+        Vec2 ang{};
+        STLOG("actor.getViewAngles: %s", actor.getViewAngles(&ang) ? "OK" : "-- (pin dat.playerRotPtr)");
+        float hp = 0.f;
+        STLOG("actor.getHealth: %s", actor.getHealth(&hp) ? "OK" : "-- (pin dat.actorHealthField)");
+        uint64_t rid = 0;
+        STLOG("actor.getRuntimeID: %s", actor.getRuntimeID(&rid) ? "OK" : "-- (pin)");
+        STLOG("actor.getNameTag: '%s'", actor.getNameTag().c_str());
+        STLOG("actor.isAlive: %d", actor.isAlive() ? 1 : 0);
+        STLOG("actor.getDimension: %p", reinterpret_cast<void *>(actor.getDimension().ptr));
+        STLOG("actor.getRegion: %p", reinterpret_cast<void *>(actor.getRegion().ptr));
+        LocalPlayer me(lp);
+        STLOG("lp.getGameMode: %p", reinterpret_cast<void *>(me.getGameMode().ptr));
+        STLOG("lp.getHeldItem: %p", reinterpret_cast<void *>(me.getHeldItem().ptr));
+        STLOG("lp.getMoveInputHandler: %p", reinterpret_cast<void *>(me.getMoveInputHandler().ptr));
+    } else {
+        STLOG("localPlayer UNRESOLVED (sig.clientInstanceGetLocalPlayer failed?)");
+    }
+
+    // ModApi convenience layer.
+    Vec3 p{};
+    STLOG("modapi.getPlayerPos: %s", getPlayerPos(&p) ? "OK" : "--");
+    Vec2 r{};
+    STLOG("modapi.getPlayerRotation: %s", getPlayerRotation(&r) ? "OK" : "--");
+    float health = 0.f;
+    STLOG("modapi.getPlayerHealth: %s", getPlayerHealth(&health) ? "OK" : "--");
+    int dim = -1;
+    STLOG("modapi.getPlayerDimension: %s", getPlayerDimension(&dim) ? "OK" : "--");
+    STLOG("modapi.minecraftGameIsInGame: %d", minecraftGameIsInGame() ? 1 : 0);
+    STLOG("modapi.minecraftGameCanUseKeys: %d", minecraftGameCanUseKeys() ? 1 : 0);
+    Vec2 gs{}, rs{};
+    STLOG("modapi.windowSize: %s", windowSize(&gs, &rs) ? "OK" : "--");
+    if (lp != 0) {
+        Vec2 scr{};
+        STLOG("modapi.worldToScreenAtPlayer: %s", worldToScreenAtPlayer(Vec3{0.f,0.f,0.f}, &scr) ? "OK" : "--");
+    }
+
+    // Signature toolbox.
+    const char *keys[] = {"guiDataAddMessage", "clientInstanceGetLocalPlayer",
+                          "clientInstanceGetPacketSender", "clientInstanceGetGuiData",
+                          "clientInstanceGetMinecraftGame"};
+    for (const char *k : keys) {
+        uintptr_t a = resolveSignature(std::string(k));
+        STLOG("sig.%s: %s 0x%lx", k, a ? "OK" : "--", (unsigned long) a);
+    }
+    STLOG("off.guiDataAddMessage: 0x%lx", (unsigned long) resolveOffset(std::string("guiDataAddMessage")));
+    STLOG("pumpCount: %zu", pumpCount());
+    STLOG("=== SELFTEST DONE ===");
+}
 }  // namespace mcpe

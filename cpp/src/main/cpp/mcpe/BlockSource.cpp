@@ -9,6 +9,7 @@ using detail::safeReadI32;
 using detail::dataPin;
 using detail::inWritable;
 using detail::inExec;
+using detail::inGuestLib;
 
 Handle BlockSource::getBlock(int x, int y, int z) const {
     if (self_ == 0) return Handle{};
@@ -16,7 +17,7 @@ Handle BlockSource::getBlock(int x, int y, int z) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("blockSourceGetBlock"), nullptr, &slot)) return Handle{};
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return Handle{};
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return Handle{};
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return Handle{};
@@ -36,7 +37,7 @@ bool BlockSource::hasChunksAt(const Vec3i &pos) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("blockSourceHasChunksAt"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -50,7 +51,7 @@ bool BlockSource::getDimensionId(int *out) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("blockSourceGetDimensionId"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;

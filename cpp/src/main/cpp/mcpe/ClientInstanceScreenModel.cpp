@@ -8,6 +8,7 @@ namespace mcpe {
 using detail::safeReadPtr;
 using detail::inWritable;
 using detail::inExec;
+using detail::inGuestLib;
 
 Handle ClientInstanceScreenModel::get() {
     // ClientInstanceScreenModel::get() is a static method — resolve via signature.
@@ -25,7 +26,7 @@ bool ClientInstanceScreenModel::executeCommand(const std::string &command) const
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("screenModelExecuteCommand"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;

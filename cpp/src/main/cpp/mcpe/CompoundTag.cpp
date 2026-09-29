@@ -11,6 +11,7 @@ using detail::safeReadU8;
 using detail::dataPin;
 using detail::inWritable;
 using detail::inExec;
+using detail::inGuestLib;
 
 // CompoundTag methods use virtual calls through the tag's vtable.
 // Each method needs a vtable.<key> entry in the rule file.
@@ -21,7 +22,7 @@ std::string CompoundTag::getString(const std::string &key) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("compoundTagGetString"), nullptr, &slot)) return "";
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return "";
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return "";
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return "";
@@ -36,7 +37,7 @@ bool CompoundTag::getInt(const std::string &key, int *out) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("compoundTagGetInt"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -51,7 +52,7 @@ bool CompoundTag::getFloat(const std::string &key, float *out) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("compoundTagGetFloat"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -66,7 +67,7 @@ bool CompoundTag::getByte(const std::string &key, int8_t *out) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("compoundTagGetByte"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -81,7 +82,7 @@ bool CompoundTag::getShort(const std::string &key, int16_t *out) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("compoundTagGetShort"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -96,7 +97,7 @@ bool CompoundTag::getInt64(const std::string &key, int64_t *out) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("compoundTagGetInt64"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -118,7 +119,7 @@ bool CompoundTag::contains(const std::string &key) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("compoundTagContains"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -132,7 +133,7 @@ Handle CompoundTag::getList(const std::string &key) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("compoundTagGetList"), nullptr, &slot)) return Handle{};
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return Handle{};
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return Handle{};
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return Handle{};
@@ -148,7 +149,7 @@ bool ListTag::size(int *out) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("listTagGetSize"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -163,7 +164,7 @@ Handle ListTag::getCompound(int index) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("listTagGetCompound"), nullptr, &slot)) return Handle{};
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return Handle{};
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return Handle{};
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return Handle{};

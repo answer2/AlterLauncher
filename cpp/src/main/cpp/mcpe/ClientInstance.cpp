@@ -17,6 +17,7 @@ namespace mcpe {
 
 using detail::inWritable;
 using detail::inExec;
+using detail::inGuestLib;
 using detail::safeReadPtr;
 using detail::safeReadF32;
 using detail::dataPin;
@@ -52,7 +53,7 @@ Handle ClientInstance::getCamera() const {
     size_t slot = 0;
     if (rule && rule->lookupVtable(std::string("clientInstanceGetCamera"), nullptr, &slot)) {
         uintptr_t vt = 0;
-        if (safeReadPtr(self_, 0, &vt) && inExec(vt)) {
+        if (safeReadPtr(self_, 0, &vt) && inGuestLib(vt)) {
             uintptr_t fn = 0;
             memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
             if (fn != 0 && inExec(fn)) {
@@ -72,7 +73,7 @@ Handle ClientInstance::getOptions() const {
     size_t slot = 0;
     if (rule && rule->lookupVtable(std::string("clientInstanceGetOptions"), nullptr, &slot)) {
         uintptr_t vt = 0;
-        if (safeReadPtr(self_, 0, &vt) && inExec(vt)) {
+        if (safeReadPtr(self_, 0, &vt) && inGuestLib(vt)) {
             uintptr_t fn = 0;
             memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
             if (fn != 0 && inExec(fn)) {
@@ -87,19 +88,18 @@ Handle ClientInstance::getOptions() const {
 
 Handle ClientInstance::getLocalPlayer() const {
     if (self_ == 0) return Handle{};
-    // Primary: BedrockTools signature (already in game-hooks.ini).
-    uintptr_t fn = SigScanner::resolve(std::string("clientInstanceGetLocalPlayer"));
-    if (fn != 0 && inExec(fn)) {
-        using Fn = uintptr_t (*)(void *);
-        uintptr_t result = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));
-        if (result != 0 && inWritable(result)) return Handle{result, "sig"};
-    }
+    // NO sig route here: the BedrockTools ClientInstanceGetLocalPlayer pattern
+    // is weak (mostly wildcards) and on 1.26.45.1 it matched a different
+    // function at base+0x9443364 (reads ci+0x218, calls into std::optional
+    // helpers) - calling it on the title screen crashed the game. Until a
+    // version-verified pin exists, only the vtable ladder below may run, and
+    // it is fail-closed while clientInstanceGetLocalPlayerVt is commented out.
     // Fallback: vtable slot.
     const HookRules::Rule *rule = GameSdk::rule();
     size_t slot = 0;
     if (rule && rule->lookupVtable(std::string("clientInstanceGetLocalPlayerVt"), nullptr, &slot)) {
         uintptr_t vt = 0;
-        if (safeReadPtr(self_, 0, &vt) && inExec(vt)) {
+        if (safeReadPtr(self_, 0, &vt) && inGuestLib(vt)) {
             uintptr_t fn2 = 0;
             memcpy(&fn2, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn2));
             if (fn2 != 0 && inExec(fn2)) {
@@ -118,7 +118,7 @@ Handle ClientInstance::getRegion() const {
     size_t slot = 0;
     if (rule && rule->lookupVtable(std::string("clientInstanceGetRegion"), nullptr, &slot)) {
         uintptr_t vt = 0;
-        if (safeReadPtr(self_, 0, &vt) && inExec(vt)) {
+        if (safeReadPtr(self_, 0, &vt) && inGuestLib(vt)) {
             uintptr_t fn = 0;
             memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
             if (fn != 0 && inExec(fn)) {
@@ -137,7 +137,7 @@ Handle ClientInstance::getLevel() const {
     size_t slot = 0;
     if (rule && rule->lookupVtable(std::string("clientInstanceGetLevel"), nullptr, &slot)) {
         uintptr_t vt = 0;
-        if (safeReadPtr(self_, 0, &vt) && inExec(vt)) {
+        if (safeReadPtr(self_, 0, &vt) && inGuestLib(vt)) {
             uintptr_t fn = 0;
             memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
             if (fn != 0 && inExec(fn)) {

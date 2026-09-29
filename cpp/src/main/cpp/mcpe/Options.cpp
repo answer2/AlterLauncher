@@ -6,6 +6,7 @@
 namespace mcpe {
 using detail::safeReadPtr;
 using detail::inExec;
+using detail::inGuestLib;
 
 bool Options::setPlayerViewPerspective(int value) const {
     if (self_ == 0) return false;
@@ -13,7 +14,7 @@ bool Options::setPlayerViewPerspective(int value) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("optionsSetPerspective"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -28,7 +29,7 @@ bool Options::getPlayerViewPerspective(int *out) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("optionsGetPerspective"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;

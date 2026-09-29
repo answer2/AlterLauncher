@@ -143,42 +143,89 @@ bool looksLikeGuiData(uintptr_t candidate) {
 // dereference an unmapped candidate. Every guest heap pointer is our own
 // pointer here (we run inside the game process), so /proc/self/maps bounds it.
 bool inWritable(uintptr_t addr, size_t len) {
-    static std::vector<std::pair<uintptr_t, uintptr_t>> ranges;
-    static bool loaded = false;
-    if (!loaded) {
-        loaded = true;
-        std::ifstream maps("/proc/self/maps");
-        std::string line;
-        while (std::getline(maps, line)) {
-            uintptr_t s = 0, e = 0;
-            if (sscanf(line.c_str(), "%lx-%lx", &s, &e) != 2) continue;
-            if (line.find(" rw-") != std::string::npos ||
-                line.find("rwxp") != std::string::npos)
-                ranges.push_back(std::make_pair(s, e));
-        }
-    }
+    // Maps are parsed lazily and RE-parsed whenever a lookup misses: the heap
+    // (scudo) grows while the game loads, so a snapshot taken at the first
+    // probe permanently rejects addresses the allocator hands out later. That
+    // stale-cache bug made the whole ci+0xDE0 sub-object ladder read as zeros.
+    // Hits are cached; a miss re-parses once, and an address that STILL misses
+    // is remembered so per-tick retries never re-read maps for a bad pointer.
+    struct WRange { uintptr_t s, e; };
+    // Scudo tags the top byte of every heap pointer (0xb4000070...). The
+    // hardware ignores that byte on access (TBI) but /proc/self/maps lists the
+    // UNTAGGED range, so a raw compare never matches and every bounded read
+    // silently fails. Untag before checking.
+    addr &= 0x00ffffffffffffffULL;
+    static std::vector<WRange> ranges;
+    static std::vector<uintptr_t> bad;
+    static uint64_t generation = 0;
+    static uint64_t badGen = 0;
     for (size_t i = 0; i < ranges.size(); i++)
-        if (addr >= ranges[i].first && addr + len <= ranges[i].second) return true;
+        if (addr >= ranges[i].s && addr + len <= ranges[i].e) return true;
+    if (badGen != generation) { bad.clear(); badGen = generation; }
+    for (size_t i = 0; i < bad.size(); i++)
+        if (bad[i] == addr) return false;
+    ranges.clear();
+    std::ifstream maps("/proc/self/maps");
+    std::string line;
+    while (std::getline(maps, line)) {
+        uintptr_t s = 0, e = 0;
+        if (sscanf(line.c_str(), "%lx-%lx", &s, &e) != 2) continue;
+        if (line.find(" rw-") != std::string::npos ||
+            line.find("rwxp") != std::string::npos)
+            ranges.push_back(WRange{s, e});
+    }
+    generation++;
+    for (size_t i = 0; i < ranges.size(); i++)
+        if (addr >= ranges[i].s && addr + len <= ranges[i].e) return true;
+    bad.push_back(addr);
     return false;
 }
 
-// GuiData on 1.26.x carries no vtable, so looksLikeGuiData can never certify it
-// — this is the whole reason the ladder returned 0 in-world. Its stable,
-// version-portable signature is the three resolution vec2s the game keeps for
-// layout: real / rounded / scaled screen size at +0x40, +0x48, +0x50. A
-// candidate is GuiData when it is a heap pointer whose resolution floats are
-// finite and plausible for a display, checked without any vtable assumption.
+// GuiData identity WITHOUT a chat sighting. The live GuiData object is an
+// inline member of ClientInstance (1.26.45.1: ci+0xDE0) whose own first word is
+// NOT a vtable from the RTTI 'GuiData' set - so looksLikeGuiData can never
+// certify it and the float heuristic alone was too weak. What DOES pin it are
+// the fields the game's own chat functions dereference on 'this':
+//   addChatMessage wrapper: ldr x0,[x0,#0xa0]; ldr x8,[x0]; ldr x8,[x8,#0x580]; blr
+//       -> +0xA0 points at a polymorphic sub-object (vtable inside the guest lib)
+//   sendClientMessage:      ldp x20,x8,[x0,#0x188]; cmp x8,x20
+//       -> +0x188/+0x190 is a begin/end pointer pair (message deque)
+//   BT GuiDataAddMessage:   ldp x8,x9,[x0,#0x140]
+//       -> +0x140/+0x148 is a second begin/end pair
+// A candidate is GuiData when at least one anchor holds, every read bounded by
+// inWritable, and the legacy resolution-float heuristic kept as a last anchor.
 bool plausibleGuiData(uintptr_t candidate) {
     if (candidate == 0 || (candidate & 0x7) != 0) return false;
-    if (!inWritable(candidate, 0x58)) return false;
+    if (!inWritable(candidate, 0x1B0)) return false;
+
+    // Anchor 1: polymorphic pane sub-object at +0xA0.
+    uintptr_t pane = 0;
+    memcpy(&pane, reinterpret_cast<const void *>(candidate + 0xA0), sizeof(pane));
+    if (pane != 0 && (pane & 0x7) == 0 && inWritable(pane, sizeof(uintptr_t))) {
+        uintptr_t vt = 0;
+        memcpy(&vt, reinterpret_cast<const void *>(pane), sizeof(vt));
+        if (vt != 0 && (vt & 0x7) == 0 && inGuestLib(vt)) return true;
+    }
+
+    // Anchor 2: begin/end deque pair - both plausible heap pointers, ordered.
+    auto dequeOk = [](uintptr_t base) {
+        uintptr_t b = 0, e = 0;
+        memcpy(&b, reinterpret_cast<const void *>(base), sizeof(b));
+        memcpy(&e, reinterpret_cast<const void *>(base + 8), sizeof(e));
+        if (b == 0 || (b & 0x7) != 0 || e < b || (e - b) > 0x10000) return false;
+        if (!inWritable(b, sizeof(uintptr_t))) return false;
+        if (e != b && !inWritable(e - 8, sizeof(uintptr_t))) return false;
+        return true;
+    };
+    if (dequeOk(candidate + 0x188) && dequeOk(candidate + 0x140)) return true;
+
+    // Anchor 3 (legacy): three resolution vec2s at +0x40..+0x58.
     float v[6];
     memcpy(v, reinterpret_cast<const void *>(candidate + 0x40), sizeof(v));
     auto ok = [](float f) { return std::isfinite(f) && f >= 100.f && f <= 20000.f; };
     return (ok(v[0]) && ok(v[1])) || (ok(v[2]) && ok(v[3])) || (ok(v[4]) && ok(v[5]));
 }
 
-// The combined GuiData identity test: a real vtable match (polymorphic builds)
-// OR the non-polymorphic resolution signature.
 bool isGuiData(uintptr_t candidate) {
     return looksLikeGuiData(candidate) || plausibleGuiData(candidate);
 }
@@ -235,6 +282,28 @@ void setClientInstance(uintptr_t ci) {
 void setGuiDataFromHook(uintptr_t gd) {
     if (gd == 0) return;
     g_lastSeenGuiData = gd;
+    // Self-calibration: the game just used this gd as a live GuiData 'this'.
+    // If its own vtable is not in the RTTI-derived table set (subobject tables
+    // the RTTI walk never enumerates), learn it so every static validator -
+    // looksLikeGuiData, the member scan - can certify this exact class without
+    // another chat sighting.
+    {
+        uintptr_t vt = 0;
+        if (inWritable(gd, sizeof(vt))) {
+            memcpy(&vt, reinterpret_cast<const void *>(gd), sizeof(vt));
+            if (vt != 0 && (vt & 0x7) == 0 && inGuestLib(vt)) {
+                bool known = false;
+                for (size_t k = 0; k < state.gdVtables.size(); k++)
+                    if (state.gdVtables[k] == vt) { known = true; break; }
+                if (!known) {
+                    state.gdVtables.push_back(vt);
+                    __android_log_print(ANDROID_LOG_INFO, "Alternative_Core",
+                                        "GameSdk: learned GuiData vtable 0x%lx from live "
+                                        "instance (RTTI set missed it)", (unsigned long) vt);
+                }
+            }
+        }
+    }
     if (state.guiData != 0) return;
     // Two proofs of identity, either is enough:
     //   - its own vtable pointer matches a validated RTTI GuiData table, or
@@ -307,6 +376,25 @@ uintptr_t minecraftGame() {
     return 0;
 }
 
+// Sub-object pin re-check without any of the ladder's calls or scans; see the
+// header for why this exists (GuiData is constructed late inside CI on 1.26.x).
+void retryPinnedSubobject() {
+    if (state.guiData != 0) return;
+    uintptr_t ci = state.clientInstance;
+    uintptr_t subOff = 0;
+    if (ci == 0 || !state.hasRule) return;
+    if (!state.rule->lookupDataOffset(std::string("guiDataSubobject"), &subOff)) return;
+    if (isGuiData(ci + subOff)) {
+        state.guiData = ci + subOff;
+        state.gdSource = "sub";
+        __android_log_print(ANDROID_LOG_INFO, "Alternative_Core",
+                            "GameSdk: GuiData %p appeared at inline sub-object "
+                            "ClientInstance+0x%llx (pump %zu)",
+                            reinterpret_cast<void *>(state.guiData),
+                            (unsigned long long) subOff, state.pumps);
+    }
+}
+
 uintptr_t guiData() {
     if (state.guiData != 0) return state.guiData;
     uintptr_t ci = state.clientInstance;
@@ -355,6 +443,50 @@ uintptr_t guiData() {
     }
 
 
+    // Ladder step 2.6: inline sub-object pin. On 1.26.45.1 GuiData is NOT a
+    // pointer member at all - it is constructed in place inside ClientInstance
+    // (the game's own addChatMessage 'this' sits at ci+0xDE0) - so no field or
+    // scan rung can ever hit it. The rule pins the sub-object offset and the
+    // structural validator certifies it, cold, without a chat sighting.
+    uintptr_t subOff = 0;
+    if (state.hasRule && state.rule->lookupDataOffset(std::string("guiDataSubobject"), &subOff)) {
+        uintptr_t candidate = ci + subOff;
+        // One-shot anchor dump: when the structural validator rejects the pinned
+        // sub-object, log exactly what each anchor sees, bounded by inWritable.
+        // Without this the rejection is a black box (which offset is wrong?).
+        static size_t s_lastDiagPump = 0;
+        if (state.pumps >= s_lastDiagPump + 240 && !isGuiData(candidate)) {
+            s_lastDiagPump = state.pumps;
+            auto rd = [](uintptr_t a) -> uintptr_t {
+                uintptr_t v = 0;
+                if (a && inWritable(a, sizeof(v))) memcpy(&v, reinterpret_cast<const void *>(a), sizeof(v));
+                return v;
+            };
+            uintptr_t vt = rd(candidate);
+            uintptr_t pane = rd(candidate + 0xA0);
+            uintptr_t panevt = pane ? rd(pane) : 0;
+            uintptr_t b1 = rd(candidate + 0x140), e1 = rd(candidate + 0x148);
+            uintptr_t b2 = rd(candidate + 0x188), e2 = rd(candidate + 0x190);
+            float fv[6] = {0};
+            if (inWritable(candidate + 0x40, sizeof(fv)))
+                memcpy(fv, reinterpret_cast<const void *>(candidate + 0x40), sizeof(fv));
+            __android_log_print(ANDROID_LOG_INFO, "Alternative_Core",
+                "GameSdk SUBDIAG p=%zu gd=%p vt=%lx(inlib=%d) pane=%p panevt=%lx(inlib=%d) "
+                "dq140=%lx/%lx dq188=%lx/%lx f=[%.1f %.1f | %.1f %.1f | %.1f %.1f]",
+                state.pumps, reinterpret_cast<void *>(candidate), (unsigned long)vt, inGuestLib(vt)?1:0,
+                reinterpret_cast<void *>(pane), (unsigned long)panevt, inGuestLib(panevt)?1:0,
+                (unsigned long)b1,(unsigned long)e1,(unsigned long)b2,(unsigned long)e2,
+                fv[0],fv[1],fv[2],fv[3],fv[4],fv[5]);
+        }
+        if (isGuiData(candidate)) {
+            state.guiData = candidate;
+            state.gdSource = "sub";
+            __android_log_print(ANDROID_LOG_DEBUG, "Alternative_Core",
+                                "GameSdk: GuiData %p is the inline sub-object ClientInstance+0x%llx",
+                                reinterpret_cast<void *>(candidate), (unsigned long long) subOff);
+            return candidate;
+        }
+    }
     // Ladder step 2.7: empirical getter probe. No RTTI table or signature names
     // GuiData (non-polymorphic), but it is reachable as a ClientInstance field
     // behind a plain 'ldr x0,[x0,#off]; ret' getter. The offline .so analysis
@@ -560,7 +692,8 @@ void pumpMessages() {
     // Called from the update hook on the game thread. Swap the queue out under
     // the lock, deliver outside it: addMessage may itself trigger hooks that
     // re-enter requestMessage.
-    state.pumps++;  // one per game-thread tick, queued or not
+    state.pumps++;
+    if ((state.pumps % 120) == 0) retryPinnedSubobject();  // one per game-thread tick, queued or not
     std::vector<std::string> batch;
     {
         std::lock_guard<std::mutex> guard(g_pendingMutex);

@@ -9,6 +9,7 @@ using detail::safeReadF32;
 using detail::dataPin;
 using detail::inWritable;
 using detail::inExec;
+using detail::inGuestLib;
 
 bool GameMode::attack(uintptr_t targetActor) const {
     if (self_ == 0 || targetActor == 0) return false;
@@ -17,7 +18,7 @@ bool GameMode::attack(uintptr_t targetActor) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("gameModeAttack"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -33,7 +34,7 @@ bool GameMode::buildBlock(const Vec3i &pos, uint8_t side) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("gameModeBuildBlock"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -47,7 +48,7 @@ bool GameMode::destroyBlock(const Vec3i &pos, uint8_t side) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("gameModeDestroyBlock"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -61,7 +62,7 @@ bool GameMode::startDestroyBlock(const Vec3i &pos, uint8_t side) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("gameModeStartDestroyBlock"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -85,7 +86,7 @@ bool GameMode::getPickRange(float *out) const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("gameModeGetPickRange"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(self_, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;

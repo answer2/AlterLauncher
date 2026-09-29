@@ -37,6 +37,9 @@ extern const char *kGuestLib;  // "libminecraftpe.so"
 // safeReadPtr/safeReadF32 refuse non-canonical or non-finite values.
 bool inWritable(uintptr_t addr);
 bool inExec(uintptr_t addr);
+// Vtables live in .data.rel.ro (relocated, non-exec): validate a vtable
+// pointer against ANY mapping of the guest library, not just exec ones.
+bool inGuestLib(uintptr_t addr);
 bool safeReadPtr(uintptr_t object, uintptr_t offset, uintptr_t *out);
 bool safeReadF32(uintptr_t object, uintptr_t offset, float *out);
 bool safeReadU8(uintptr_t object, uintptr_t offset, uint8_t *out);
@@ -62,7 +65,7 @@ Ret callVirtual(uintptr_t object, Args... args) {
     if (object == 0 || !inWritable(object)) return Ret{};
     uintptr_t vt = 0;
     memcpy(&vt, reinterpret_cast<const void *>(object), sizeof(vt));
-    if (vt == 0 || !inExec(vt)) return Ret{};
+    if (vt == 0 || !inGuestLib(vt)) return Ret{};
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + Slot * sizeof(void *)), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return Ret{};

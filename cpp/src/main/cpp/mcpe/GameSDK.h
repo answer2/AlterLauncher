@@ -57,6 +57,14 @@ uintptr_t minecraftGame();
 // before publishing it. Cached once valid.
 uintptr_t guiData();
 
+// Deterministic, call-free GuiData re-check: when the rule pins the inline
+// GuiData sub-object (dat.guiDataSubobject) and nothing has published yet,
+// test ci+off with the STRUCTURAL validator only — bounded reads, no virtual
+// calls, no scans. pumpMessages() runs it every ~120 game ticks, so the
+// sub-object is adopted the moment the game constructs it, with no chat
+// sighting required. Safe to call from the game thread at any time.
+void retryPinnedSubobject();
+
 // True when the client reports an in-game session. vtable.isInGame=Class:N
 // only; no pin, no call, false.
 bool isInGame();

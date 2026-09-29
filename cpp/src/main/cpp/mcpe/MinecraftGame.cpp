@@ -10,6 +10,7 @@ namespace mcpe {
 
 using detail::inWritable;
 using detail::inExec;
+using detail::inGuestLib;
 using detail::safeReadPtr;
 using detail::safeReadF32;
 using detail::safeReadU8;
@@ -40,7 +41,7 @@ bool MinecraftGameHandle::isInGame() const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("minecraftGameIsInGame"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(h.ptr, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(h.ptr, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
@@ -54,7 +55,7 @@ bool MinecraftGameHandle::isPrimaryLocalPlayerInGame() const {
     size_t slot = 0;
     if (!rule || !rule->lookupVtable(std::string("minecraftGameIsPrimaryLocalPlayerInGame"), nullptr, &slot)) return false;
     uintptr_t vt = 0;
-    if (!safeReadPtr(h.ptr, 0, &vt) || !inExec(vt)) return false;
+    if (!safeReadPtr(h.ptr, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
     memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;

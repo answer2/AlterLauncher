@@ -22,6 +22,8 @@
 #include <util/LongCall.h>
 #include <util/HookRules.h>
 #include <mcpe/GameSDK.h>
+#include <mcpe/ModApi.h>
+#include <mcpe/ClassTree.h>
 #include <util/SigScanner.h>
 #include <android/android_log.h>
 #include <dl_internal.h>
@@ -257,6 +259,12 @@ void *Minecraft_update_hook(MinecraftGame *minecraftGame_) {
 // REAL GuiData — the strongest proof of identity the game can hand us. (The old
 // pin 0x923a5d4 was the GuiMessage CONSTRUCTOR: forwarding an 11-arg addMessage
 // shape into it dereferenced our nullptr string and crashed the game.)
+// World-entry witness: MinecraftGame::joinMultiplayerGame is the game's own
+// "start loading a world" call (single-player hosts go through it too), and
+// the chat wrapper firing proves a live HUD. Either one flips this flag; the
+// SDK self-test only runs after it, never on the title screen.
+static bool g_worldEntered = false;
+
 void (*GuiData_addMessage_real)(void *guiData,
                                 const std::string &sender,
                                 const std::string &message,
@@ -280,6 +288,7 @@ void GuiData_addMessage_hook(void *guiData,
     // The game hands us its own GuiData on every chat line. Publish it through
     // the SDK's validated setter (it re-checks the vtable against the RTTI
     // tables) and flush any queued line while we are on the game thread.
+    g_worldEntered = true;  // a live chat line means a live HUD
     if (GameSdk::clientInstance() != 0) {
         GameSdk::setGuiDataFromHook(reinterpret_cast<uintptr_t>(guiData));
         GameSdk::pumpFromAddMessageHook();
@@ -340,6 +349,7 @@ jstring menuState_java(JNIEnv *env, jobject obj) {
 void* (*MinecraftGame__joinMultiplayerGame_real)(void*, std::string const&, void*);
 void *MinecraftGame__joinMultiplayerGame_hook(void* minecraftGame, std::string const& a1, void* a2){
     LOGD("Minecraft Hook MinecraftGame__joinMultiplayerGame : %p  %s %p", minecraftGame, a1.c_str(), a2);
+    g_worldEntered = true;
     MinecraftGame__joinMultiplayerGame_real(minecraftGame, a1, a2);
     return nullptr;//
 }
@@ -389,6 +399,7 @@ void HudScreen_open_hook(void *self) {
     g_isPauseMenuOpen.store(false);
     g_isShowingMenu.store(false);
     hudScreenEvents++;
+    g_worldEntered = true;  // single-player world load ends with the HUD
     LOGD("HudScreen open");
     HudScreen_open_real(self);
 }
@@ -483,6 +494,20 @@ uintptr_t ClientInstance_update_hook(void *self, bool paused) {
     }
     updateCalls++;
     GameSdk::pumpMessages();  // chat requests parked by Java land here, on the game thread
+    // One-shot SDK self-test: fires the first time we are past boot AND the
+    // game itself has witnessed world entry (joinMultiplayerGame or a real
+    // chat line), so every ladder is queried in the state a mod would see.
+    // Never probe unresolved sig getters just to decide this - calling the
+    // mis-matched clientInstanceGetLocalPlayer pattern on the title screen
+    // crashed the game.
+    static bool s_selfTestDone = false;
+    // TEMP DIAG: selfTest's four cold RTTI walks stall the game thread ~5s
+    // (ANR-adjacent; the last two runs died right after it). Park it until the
+    // GuiData sub-object pin is settled, then restore the >60 threshold.
+    if (!s_selfTestDone && g_worldEntered && GameSdk::pumpCount() > 1000000) {
+        s_selfTestDone = true;
+        mcpe::selfTest();
+    }
     return ClientInstance_update_real(self, paused);
 }
 
