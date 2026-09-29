@@ -76,6 +76,12 @@ public class InstanceImporter {
                 copyFile(cache, baseApk);
                 cache.delete();
             }
+            // ART refuses to load dex from a file the app can write
+            // ("Writable dex file ... is not allowed", SecurityException in
+            // DexFile.openDexFileNative). The archive must be read-only before
+            // any boot; unlink still works later because deletion is governed
+            // by the (writable) parent directory, not the file mode.
+            baseApk.setReadOnly();
 
             boolean aligned = true;
             if (abi.isEmpty()) {

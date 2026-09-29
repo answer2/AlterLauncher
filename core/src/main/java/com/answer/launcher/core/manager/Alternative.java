@@ -333,6 +333,10 @@ public class Alternative {
             File apkRoot = InstanceStore.instancesRoot(mContext);
             File baseApk = instance.baseApk(apkRoot);
             if (baseApk != null && baseApk.isFile()) {
+                // Instances imported before the read-on-write fix are still
+                // 0600 and boot with 'Writable dex file is not allowed'.
+                // Self-heal the mode here so old trees launch too.
+                baseApk.setReadOnly();
                 packageInfo = packageManager.getPackageArchiveInfo(
                         baseApk.getAbsolutePath(),
                         PackageManager.GET_PROVIDERS);
