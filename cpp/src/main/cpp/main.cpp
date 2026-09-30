@@ -388,11 +388,15 @@ void HudScreen_dtor_hook(void *self) {
     g_isHudScreenOpen.store(false);
     g_isPauseMenuOpen.store(false);
     g_isShowingMenu.store(false);
+    GameSdk::setHudVisible(false);
     hudScreenEvents++;
     LOGD("HudScreen dtor: screens gone");
     HudScreen_dtor_real(self);
 }
 
+// The HUD is constructed when a world finishes loading and destroyed when the
+// client leaves it, so its lifetime is the in-game witness GameSdk::isInGame()
+// falls back to while no vtable.isInGame pin exists.
 void (*HudScreen_open_real)(void *);
 void HudScreen_open_hook(void *self) {
     g_isHudScreenOpen.store(true);
@@ -400,6 +404,7 @@ void HudScreen_open_hook(void *self) {
     g_isShowingMenu.store(false);
     hudScreenEvents++;
     g_worldEntered = true;  // single-player world load ends with the HUD
+    GameSdk::setHudVisible(true);
     LOGD("HudScreen open");
     HudScreen_open_real(self);
 }
@@ -501,12 +506,19 @@ uintptr_t ClientInstance_update_hook(void *self, bool paused) {
     // mis-matched clientInstanceGetLocalPlayer pattern on the title screen
     // crashed the game.
     static bool s_selfTestDone = false;
-    // TEMP DIAG: selfTest's four cold RTTI walks stall the game thread ~5s
-    // (ANR-adjacent; the last two runs died right after it). Park it until the
-    // GuiData sub-object pin is settled, then restore the >60 threshold.
-    if (!s_selfTestDone && g_worldEntered && GameSdk::pumpCount() > 1000000) {
-        s_selfTestDone = true;
-        mcpe::selfTest();
+    static bool s_selfTestArmed = false;
+    // The self-test is split: its cold RTTI walks and signature scans run on a
+    // worker thread (inline they stalled this loop for ~5 s), and only the
+    // object-touching half - the part that must be on the game thread because
+    // it calls Bedrock - runs back here once that pass reports done.
+    if (!s_selfTestDone && g_worldEntered) {
+        if (!s_selfTestArmed) {
+            s_selfTestArmed = true;
+            mcpe::selfTestWarmup();
+        } else if (mcpe::selfTestWarm()) {
+            s_selfTestDone = true;
+            mcpe::selfTest();
+        }
     }
     return ClientInstance_update_real(self, paused);
 }

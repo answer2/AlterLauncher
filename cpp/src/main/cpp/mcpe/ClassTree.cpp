@@ -6,6 +6,7 @@
 #include <cstring>
 #include <fstream>
 #include <map>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -30,7 +31,12 @@ struct Regions {
 };
 
 const Regions &regions() {
+    // The self-test warms these caches on its own thread while the game thread
+    // keeps reading them, so both caches are guarded. The lock is only taken to
+    // check/ publish, never to run the walk.
+    static std::mutex g_regionsMutex;
     static Regions r;
+    std::lock_guard<std::mutex> guard(g_regionsMutex);
     if (r.readable.empty()) {
         std::ifstream maps("/proc/self/maps");
         std::string line;
@@ -82,13 +88,21 @@ bool dataPin(const char *key, uintptr_t *offset) {
 // Every RTTI table of a class, cached per name. Used by the scan fallbacks:
 // a member candidate must carry one of these as its own vtable pointer.
 const std::vector<uintptr_t> &tablesFor(const char *className) {
+    static std::mutex g_tablesMutex;
     static std::map<std::string, std::vector<uintptr_t> > cache;
-    std::map<std::string, std::vector<uintptr_t> >::iterator it = cache.find(className);
-    if (it != cache.end()) return it->second;
     std::vector<uintptr_t> tables;
+    {
+        std::lock_guard<std::mutex> guard(g_tablesMutex);
+        std::map<std::string, std::vector<uintptr_t> >::iterator it = cache.find(className);
+        if (it != cache.end()) return it->second;
+    }
+    // The walk itself runs outside the lock (it is what the self-test warms on a
+    // second thread); two racers may compute the same answer, which is harmless
+    // because the published vector is derived from read-only guest mappings.
     uintptr_t raw[8];
     size_t n = RttiLookup::findVtables(kGuestLib, className, raw, 8);
     for (size_t i = 0; i < n; i++) tables.push_back(raw[i]);
+    std::lock_guard<std::mutex> guard(g_tablesMutex);
     return cache.insert(std::make_pair(std::string(className), tables)).first->second;
 }
 
@@ -100,16 +114,24 @@ const std::vector<uintptr_t> &tablesFor(const char *className) {
 Handle fieldByPinOrScan(uintptr_t ci, const char *pinKey, const char *scanClass) {
     Handle h;
     if (ci == 0) return h;
+    const std::vector<uintptr_t> &tables = tablesFor(scanClass);
     uintptr_t off = 0;
     if (dataPin(pinKey, &off)) {
         uintptr_t cand = 0;
         if (safeReadPtr(ci, off, &cand) && inWritable(cand)) {
-            h.ptr = cand;
-            h.source = "pin";
-            return h;
+            // A pin is a claim about one build. When RTTI knows the class, the
+            // object behind the pin has to carry one of its tables - otherwise
+            // a stale offset would hand out a live pointer of the wrong type,
+            // which is crash-grade for whoever dereferences it. Classes with no
+            // vtable (GuiData) stay on the trust-the-pin path.
+            if (tables.empty() ||
+                Reflection::vtableMatchesAny(cand, tables.data(), tables.size())) {
+                h.ptr = cand;
+                h.source = "pin";
+                return h;
+            }
         }
     }
-    const std::vector<uintptr_t> &tables = tablesFor(scanClass);
     if (!tables.empty()) {
         uintptr_t found = Reflection::findMember(ci, tables, 0x20000);
         if (found != 0) {

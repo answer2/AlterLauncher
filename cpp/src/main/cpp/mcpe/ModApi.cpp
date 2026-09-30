@@ -5,6 +5,12 @@
 #include <android/log.h>
 #include <cstring>
 
+#include <atomic>
+#include <chrono>
+#include <mutex>
+#include <thread>
+#include <vector>
+
 #include <mcpe/ClassTree.h>
 #include <mcpe/ClientInstance.h>
 #include <mcpe/GameSDK.h>
@@ -211,10 +217,51 @@ uintptr_t callPointerGetter(uintptr_t object, uintptr_t getterAddress) {
 
 // --------------------------------------------------------------------------
 // selfTest — one decisive pass over the whole API surface.
+//
+// Split in two because the pass has two very different kinds of work in it.
+// The cold RTTI chain walks and the rule signature scans only read the guest's
+// read-only mappings, so they run on their own thread (selfTestWarmup); the
+// object-touching half calls into Bedrock virtuals, which are only safe from
+// the game thread. Unsplit, the scans stalled the render loop for ~5 s.
 // --------------------------------------------------------------------------
 #define STLOG(...) __android_log_print(ANDROID_LOG_INFO, "AlterSelfTest", __VA_ARGS__)
 
+namespace {
+
+std::atomic<bool> g_selfTestWarm(false);
+
+// Every class whose tables the scan fallbacks may have to build, and the
+// whole rule signature set: both are pure memory work, so warming them costs
+// the game thread nothing.
+void warmCaches() {
+    auto t0 = std::chrono::steady_clock::now();
+    static const char *kScanClasses[] = {
+        "Minecraft", "LevelRenderer", "LoopbackPacketSender", "Options", "BlockSource",
+        "Camera", "Level", "GuiData", "Actor", "Player", "LocalPlayer",
+    };
+    for (size_t i = 0; i < sizeof(kScanClasses) / sizeof(kScanClasses[0]); i++)
+        detail::tablesFor(kScanClasses[i]);
+    std::vector<std::string> keys = SigScanner::keys();
+    for (size_t i = 0; i < keys.size(); i++) SigScanner::resolve(keys[i]);
+    STLOG("warm caches done: %zu class table(s), %zu signature(s) in %lld ms",
+          sizeof(kScanClasses) / sizeof(kScanClasses[0]), keys.size(),
+          (long long)std::chrono::duration_cast<std::chrono::milliseconds>(
+              std::chrono::steady_clock::now() - t0).count());
+    g_selfTestWarm.store(true, std::memory_order_release);
+}
+
+}  // namespace
+
+void selfTestWarmup() {
+    if (g_selfTestWarm.load(std::memory_order_acquire)) return;
+    static std::once_flag once;
+    std::call_once(once, [] { std::thread(warmCaches).detach(); });
+}
+
+bool selfTestWarm() { return g_selfTestWarm.load(std::memory_order_acquire); }
+
 void selfTest() {
+    auto t0 = std::chrono::steady_clock::now();
     char buf[256];
     GameSdk::describe(buf, sizeof(buf));
     STLOG("state: %s", buf);
@@ -269,13 +316,24 @@ void selfTest() {
     }
 
     // Actor surface on the local player.
-    uintptr_t lp = ci.getLocalPlayer().ptr;
+    Handle lpH = ci.getLocalPlayer();
+    uintptr_t lp = lpH.ptr;
+    STLOG("localPlayer: %p via %s", reinterpret_cast<void *>(lp), lpH.source);
     if (lp != 0) {
         Actor actor(lp);
         Vec3 pos{};
-        STLOG("actor.getPos: %s", actor.getPos(&pos) ? "OK" : "-- (pin vtable.actorGetPos)");
+        STLOG("actor.getPos: %s (%.2f,%.2f,%.2f)", actor.getPos(&pos) ? "OK" : "--",
+              pos.x, pos.y, pos.z);
         Vec2 ang{};
-        STLOG("actor.getViewAngles: %s", actor.getViewAngles(&ang) ? "OK" : "-- (pin dat.playerRotPtr)");
+        STLOG("actor.getViewAngles: %s (%.2f,%.2f)", actor.getViewAngles(&ang) ? "OK" : "--",
+              ang.x, ang.y);
+        Vec3 mot{};
+        STLOG("actor.getMotion: %s (%.3f,%.3f,%.3f)", actor.getMotion(&mot) ? "OK" : "--",
+              mot.x, mot.y, mot.z);
+        Vec2 chk{};
+        if (actor.getViewAngles(&chk) && (chk.x < -90.f || chk.x > 90.f ||
+                                          chk.y < -180.f || chk.y > 180.f))
+            STLOG("actor.getViewAngles OUT OF RANGE - dat.playerRotPtr is not the rotation");
         float hp = 0.f;
         STLOG("actor.getHealth: %s", actor.getHealth(&hp) ? "OK" : "-- (pin dat.actorHealthField)");
         uint64_t rid = 0;
@@ -289,7 +347,7 @@ void selfTest() {
         STLOG("lp.getHeldItem: %p", reinterpret_cast<void *>(me.getHeldItem().ptr));
         STLOG("lp.getMoveInputHandler: %p", reinterpret_cast<void *>(me.getMoveInputHandler().ptr));
     } else {
-        STLOG("localPlayer UNRESOLVED (sig.clientInstanceGetLocalPlayer failed?)");
+        STLOG("localPlayer UNRESOLVED (vtable.clientInstanceGetLocalPlayerVt + sig both empty)");
     }
 
     // ModApi convenience layer.
@@ -320,6 +378,8 @@ void selfTest() {
     }
     STLOG("off.guiDataAddMessage: 0x%lx", (unsigned long) resolveOffset(std::string("guiDataAddMessage")));
     STLOG("pumpCount: %zu", pumpCount());
+    STLOG("game-thread pass: %lld ms", (long long)std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - t0).count());
     STLOG("=== SELFTEST DONE ===");
 }
 }  // namespace mcpe

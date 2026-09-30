@@ -26,6 +26,38 @@ using detail::dataPin;
 using detail::fieldByPinOrScan;
 using detail::readField;
 
+namespace {
+
+// Bedrock keeps an entity's positional state behind a component pointer rather
+// than inline, and the ARM bodies prove which pointer and which inner offsets:
+// Actor+0x208 is the movement component (getFiringPos loads it and reads three
+// floats from +0x00; lerpMotion stores its argument at +0x18), so position and
+// motion are one component apart. Both halves stay rule pins - the resolution
+// here just applies the indirection the game itself applies.
+bool movementComponent(uintptr_t self, uintptr_t *out) {
+    uintptr_t off = 0;
+    if (self == 0 || !dataPin("actorMovementPtr", &off)) return false;
+    uintptr_t comp = 0;
+    if (!safeReadPtr(self, off, &comp) || !inWritable(comp)) return false;
+    *out = comp;
+    return true;
+}
+
+bool readMovementVec3(uintptr_t self, const char *fieldKey, Vec3 *out) {
+    uintptr_t comp = 0, off = 0;
+    if (!movementComponent(self, &comp) || !dataPin(fieldKey, &off)) return false;
+    float v[3] = {0.f, 0.f, 0.f};
+    for (int i = 0; i < 3; i++) {
+        if (!safeReadF32(comp, off + 4 * i, &v[i])) return false;
+    }
+    out->x = v[0];
+    out->y = v[1];
+    out->z = v[2];
+    return true;
+}
+
+}  // namespace
+
 // ---------------------------------------------------------------------------
 // Actor
 // ---------------------------------------------------------------------------
@@ -43,17 +75,18 @@ bool Actor::getPos(Vec3 *out) const {
             return true;
         }
     }
+    // Movement component (1.26.45.1: actorMovementPtr + actorPosInMovement).
+    if (readMovementVec3(self_, "actorPosInMovement", out)) return true;
     // Fallback: try vtable slot call if pinned
     const HookRules::Rule *rule = GameSdk::rule();
     size_t slot = 0;
     if (rule && rule->lookupVtable(std::string("actorGetPos"), nullptr, &slot)) {
-        uintptr_t result = detail::callVirtual<0, uintptr_t>(self_);
-        // callVirtual with dynamic slot isn't possible in C++ templates;
-        // use the manual path instead:
+        // Slot is dynamic (rule-pinned), so the callVirtual<> template cannot be
+        // used; the manual path below applies the same region checks.
         uintptr_t vt = 0;
         if (safeReadPtr(self_, 0, &vt) && inGuestLib(vt)) {
             uintptr_t fn = 0;
-            memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+            memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
             if (fn != 0 && inExec(fn)) {
                 using Fn = uintptr_t (*)(void *);
                 uintptr_t posPtr = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));
@@ -117,12 +150,18 @@ bool Actor::getPitch(float *out) const {
 bool Actor::getMotion(Vec3 *out) const {
     if (self_ == 0 || out == nullptr) return false;
     uintptr_t off = 0;
-    if (!dataPin("actorMotionField", &off)) return false;
-    float x = 0.f, y = 0.f, z = 0.f;
-    if (!safeReadF32(self_, off, &x) || !safeReadF32(self_, off + 4, &y) ||
-        !safeReadF32(self_, off + 8, &z)) return false;
-    out->x = x; out->y = y; out->z = z;
-    return true;
+    if (dataPin("actorMotionField", &off)) {
+        float x = 0.f, y = 0.f, z = 0.f;
+        if (safeReadF32(self_, off, &x) && safeReadF32(self_, off + 4, &y) &&
+            safeReadF32(self_, off + 8, &z)) {
+            out->x = x; out->y = y; out->z = z;
+            return true;
+        }
+    }
+    // 1.26.45.1: motion is the second Vec3 in the movement component -
+    // lerpMotion stores its argument as [c+0x18]=x,[c+0x1c]=y (one 8-byte
+    // load/store pair) and [c+0x20]=z, where c = *(Actor+0x208).
+    return readMovementVec3(self_, "actorMotionInMovement", out);
 }
 
 bool Actor::lerpMotion(const Vec3 &motion) const {
@@ -133,7 +172,7 @@ bool Actor::lerpMotion(const Vec3 &motion) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = void (*)(void *, const Vec3 *);
     reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), &motion);
@@ -148,7 +187,7 @@ bool Actor::jumpFromGround() const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = void (*)(void *);
     reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));
@@ -157,6 +196,23 @@ bool Actor::jumpFromGround() const {
 
 bool Actor::isAlive() const {
     if (self_ == 0) return false;
+    // The virtual answers, because the flag underneath it has no stable
+    // polarity: on 1.26.45.1 Actor slot 47 is `ldrb w8,[x0,#0x251]; cmp w8,#0;
+    // cset w0,eq` - alive is 0 there, so a dat.actorAliveField pin would bake
+    // one build's sense into an API that must mean the same thing everywhere.
+    const HookRules::Rule *rule = GameSdk::rule();
+    size_t slot = 0;
+    if (rule && rule->lookupVtable(std::string("actorIsAlive"), nullptr, &slot)) {
+        uintptr_t vt = 0;
+        if (safeReadPtr(self_, 0, &vt) && inGuestLib(vt)) {
+            uintptr_t fn = 0;
+            memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
+            if (fn != 0 && inExec(fn)) {
+                using Fn = bool (*)(void *);
+                return reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));
+            }
+        }
+    }
     uintptr_t off = 0;
     if (!dataPin("actorAliveField", &off)) return false;
     uint8_t val = 0;
@@ -190,10 +246,12 @@ bool Actor::swing() const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
-    using Fn = void (*)(void *);
-    reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));
+    // Actor::swing(ActorSwingSource) - the source argument is register 1, so it
+    // is passed explicitly (0 = the entity swung on its own).
+    using Fn = void (*)(void *, int);
+    reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), 0);
     return true;
 }
 
@@ -315,7 +373,7 @@ bool Actor::stopRiding() const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = void (*)(void *);
     reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));
@@ -330,10 +388,16 @@ bool Actor::actorTeleportTo(const Vec3 &pos) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
-    using Fn = void (*)(void *, const Vec3 *);
-    reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), &pos);
+    // Actor::teleportTo(Vec3 const&, bool, int, int, bool): the reference table
+    // gives five parameters, and slot 22's own prologue keeps w5 (`mov w21,w5`)
+    // and branches on w2 (`tbz w2,#0`), so the two-instruction call this used to
+    // make handed the game whatever the caller's registers happened to hold.
+    // Every flag goes in as zero - the least-surprising form - and mods that
+    // need a server-authoritative move should send the packet instead.
+    using Fn = void (*)(void *, const Vec3 *, int, int, int, int);
+    reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), &pos, 0, 0, 0, 0);
     return true;
 }
 
@@ -345,7 +409,7 @@ bool Actor::startSpinAttack() const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = void (*)(void *);
     reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));
@@ -360,7 +424,7 @@ bool Actor::stopSpinAttack() const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = void (*)(void *);
     reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));
@@ -375,7 +439,7 @@ bool Actor::startSwimming() const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = void (*)(void *);
     reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));
@@ -390,7 +454,7 @@ bool Actor::stopSwimming() const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = void (*)(void *);
     reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));
@@ -472,7 +536,7 @@ bool Player::setPlayerGameType(int type) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = void (*)(void *, int);
     reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), type);
@@ -515,7 +579,7 @@ bool Player::setArmor(int slot, uintptr_t itemStack) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + vslot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + vslot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = void (*)(void *, int, void *);
     reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), slot,
@@ -531,7 +595,7 @@ Handle Player::getArmor(int slot) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return Handle{};
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + vslot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + vslot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return Handle{};
     using Fn = uintptr_t (*)(void *, int);
     uintptr_t result = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), slot);
@@ -551,7 +615,7 @@ bool Player::canOpenContainerScreen() const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = bool (*)(void *);
     return reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));
@@ -596,7 +660,7 @@ bool LocalPlayer::snapToHeadRot(float pitch, float yaw) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = void (*)(void *, float, float);
     reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), pitch, yaw);
@@ -611,7 +675,7 @@ bool LocalPlayer::setSprinting(bool enable) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = void (*)(void *, bool);
     reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), enable);
@@ -626,7 +690,7 @@ bool LocalPlayer::applyTurnDelta(float pitchDelta, float yawDelta) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     Vec2 delta(pitchDelta, yawDelta);
     using Fn = void (*)(void *, const Vec2 *);
@@ -643,7 +707,7 @@ bool LocalPlayer::addEffect(uintptr_t effectInstance) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = void (*)(void *, void *);
     reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_),
@@ -659,7 +723,7 @@ bool LocalPlayer::removeAllEffects() const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = void (*)(void *);
     reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));
@@ -695,7 +759,7 @@ Handle LocalPlayer::getItemStack(int slot) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return Handle{};
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + vslot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + vslot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return Handle{};
     using Fn = uintptr_t (*)(void *, int);
     uintptr_t result = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), slot);

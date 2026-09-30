@@ -124,7 +124,13 @@ bool Rule::lookupDataOffset(const std::string &key, uintptr_t *out) const {
 // disassembler in - while a value with no letters at all is read as decimal.
 // Anything else is rejected, so a typo lands in the parse errors instead of
 // quietly becoming an offset of zero.
-static bool parseOffset(const std::string &text, uintptr_t *out) {
+//
+// `allowZero` tells the two kinds of handle apart: a library RVA of 0 is always
+// a typo (address 0 is never mapped), but an object-relative data offset of 0
+// is real - Actor::pos sits at +0 inside its movement component, so the pin
+// `dat.actorPosInMovement = d0x0` must parse. Malformed input is still caught
+// by the hex-character scan and the strtoull stop check, not by the zero test.
+static bool parseOffset(const std::string &text, uintptr_t *out, bool allowZero) {
     std::string body = trim(text);
     if (body.empty()) return false;
     int base = 10;
@@ -141,9 +147,29 @@ static bool parseOffset(const std::string &text, uintptr_t *out) {
     }
     char *stop = nullptr;
     unsigned long long value = strtoull(body.c_str(), &stop, base);
-    if (stop == nullptr || *stop != '\0' || value == 0) return false;
+    if (stop == nullptr || *stop != '\0') return false;
+    if (!allowZero && value == 0) return false;
     *out = static_cast<uintptr_t>(value);
     return true;
+}
+
+// A key defined twice inside one block is a data bug, not a precedence rule:
+// std::map would quietly keep the LAST value, which is exactly how a stale
+// placeholder line shadowed a verified pin here once already. Report the clash
+// and keep the first value, so the file stays readable top-down.
+template <typename T>
+void putValue(std::map<std::string, T> *table, const std::string &key, const T &value,
+              size_t lineNumber, const char *kind, std::vector<std::string> *errors) {
+    if (table->find(key) != table->end()) {
+        if (errors) {
+            std::ostringstream out;
+            out << "line " << lineNumber << ": duplicate " << kind << "." << key
+                << " inside one [rule] block - keeping the first value";
+            errors->push_back(out.str());
+        }
+        return;
+    }
+    (*table)[key] = value;
 }
 
 std::vector<Rule> parse(const std::string &text, std::vector<std::string> *errors) {
@@ -215,16 +241,38 @@ std::vector<Rule> parse(const std::string &text, std::vector<std::string> *error
         } else if (key == "max") {
             rule.maxVersion = value;
         } else if (key.compare(0, 7, "vtable.") == 0) {
-            rule.vtable[trim(key.substr(7))] = value;
+            // Validate the shape NOW rather than storing a broken string and
+            // failing quietly at lookup: "ClientInstance:" (no slot) or a bare
+            // number would otherwise parse "clean" and only reveal themselves
+            // as a missing hook at runtime, which is the silent failure this
+            // file exists to prevent.
+            std::string v = trim(value);
+            size_t colon = v.rfind(':');
+            bool shaped = colon != std::string::npos && colon > 0 &&
+                          colon + 1 < v.size();
+            for (size_t k = colon + 1; shaped && k < v.size(); k++) {
+                if (!isdigit((unsigned char) v[k])) shaped = false;
+            }
+            if (!shaped) {
+                if (errors) {
+                    std::ostringstream out;
+                    out << "line " << lineNumber << ": vtable value '" << value
+                        << "' is not <Class>:<slot>";
+                    errors->push_back(out.str());
+                }
+            } else {
+                putValue(&rule.vtable, trim(key.substr(7)), v, lineNumber, "vtable", errors);
+            }
         } else if (key.compare(0, 4, "sig.") == 0) {
-            rule.signatures[trim(key.substr(4))] = value;
+            putValue(&rule.signatures, trim(key.substr(4)), value, lineNumber, "sig", errors);
         } else if (key.compare(0, 4, "dat.") == 0) {
             uintptr_t dataOff = 0;
             std::string marked = trim(value);
             bool ok = !marked.empty() && (marked[0] == 'd' || marked[0] == 'D') &&
-                      parseOffset(marked.substr(1), &dataOff);
+                      parseOffset(marked.substr(1), &dataOff, true);
             if (ok) {
-                rule.dataOffsets[trim(key.substr(4))] = dataOff;
+                putValue(&rule.dataOffsets, trim(key.substr(4)), dataOff, lineNumber, "dat",
+                         errors);
             } else if (errors) {
                 std::ostringstream out;
                 out << "line " << lineNumber << ": data offset " << value
@@ -233,8 +281,8 @@ std::vector<Rule> parse(const std::string &text, std::vector<std::string> *error
             }
         } else if (key.compare(0, 4, "off.") == 0) {
             uintptr_t rva = 0;
-            if (parseOffset(value, &rva)) {
-                rule.offsets[trim(key.substr(4))] = rva;
+            if (parseOffset(value, &rva, false)) {
+                putValue(&rule.offsets, trim(key.substr(4)), rva, lineNumber, "off", errors);
             } else if (errors) {
                 std::ostringstream out;
                 out << "line " << lineNumber << ": offset " << value << " is not a number";

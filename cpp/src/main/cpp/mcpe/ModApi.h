@@ -108,6 +108,16 @@ uintptr_t resolveSignature(const std::string &key);
 uintptr_t resolveOffset(const std::string &key);
 uintptr_t callPointerGetter(uintptr_t object, uintptr_t getterAddress);
 
+// Starts the off-thread half of the self-test (the cold RTTI chain walks and the
+// rule signature scans — pure reads of the guest's file-backed mappings, so they
+// cannot disturb the game). Non-blocking and idempotent; call it from the game
+// thread once world entry has been witnessed.
+void selfTestWarmup();
+
+// True once that pass has finished, i.e. selfTest() has nothing left that costs
+// more than a microsecond per probe.
+bool selfTestWarm();
+
 // One-shot SDK self-test: exercises every acquisition ladder and
 // mod-facing entry point from the game thread, logging OK/FAIL per function.
 // Triggered once by the ClientInstance::update hook when a local player is

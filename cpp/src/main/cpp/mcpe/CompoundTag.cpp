@@ -24,7 +24,7 @@ std::string CompoundTag::getString(const std::string &key) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return "";
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return "";
     // Returns a std::string by value — too complex for safe calling here.
     // Mods should use resolveSignature + callPointerGetter for this.
@@ -39,7 +39,7 @@ bool CompoundTag::getInt(const std::string &key, int *out) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = int (*)(void *, const std::string *);
     *out = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), &key);
@@ -54,7 +54,7 @@ bool CompoundTag::getFloat(const std::string &key, float *out) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = float (*)(void *, const std::string *);
     *out = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), &key);
@@ -69,7 +69,7 @@ bool CompoundTag::getByte(const std::string &key, int8_t *out) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = int8_t (*)(void *, const std::string *);
     *out = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), &key);
@@ -84,7 +84,7 @@ bool CompoundTag::getShort(const std::string &key, int16_t *out) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = int16_t (*)(void *, const std::string *);
     *out = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), &key);
@@ -99,7 +99,7 @@ bool CompoundTag::getInt64(const std::string &key, int64_t *out) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = int64_t (*)(void *, const std::string *);
     *out = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), &key);
@@ -121,7 +121,7 @@ bool CompoundTag::contains(const std::string &key) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = bool (*)(void *, const std::string *);
     return reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), &key);
@@ -135,7 +135,7 @@ Handle CompoundTag::getList(const std::string &key) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return Handle{};
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return Handle{};
     using Fn = uintptr_t (*)(void *, const std::string *);
     uintptr_t result = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), &key);
@@ -151,7 +151,7 @@ bool ListTag::size(int *out) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = int (*)(void *);
     *out = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));
@@ -166,7 +166,7 @@ Handle ListTag::getCompound(int index) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return Handle{};
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return Handle{};
     using Fn = uintptr_t (*)(void *, int);
     uintptr_t result = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), index);

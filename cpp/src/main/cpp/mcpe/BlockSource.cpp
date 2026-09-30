@@ -19,7 +19,7 @@ Handle BlockSource::getBlock(int x, int y, int z) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return Handle{};
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return Handle{};
     using Fn = uintptr_t (*)(void *, int, int, int);
     uintptr_t result = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), x, y, z);
@@ -39,7 +39,7 @@ bool BlockSource::hasChunksAt(const Vec3i &pos) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = bool (*)(void *, const Vec3i *);
     return reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), &pos);
@@ -53,7 +53,7 @@ bool BlockSource::getDimensionId(int *out) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = int (*)(void *);
     *out = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));

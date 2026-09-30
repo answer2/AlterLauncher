@@ -24,6 +24,27 @@ using detail::dataPin;
 using detail::tablesFor;
 using detail::fieldByPinOrScan;
 
+namespace {
+
+// A pointer that came out of a Bedrock accessor is only reported when the
+// object behind it carries a vtable RTTI has validated for one of the entity
+// classes. A stale slot, a mis-called function or a title-screen empty
+// optional then yields no handle instead of a crash-grade pointer, which is
+// what makes the pinned virtual call in getLocalPlayer() acceptable at all.
+bool looksLikePlayer(uintptr_t cand) {
+    if (cand == 0) return false;
+    const char *const kClasses[] = {"LocalPlayer", "Player", "Actor"};
+    for (size_t i = 0; i < sizeof(kClasses) / sizeof(kClasses[0]); i++) {
+        const std::vector<uintptr_t> &tables = detail::tablesFor(kClasses[i]);
+        if (!tables.empty() &&
+            Reflection::vtableMatchesAny(cand, tables.data(), tables.size()))
+            return true;
+    }
+    return false;
+}
+
+}  // namespace
+
 Handle ClientInstance::guiData() const {
     Handle h;
     uintptr_t gd = GameSdk::guiData();
@@ -55,7 +76,7 @@ Handle ClientInstance::getCamera() const {
         uintptr_t vt = 0;
         if (safeReadPtr(self_, 0, &vt) && inGuestLib(vt)) {
             uintptr_t fn = 0;
-            memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+            memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
             if (fn != 0 && inExec(fn)) {
                 using Fn = uintptr_t (*)(void *);
                 uintptr_t result = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));
@@ -75,7 +96,7 @@ Handle ClientInstance::getOptions() const {
         uintptr_t vt = 0;
         if (safeReadPtr(self_, 0, &vt) && inGuestLib(vt)) {
             uintptr_t fn = 0;
-            memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+            memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
             if (fn != 0 && inExec(fn)) {
                 using Fn = uintptr_t (*)(void *);
                 uintptr_t result = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));
@@ -88,26 +109,48 @@ Handle ClientInstance::getOptions() const {
 
 Handle ClientInstance::getLocalPlayer() const {
     if (self_ == 0) return Handle{};
-    // NO sig route here: the BedrockTools ClientInstanceGetLocalPlayer pattern
-    // is weak (mostly wildcards) and on 1.26.45.1 it matched a different
-    // function at base+0x9443364 (reads ci+0x218, calls into std::optional
-    // helpers) - calling it on the title screen crashed the game. Until a
-    // version-verified pin exists, only the vtable ladder below may run, and
-    // it is fail-closed while clientInstanceGetLocalPlayerVt is commented out.
-    // Fallback: vtable slot.
+    // NO blind sig route: the BedrockTools ClientInstanceGetLocalPlayer pattern
+    // resolves to base+0x9443364, which disassembly shows IS the game's own
+    // getter (vtable slot 32). What made the earlier title-screen call unsafe
+    // was trusting whatever it returned, not the function itself - so every
+    // result here passes looksLikePlayer, and nothing is called at all unless
+    // the client reports an in-game session.
+    if (!GameSdk::isInGame()) return Handle{};
+
+    // 1. Field pin, RTTI-validated inside fieldByPinOrScan: a build whose local
+    //    player is a plain member needs no call at all.
+    Handle pinned = fieldByPinOrScan(self_, "localPlayerField", "LocalPlayer");
+    if (pinned.ptr != 0) return pinned;
+
+    // 2. The pinned virtual. Its AArch64 body (1.26.45.1, 0x9443364, 112 bytes)
+    //    is:  mov x8,x0            <- `this` scratch, NOT a struct-return buffer
+    //          copy the ref at this+0x218 into a 0x19-byte local,
+    //          test the local's +0x18 flag, and on the empty path `mov x0,xzr`
+    //          before `ret`. The value therefore leaves in x0, so the plain
+    //          uintptr_t(*)(void*) trampoline below is the correct ABI.
     const HookRules::Rule *rule = GameSdk::rule();
     size_t slot = 0;
     if (rule && rule->lookupVtable(std::string("clientInstanceGetLocalPlayerVt"), nullptr, &slot)) {
         uintptr_t vt = 0;
         if (safeReadPtr(self_, 0, &vt) && inGuestLib(vt)) {
             uintptr_t fn2 = 0;
-            memcpy(&fn2, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn2));
+            memcpy(&fn2, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn2));
             if (fn2 != 0 && inExec(fn2)) {
                 using Fn2 = uintptr_t (*)(void *);
                 uintptr_t result = reinterpret_cast<Fn2>(fn2)(reinterpret_cast<void *>(self_));
-                if (result != 0 && inWritable(result)) return Handle{result, "vcall"};
+                if (result != 0 && inWritable(result) && looksLikePlayer(result))
+                    return Handle{result, "vcall"};
             }
         }
+    }
+    // 3. The same function by signature, for a build where the slot number
+    //    moved but the body did not. Identical ABI, identical checks.
+    uintptr_t sigFn = SigScanner::resolve(std::string("clientInstanceGetLocalPlayer"));
+    if (sigFn != 0 && inExec(sigFn)) {
+        using Fn = uintptr_t (*)(void *);
+        uintptr_t result = reinterpret_cast<Fn>(sigFn)(reinterpret_cast<void *>(self_));
+        if (result != 0 && inWritable(result) && looksLikePlayer(result))
+            return Handle{result, "sig"};
     }
     return Handle{};
 }
@@ -120,7 +163,7 @@ Handle ClientInstance::getRegion() const {
         uintptr_t vt = 0;
         if (safeReadPtr(self_, 0, &vt) && inGuestLib(vt)) {
             uintptr_t fn = 0;
-            memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+            memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
             if (fn != 0 && inExec(fn)) {
                 using Fn = uintptr_t (*)(void *);
                 uintptr_t result = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));
@@ -139,7 +182,7 @@ Handle ClientInstance::getLevel() const {
         uintptr_t vt = 0;
         if (safeReadPtr(self_, 0, &vt) && inGuestLib(vt)) {
             uintptr_t fn = 0;
-            memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+            memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
             if (fn != 0 && inExec(fn)) {
                 using Fn = uintptr_t (*)(void *);
                 uintptr_t result = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));

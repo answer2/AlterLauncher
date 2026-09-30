@@ -69,7 +69,7 @@ bool Item::isFood() const {
     uintptr_t vt = 0;
     if (!detail::safeReadPtr(self_, 0, &vt) || !detail::inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !detail::inExec(fn)) return false;
     using Fn = bool (*)(void *);
     return reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));
@@ -83,7 +83,7 @@ bool Item::isWeapon() const {
     uintptr_t vt = 0;
     if (!detail::safeReadPtr(self_, 0, &vt) || !detail::inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !detail::inExec(fn)) return false;
     using Fn = bool (*)(void *);
     return reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));
@@ -97,7 +97,7 @@ bool Item::getArmorSlot(int *out) const {
     uintptr_t vt = 0;
     if (!detail::safeReadPtr(self_, 0, &vt) || !detail::inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !detail::inExec(fn)) return false;
     using Fn = int (*)(void *);
     *out = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));

@@ -43,6 +43,8 @@ struct State {
     // Provenance for describe(): none / field / vcall / hook / scan.
     const char *mgSource = "-";
     const char *gdSource = "-";
+    // The in-world witness from the HUD screen hooks (see isInGame).
+    bool hudVisible = false;
     size_t pumps = 0;
 } state;
 
@@ -321,6 +323,11 @@ void setGuiDataFromHook(uintptr_t gd) {
 uintptr_t &addMessageRouteRef() { return state.addMessageRoute; }
 
 
+// The HUD screen hooks publish the in-world witness; both handlers run on the
+// game thread, and isInGame() only consults it when there is no pinned predicate.
+void setHudVisible(bool visible) { state.hudVisible = visible; }
+bool hudVisible() { return state.hudVisible; }
+
 void setMinecraftGameFromHook(uintptr_t mg) {
     if (mg != 0 && state.minecraftGame == 0) {
         state.minecraftGame = mg;
@@ -570,15 +577,25 @@ uintptr_t guiData() {
 
 bool isInGame() {
     uintptr_t ci = state.clientInstance;
-    if (ci == 0 || !state.hasRule) return false;
+    // A pinned ClientInstance::isInGame is the authoritative answer: it is the
+    // game's own predicate. Without the pin, fall back to the screen witness —
+    // the HudScreen lifetime hooks (Levi's ARM64 patterns, see main.cpp) say the
+    // HUD object exists, and in this game the HUD is constructed exactly when a
+    // world finishes loading and destroyed when it leaves. That is derived from
+    // observed game behaviour rather than guessed, but it is weaker than the
+    // pin, so it is only used when there is no pin.
     std::string cls;
     size_t slot = 0;
-    if (!state.rule->lookupVtable(std::string("isInGame"), &cls, &slot)) return false;
-    if (cls != "ClientInstance" || state.ciSlots <= slot) return false;
-    uintptr_t fn = RttiLookup::slotAt(state.ciVtable, slot);
-    if (!inExec(fn)) return false;
-    typedef bool (*BoolGetter)(void *);
-    return reinterpret_cast<BoolGetter>(fn)(reinterpret_cast<void *>(ci));
+    if (ci != 0 && state.hasRule &&
+        state.rule->lookupVtable(std::string("isInGame"), &cls, &slot) &&
+        cls == "ClientInstance" && state.ciSlots > slot) {
+        uintptr_t fn = RttiLookup::slotAt(state.ciVtable, slot);
+        if (inExec(fn)) {
+            typedef bool (*BoolGetter)(void *);
+            return reinterpret_cast<BoolGetter>(fn)(reinterpret_cast<void *>(ci));
+        }
+    }
+    return state.hudVisible;
 }
 
 // The chat route: the game's own TYPE-1 chat wrapper (pinned as

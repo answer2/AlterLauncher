@@ -29,7 +29,7 @@ bool LevelRendererPlayer::getCameraPos(Vec3 *out) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = void (*)(void *, Vec3 *);
     reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), out);
@@ -44,7 +44,7 @@ bool LevelRendererPlayer::getFov(float *out) const {
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = float (*)(void *);
     *out = reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_));

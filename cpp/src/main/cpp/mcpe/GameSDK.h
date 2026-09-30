@@ -17,10 +17,15 @@ namespace HookRules { struct Rule; }
 //   2. an RTTI or member-vtable discovery step that works with no pin at all,
 //   3. failure -> 0 plus one log line; nothing is ever guessed.
 
-// Nothing here patches anything. Acquisition is read-only except for the two
-// virtual calls the pins authorize (getGuiData / getMinecraftGame), and those
-// only run after the slot was validated to point into the guest's executable
-// mapping.
+// Nothing here patches anything. Acquisition is read-only except for a virtual
+// call that a rule pin explicitly authorizes (vtable.getGuiData,
+// vtable.getMinecraftGame), and that call only runs after the slot was validated
+// to point into the guest's executable mapping. On 1.26.45.1 neither key is
+// pinned - the reference RTTI names slot 101 getSkinRepositoryClientInterface,
+// not GuiData - so GuiData there is the verified inline sub-object and
+// MinecraftGame a field read: that build is resolved entirely by data pins
+// (dat.guiDataSubobject, dat.minecraftGameField) and the SDK makes no call at
+// all into the game.
 namespace GameSdk {
 
 // Called once from load() after Main::baseAddress is set. Captures the library
@@ -65,9 +70,16 @@ uintptr_t guiData();
 // sighting required. Safe to call from the game thread at any time.
 void retryPinnedSubobject();
 
-// True when the client reports an in-game session. vtable.isInGame=Class:N
-// only; no pin, no call, false.
+// True when the client reports an in-game session. Ladder: the pinned
+// vtable.isInGame=Class:N virtual call; with no pin, the screen witness below.
 bool isInGame();
+
+// main.cpp's HudScreen open/destroy hooks (Levi's ARM64 patterns) report the
+// lifetime of the in-world HUD, which in this game is constructed exactly when a
+// world finishes loading and destroyed when the client leaves it. That is the
+// only in-game proof that needs no vtable pin, so isInGame() falls back to it.
+void setHudVisible(bool visible);
+bool hudVisible();
 
 // main.cpp publishes the real (pre-hook) GuiData::addMessage address once it
 // exists, so delivery forwards through the hook bridge instead of jumping into

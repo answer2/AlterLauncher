@@ -33,6 +33,14 @@ namespace detail {
 
 extern const char *kGuestLib;  // "libminecraftpe.so"
 
+// An Itanium vtable starts with offset_to_top and the typeinfo pointer, so slot
+// 0 lives at +16. Indexing from the table's own address returns the function two
+// slots EARLY: a call with the wrong body, wrong argument count and wrong
+// return kind, which validation cannot notice because what comes back is a
+// perfectly well-formed pointer to something else. Every slot read below adds
+// this.
+const size_t kVtableHeaderSize = 16;
+
 // Region-checked reads. inWritable gates every dereference of a heap object;
 // safeReadPtr/safeReadF32 refuse non-canonical or non-finite values.
 bool inWritable(uintptr_t addr);
@@ -59,7 +67,7 @@ Handle fieldByPinOrScan(uintptr_t ci, const char *pinKey, const char *scanClass)
 
 // Virtual call through a vtable slot with full region validation.
 // Returns default-constructed Ret when the call cannot be safely made.
-// Slot number is the vtable index (NOT byte offset; multiply by 8 internally).
+// Slot number is the vtable index (NOT byte offset; the header is added here).
 template <int Slot, typename Ret, typename... Args>
 Ret callVirtual(uintptr_t object, Args... args) {
     if (object == 0 || !inWritable(object)) return Ret{};
@@ -67,7 +75,8 @@ Ret callVirtual(uintptr_t object, Args... args) {
     memcpy(&vt, reinterpret_cast<const void *>(object), sizeof(vt));
     if (vt == 0 || !inGuestLib(vt)) return Ret{};
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + Slot * sizeof(void *)), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + kVtableHeaderSize + Slot * sizeof(void *)),
+           sizeof(fn));
     if (fn == 0 || !inExec(fn)) return Ret{};
     return reinterpret_cast<Ret (*)(void *, Args...)>(fn)(
         reinterpret_cast<void *>(object), args...);

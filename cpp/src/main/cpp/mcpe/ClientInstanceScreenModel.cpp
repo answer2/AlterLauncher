@@ -28,7 +28,7 @@ bool ClientInstanceScreenModel::executeCommand(const std::string &command) const
     uintptr_t vt = 0;
     if (!safeReadPtr(self_, 0, &vt) || !inGuestLib(vt)) return false;
     uintptr_t fn = 0;
-    memcpy(&fn, reinterpret_cast<const void *>(vt + slot * 8), sizeof(fn));
+    memcpy(&fn, reinterpret_cast<const void *>(vt + detail::kVtableHeaderSize + slot * 8), sizeof(fn));
     if (fn == 0 || !inExec(fn)) return false;
     using Fn = bool (*)(void *, const std::string *);
     return reinterpret_cast<Fn>(fn)(reinterpret_cast<void *>(self_), &command);
