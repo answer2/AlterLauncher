@@ -36,7 +36,20 @@ class SettingFragment : Fragment() {
             GameBridgeClient.get().reloadPlugins()
             Toast.makeText(requireContext(), R.string.setting_rescan_notified, Toast.LENGTH_SHORT).show()
         }
+        binding.navRail.setOnItemSelectedListener { item ->
+            showGroup(item.itemId)
+            true
+        }
+        showGroup(R.id.nav_account)
         return binding.root;
+    }
+
+    /** PCL-style single-pane switch: only the selected section's cards are shown. */
+    private fun showGroup(id: Int) {
+        binding.groupAccount.visibility = if (id == R.id.nav_account) View.VISIBLE else View.GONE
+        binding.groupLogin.visibility = if (id == R.id.nav_login) View.VISIBLE else View.GONE
+        binding.groupAppearance.visibility = if (id == R.id.nav_appearance) View.VISIBLE else View.GONE
+        binding.groupData.visibility = if (id == R.id.nav_data) View.VISIBLE else View.GONE
     }
 
     override fun onResume() {

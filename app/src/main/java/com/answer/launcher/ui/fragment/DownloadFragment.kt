@@ -15,6 +15,7 @@ import com.answer.launcher.R
 import com.answer.launcher.databinding.FragmentDownloadBinding
 import com.answer.launcher.databinding.ItemVersionBinding
 import com.answer.launcher.ui.VersionApi
+import com.answer.launcher.ui.ToolbarMenu
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /**
@@ -44,7 +45,14 @@ class DownloadFragment : Fragment() {
         b.versionList.setOnItemClickListener { _, _, position, _ ->
             showProviders(versions[position])
         }
-        b.refresh.setOnClickListener { load() }
+        ToolbarMenu.onClick(b.toolbar) { item ->
+            if (item.itemId == R.id.action_refresh) {
+                load()
+                true
+            } else {
+                false
+            }
+        }
         load()
         return b.root
     }

@@ -122,6 +122,10 @@
     <string name="setting_version_placeholder">版本：—</string>
     <string name="setting_runtime_header">运行时</string>
     <string name="setting_rescan_plugins_button">重新扫描插件</string>
+    <string name="setting_nav_account">账号</string>
+    <string name="setting_nav_login">登录</string>
+    <string name="setting_nav_appearance">外观</string>
+    <string name="setting_nav_data">数据</string>
 
     <!-- Instance management -->
     <string name="instance_switched_to_system">已切换为系统安装的 Minecraft</string>
@@ -180,6 +184,8 @@
     <string name="content_tab_worlds">世界</string>
     <string name="content_tab_resource">资源包</string>
     <string name="content_tab_behavior">行为包</string>
+    <string name="content_tab_global">全局</string>
+    <string name="global_pack_import_success">已导入 %d 个全局包，已链接到所有实例</string>
     <string name="content_no_instance">还没有当前实例：先到「实例」导入并选择一个 Minecraft 实例，才能查看和管理世界与包。</string>
     <string name="content_unreadable">无法读取所选文件（已被移动，或没有访问权限）</string>
     <string name="content_too_large">压缩包过大，已取消导入</string>

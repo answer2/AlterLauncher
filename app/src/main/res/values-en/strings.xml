@@ -122,6 +122,10 @@
     <string name="setting_version_placeholder">Version: —</string>
     <string name="setting_runtime_header">Runtime</string>
     <string name="setting_rescan_plugins_button">Rescan plugins</string>
+    <string name="setting_nav_account">Account</string>
+    <string name="setting_nav_login">Login</string>
+    <string name="setting_nav_appearance">Appearance</string>
+    <string name="setting_nav_data">Data</string>
 
     <!-- Instance management -->
     <string name="instance_switched_to_system">Switched to the system-installed Minecraft</string>
@@ -180,6 +184,8 @@
     <string name="content_tab_worlds">Worlds</string>
     <string name="content_tab_resource">Resource packs</string>
     <string name="content_tab_behavior">Behaviour packs</string>
+    <string name="content_tab_global">Global</string>
+    <string name="global_pack_import_success">Imported %d global pack(s), linked into every instance</string>
     <string name="content_no_instance">No active instance yet: import and select a Minecraft instance under \"Instances\" first, then worlds and packs become manageable here.</string>
     <string name="content_unreadable">Cannot read the selected file (moved, or no access permission)</string>
     <string name="content_too_large">Archive is too large, import cancelled</string>

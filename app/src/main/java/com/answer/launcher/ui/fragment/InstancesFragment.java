@@ -69,12 +69,18 @@ public class InstancesFragment extends Fragment {
             showOptions(instances.get(position));
             return true;
         });
-        binding.btnImport.setOnClickListener(v ->
-                importLauncher.launch(new String[]{"application/vnd.android.package-archive"}));
-        binding.btnSystem.setOnClickListener(v -> {
-            InstanceStore.clearActive(requireContext());
-            toast(getString(R.string.instance_switched_to_system));
-            refresh();
+        binding.toolbar.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == R.id.action_import) {
+                importLauncher.launch(new String[]{"application/vnd.android.package-archive"});
+                return true;
+            }
+            if (item.getItemId() == R.id.action_system) {
+                InstanceStore.clearActive(requireContext());
+                toast(getString(R.string.instance_switched_to_system));
+                refresh();
+                return true;
+            }
+            return false;
         });
         refresh();
     }

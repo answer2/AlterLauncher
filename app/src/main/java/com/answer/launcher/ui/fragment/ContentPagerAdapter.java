@@ -6,16 +6,17 @@ import androidx.fragment.app.FragmentActivity;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
 
 /**
- * The three content tabs (task #18/#19). Fragments are created lazily by position, so
- * a rotation/restore rebuilds them through the same factory rather than through a
+ * The four content tabs (task #18/#19/#20). Fragments are created lazily by position,
+ * so a rotation/restore rebuilds them through the same factory rather than through a
  * pre-built list — the state adapter owns the instance lifecycle.
  */
 public class ContentPagerAdapter extends FragmentStateAdapter {
 
-    public static final int PAGE_COUNT = 3;
+    public static final int PAGE_COUNT = 4;
     public static final int PAGE_WORLDS = 0;
     public static final int PAGE_RESOURCE = 1;
     public static final int PAGE_BEHAVIOR = 2;
+    public static final int PAGE_GLOBAL = 3;
 
     public ContentPagerAdapter(@NonNull FragmentActivity activity) {
         super(activity);
@@ -29,6 +30,8 @@ public class ContentPagerAdapter extends FragmentStateAdapter {
                 return PacksFragment.newInstance(PacksFragment.KIND_RESOURCE);
             case PAGE_BEHAVIOR:
                 return PacksFragment.newInstance(PacksFragment.KIND_BEHAVIOR);
+            case PAGE_GLOBAL:
+                return new GlobalPacksFragment();
             case PAGE_WORLDS:
             default:
                 return new WorldsFragment();

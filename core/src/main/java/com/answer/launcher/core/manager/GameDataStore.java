@@ -54,6 +54,31 @@ public final class GameDataStore {
         return base == null ? null : new File(base, "packs");
     }
 
+    /**
+     * The cross-version shared pack storage. Lives at {@code <dataDir>/mc/global_packs/}
+     * and holds packs that should be visible to every instance's resource_packs or
+     * behavior_packs directory (via symlinks). Separate from the per-instance
+     * {@code packs/} folder which is the in-game "globally enabled" repository.
+     */
+    public static File sharedPackStorage(Context host) {
+        return new File(IdentityStore.instancesDir(host), "global_packs");
+    }
+
+    /**
+     * Enumerate every instance slug the launcher knows about. Used when adding or
+     * removing a shared pack so every instance's packs directory can be re-linked.
+     */
+    public static String[] allInstanceSlugs(Context host) {
+        File dir = IdentityStore.instancesDir(host);
+        String[] names = dir.list();
+        if (names == null) return new String[0];
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (String n : names) {
+            if (n.contains("@") && new File(dir, n).isDirectory()) out.add(n);
+        }
+        return out.toArray(new String[0]);
+    }
+
     /** Ensures the directory exists; returns it unchanged so callers can chain. */
     public static File ensure(File dir) {
         if (dir != null && !dir.exists()) {
