@@ -25,7 +25,7 @@
             style="@style/Widget.Material3.Button.TextButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="使用系统版本" />
+            android:text="@string/instance_use_system" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_import"
@@ -33,7 +33,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:text="导入安装包"
+            android:text="@string/instance_import_button"
             app:icon="@drawable/ic_action_instance" />
     </LinearLayout>
 
@@ -54,7 +54,7 @@
         android:layout_weight="1"
         android:gravity="center"
         android:padding="32dp"
-        android:text="还没有导入任何实例\n点击「导入安装包」从存储中选择一个 Minecraft 安装包"
+        android:text="@string/instance_empty_hint"
         android:textAlignment="center"
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOutline"

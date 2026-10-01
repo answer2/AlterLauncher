@@ -20,7 +20,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="版本下载"
+            android:text="@string/download_title"
             android:textSize="20sp"
             android:textStyle="bold" />
 
@@ -29,7 +29,7 @@
             style="?attr/materialButtonOutlinedStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="刷新"
+            android:text="@string/download_refresh"
             app:cornerRadius="8dp" />
     </LinearLayout>
 
@@ -39,7 +39,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
         android:layout_marginBottom="6dp"
-        android:text="正在加载版本列表…"
+        android:text="@string/download_loading_versions"
         android:textColor="?android:attr/textColorSecondary"
         android:textSize="13sp" />
 

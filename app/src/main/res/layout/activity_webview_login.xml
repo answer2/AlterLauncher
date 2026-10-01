@@ -13,7 +13,7 @@
         android:background="?attr/colorSurface"
         app:navigationIcon="?attr/homeAsUpIndicator"
         app:navigationIconTint="?attr/colorOnSurface"
-        app:title="登录验证"
+        app:title="@string/sign_in_webview_title"
         app:titleTextColor="?attr/colorOnSurface" />
 
     <LinearLayout
@@ -32,7 +32,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="在下方完成微软登录即可，本页面关闭后自动检测登录结果。"
+            android:text="@string/sign_in_webview_instructions"
             android:textColor="?attr/colorOnSurfaceVariant"
             android:textSize="13sp" />
 
@@ -42,7 +42,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
-            android:text="系统浏览器打开"
+            android:text="@string/sign_in_open_system_browser"
             app:cornerRadius="8dp" />
     </LinearLayout>
 

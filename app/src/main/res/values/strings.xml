@@ -1,19 +1,179 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- App -->
     <string name="app_name">Alter启动器</string>
     <string name="app_info">AlterLauncher</string>
     <string name="name">AlterLauncher</string>
+
+    <!-- Navigation -->
     <string name="title_launch">启动</string>
     <string name="title_download">下载</string>
     <string name="title_setting">设置</string>
     <string name="title_about">关于</string>
     <string name="title_instance">实例</string>
-    <string name="warning_error">错误</string>
+
+    <!-- Common / shared -->
+    <string name="common_cancel">取消</string>
+    <string name="common_confirm">确定</string>
+    <string name="common_delete">删除</string>
+    <string name="common_got_it">知道了</string>
     <string name="copy">复制</string>
     <string name="restart">重启</string>
+    <string name="warning_error">错误</string>
     <string name="empty">这个是一个空信息( •̀ ω •́ )✧</string>
     <string name="warning_content">你可以将错误信息复制并保存到文件中，发送到GitHub或交流群中获得问题解决的帮助。</string>
+
+    <!-- Sign-in flow -->
+    <string name="sign_in_game_running_error">游戏正在运行，先退出游戏再登录</string>
+    <string name="sign_in_requesting_code">正在向 Xbox Live 申请登录代码…</string>
+    <string name="sign_in_dialog_title">登录 Microsoft 账户</string>
+    <string name="sign_in_copy_code">复制代码</string>
+    <string name="sign_in_open_browser">打开网页</string>
+    <string name="sign_in_clip_label">Microsoft 登录代码</string>
+    <string name="sign_in_code_copied">代码已复制，在任意浏览器里粘贴即可</string>
+    <string name="sign_in_waiting_elapsed">等待你在浏览器完成登录…（已等待 %d 秒，检测中）</string>
+    <string name="sign_in_enter_code_hint">在任意设备上打开这个地址并输入下面的代码，然后等待即可。</string>
+    <string name="sign_in_syncing_account">登录已验证，正在同步账户信息，请稍候…</string>
+    <string name="sign_in_cancelled">已取消登录</string>
+    <string name="sign_in_error_detail_suffix">（%s）</string>
+    <string name="sign_in_success">登录成功</string>
+    <string name="sign_in_webview_hint">登录代码 %s · 完成登录后返回即可，正在自动检测。</string>
+    <string name="sign_in_no_url_error">没有可打开的登录地址</string>
+    <string name="sign_in_no_browser_error">没有可用的浏览器</string>
+    <string name="sign_in_webview_fallback">内置浏览器不被支持，已改用系统浏览器</string>
+    <string name="sign_in_complete_toast">登录完成，启动游戏即是已登录状态</string>
+    <string name="sign_in_failed_toast">登录失败：%s</string>
+    <string name="sign_in_webview_title">登录验证</string>
+    <string name="sign_in_webview_instructions">在下方完成微软登录即可，本页面关闭后自动检测登录结果。</string>
+    <string name="sign_in_open_system_browser">系统浏览器打开</string>
+
+    <!-- Account card / sign-out -->
+    <string name="account_checking_status">正在检查登录状态…</string>
+    <string name="account_signed_in_fallback">已登录</string>
+    <string name="account_shared_status">所有版本共用这份登录状态</string>
+    <string name="account_isolated_status">仅本版本使用这份登录状态</string>
+    <string name="account_relogin_button">重新登录</string>
+    <string name="account_expired_label">登录已失效</string>
+    <string name="account_expired_status">登录已过期或被撤销，请重新登录</string>
+    <string name="account_not_signed_in">未登录</string>
+    <string name="account_not_signed_in_hint">未登录 · 点击下方按钮使用微软账号登录</string>
+    <string name="account_login_button">登录</string>
+    <string name="account_game_running_block">游戏正在运行，先退出游戏再操作</string>
+    <string name="account_signout_title">退出登录</string>
+    <string name="account_signout_confirm_message">将清除本机保存的微软登录状态（共享模式下会同时影响所有版本），需要重新在浏览器登录才能恢复。确定退出？</string>
+    <string name="account_signout_confirm_button">退出登录</string>
+    <string name="account_signout_button">退出登录</string>
+    <string name="account_signout_success">已退出登录</string>
+    <string name="account_signout_partial">已退出，但部分文件未能清除</string>
+    <string name="account_setting_line_signed_in">已登录 · XUID %1$s · 账号 %2$s</string>
+    <string name="account_unknown_xuid">未知</string>
+    <string name="account_setting_line_not_signed_in">未登录</string>
+    <string name="account_section_header">账号与登录</string>
+    <string name="account_share_toggle">跨版本共享登录数据</string>
+    <string name="account_login_method_header">登录方式</string>
+    <string name="account_webview_toggle">在应用内使用 WebView 登录</string>
+    <string name="account_webview_summary">默认用系统浏览器打开微软登录页。开启后改用内置 WebView；若微软拒绝内嵌浏览器会自动回退到系统浏览器。</string>
     <string name="identity_share_summary">开启后所有版本共用同一份 Xbox 登录状态，任一处登录即全部生效；关闭后每个版本自己登录一次，互不影响。下次启动生效。</string>
     <string name="identity_isolated_summary">本版本使用自己的登录状态，登录一次只对这个版本有效，其他版本不会共用。下次启动生效。</string>
 
+    <!-- Download -->
+    <string name="download_title">版本下载</string>
+    <string name="download_refresh">刷新</string>
+    <string name="download_loading_versions">正在加载版本列表…</string>
+    <string name="download_no_versions">没有可用版本</string>
+    <string name="download_version_count">共 %d 个版本 · 点击选择下载网盘</string>
+    <string name="download_load_failed">加载失败：%s</string>
+    <string name="download_no_links">该版本没有下载链接</string>
+    <string name="download_provider_dialog_title">%s · 选择网盘</string>
+    <string name="download_armv8_label">ARMv8（64 位）</string>
+    <string name="download_armv7_label">ARMv7（32 位）</string>
+    <string name="download_no_abi_links">无可用链接</string>
+    <string name="download_no_app_for_link">没有可打开该链接的应用</string>
+    <string name="download_api_unavailable">版本接口不可用</string>
+    <string name="download_api_error">接口返回错误</string>
+    <string name="download_parse_error">响应解析失败: %s</string>
+    <string name="download_beta_badge">测试版</string>
+
+    <!-- Settings -->
+    <string name="setting_rescan_notified">已通知游戏进程重新扫描</string>
+    <string name="setting_version_line">版本：%s</string>
+    <string name="setting_version_not_installed">未安装</string>
+    <string name="setting_data_dir_no_launch">本次运行的数据目录：尚未启动过任何版本</string>
+    <string name="setting_data_dir_path">本次运行的数据目录：%s</string>
+    <string name="setting_runtime_failed">运行时装配失败：%s</string>
+    <string name="setting_runtime_running">运行中 · 进程 %d</string>
+    <string name="setting_runtime_assembling">正在装配运行时…</string>
+    <string name="setting_runtime_not_started">运行时未启动</string>
+    <string name="setting_identity_change_effect">下次启动游戏生效</string>
+    <string name="setting_webview_on_toast">下次登录将尝试内置 WebView</string>
+    <string name="setting_webview_off_toast">下次登录将使用系统浏览器</string>
+    <string name="setting_clear_cache_title">清除缓存</string>
+    <string name="setting_clear_cache_message">只清除启动器自身的缓存目录，不影响游戏数据、账号或已导入的实例。确定清除？</string>
+    <string name="setting_clear_cache_confirm">清除</string>
+    <string name="setting_cache_freed">已释放 %.1f MB</string>
+    <string name="setting_appearance_header">外观与启动</string>
+    <string name="setting_auto_validate_toggle">启动前自动校验登录状态</string>
+    <string name="setting_auto_validate_summary">关闭后不再每次联网向 Xbox 校验，只按本地记录显示登录状态。</string>
+    <string name="setting_clear_cache_button">清除缓存</string>
+    <string name="setting_install_data_header">安装与数据</string>
+    <string name="setting_version_placeholder">版本：—</string>
+    <string name="setting_runtime_header">运行时</string>
+    <string name="setting_rescan_plugins_button">重新扫描插件</string>
+
+    <!-- Instance management -->
+    <string name="instance_switched_to_system">已切换为系统安装的 Minecraft</string>
+    <string name="instance_importing">正在导入…</string>
+    <string name="instance_import_success">导入成功：%s</string>
+    <string name="instance_import_align_warning">（部分 .so 非 16KB 对齐）</string>
+    <string name="instance_import_failed_title">导入失败</string>
+    <string name="instance_unknown_error">未知错误</string>
+    <string name="instance_set_active">已设为当前实例：%s</string>
+    <string name="instance_option_set_active">设为当前实例</string>
+    <string name="instance_option_rename">重命名</string>
+    <string name="instance_option_delete">删除</string>
+    <string name="instance_rename_title">重命名</string>
+    <string name="instance_rename_empty_error">名称不能为空</string>
+    <string name="instance_delete_title">删除实例</string>
+    <string name="instance_delete_confirm_message">删除「%s」？此操作不可撤销。</string>
+    <string name="instance_deleted">已删除</string>
+    <string name="instance_subtitle_format">版本 %1$s · %2$s · #%3$d</string>
+    <string name="instance_no_native_libs">无 native 库</string>
+    <string name="instance_not_16kb">非16KB</string>
+    <string name="instance_use_system">使用系统版本</string>
+    <string name="instance_import_button">导入安装包</string>
+    <string name="instance_empty_hint">还没有导入任何实例\n点击「导入安装包」从存储中选择一个 Minecraft 安装包</string>
+    <string name="instance_active_chip">当前</string>
+    <string name="instance_more_content_desc">更多</string>
+
+    <!-- Home fragment -->
+    <string name="home_arch_64">64 位</string>
+    <string name="home_arch_32">32 位</string>
+    <string name="home_runtime_failed">运行时装配失败：%s</string>
+    <string name="home_runtime_running">运行中 · 进程 %d</string>
+    <string name="home_runtime_assembling">正在装配运行时…</string>
+    <string name="home_runtime_not_started">运行时未启动</string>
+    <string name="home_back_to_game">回到游戏</string>
+    <string name="home_no_apk_imported">似乎没有导入安装包</string>
+    <string name="home_chip_stable">稳定</string>
+    <string name="home_chip_beta">测试</string>
+    <string name="home_version_select">版本选择</string>
+    <string name="home_version_settings">版本设置</string>
+    <string name="home_version_support_chip">版本支持</string>
+
+    <!-- About -->
+    <string name="about_rescan_requested">已请求 :game 重新扫描插件</string>
+    <string name="about_label_game_process">游戏进程  </string>
+    <string name="about_not_running">未运行</string>
+    <string name="about_label_runtime_state">运行状态  </string>
+    <string name="about_label_engine_hooks">引擎钩子  </string>
+    <string name="about_label_menu_state">菜单状态  </string>
+    <string name="about_label_game_version">游戏版本  </string>
+    <string name="about_label_third_party">第三方  </string>
+    <string name="about_see_notice">见项目根 NOTICE</string>
+    <string name="about_label_dex_plugins">Dex/Apk 插件</string>
+    <string name="about_label_native_plugins">Native 插件</string>
+    <string name="about_loaded_plugin_count">\n已加载插件 %d</string>
+    <string name="about_none_loaded">  (无)</string>
+    <string name="about_rescan_button">重新扫描插件</string>
+    <string name="about_crash_test_button">测试</string>
 </resources>

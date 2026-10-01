@@ -19,6 +19,7 @@ import androidx.fragment.app.Fragment;
 import com.answer.launcher.core.manager.Instance;
 import com.answer.launcher.core.manager.InstanceImporter;
 import com.answer.launcher.core.manager.InstanceStore;
+import com.answer.launcher.R;
 import com.answer.launcher.databinding.FragmentInstancesBinding;
 import com.answer.launcher.databinding.ItemInstanceBinding;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -72,7 +73,7 @@ public class InstancesFragment extends Fragment {
                 importLauncher.launch(new String[]{"application/vnd.android.package-archive"}));
         binding.btnSystem.setOnClickListener(v -> {
             InstanceStore.clearActive(requireContext());
-            toast("已切换为系统安装的 Minecraft");
+            toast(getString(R.string.instance_switched_to_system));
             refresh();
         });
         refresh();
@@ -104,20 +105,20 @@ public class InstancesFragment extends Fragment {
 
     private void startImport(Uri uri) {
         Context ctx = requireContext();
-        toast("正在导入…");
+        toast(getString(R.string.instance_importing));
         new Thread(() -> {
             InstanceImporter.Result r = InstanceImporter.import_(ctx, uri, null);
             if (getActivity() == null) return;
             getActivity().runOnUiThread(() -> {
                 if (binding == null) return;
                 if (r.success()) {
-                    toast("导入成功：" + r.instance.versionName
-                            + (r.aligned16kb ? "" : "（部分 .so 非 16KB 对齐）"));
+                    toast(getString(R.string.instance_import_success, r.instance.versionName)
+                            + (r.aligned16kb ? "" : getString(R.string.instance_import_align_warning)));
                 } else {
                     new MaterialAlertDialogBuilder(ctx)
-                            .setTitle("导入失败")
-                            .setMessage(r.error == null ? "未知错误" : r.error)
-                            .setPositiveButton("知道了", null)
+                            .setTitle(R.string.instance_import_failed_title)
+                            .setMessage(r.error == null ? getString(R.string.instance_unknown_error) : r.error)
+                            .setPositiveButton(R.string.common_got_it, null)
                             .show();
                 }
                 refresh();
@@ -127,14 +128,14 @@ public class InstancesFragment extends Fragment {
 
     private void setActive(Instance in) {
         InstanceStore.setActive(requireContext(), in.id);
-        toast("已设为当前实例：" + in.label);
+        toast(getString(R.string.instance_set_active, in.label));
         refresh();
     }
 
     private void showOptions(Instance in) {
         new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(in.label)
-                .setItems(new String[]{"设为当前实例", "重命名", "删除"}, (d, which) -> {
+                .setItems(new String[]{getString(R.string.instance_option_set_active), getString(R.string.instance_option_rename), getString(R.string.instance_option_delete)}, (d, which) -> {
                     if (which == 0) setActive(in);
                     else if (which == 1) showRename(in);
                     else if (which == 2) showDelete(in);
@@ -152,28 +153,28 @@ public class InstancesFragment extends Fragment {
         et.setSelection(in.label.length());
         field.addView(et);
         new MaterialAlertDialogBuilder(ctx)
-                .setTitle("重命名")
+                .setTitle(R.string.instance_rename_title)
                 .setView(field)
-                .setPositiveButton("确定", (d, w) -> {
+                .setPositiveButton(R.string.common_confirm, (d, w) -> {
                     String nl = et.getText() == null ? "" : et.getText().toString().trim();
-                    if (nl.isEmpty()) { toast("名称不能为空"); return; }
+                    if (nl.isEmpty()) { toast(getString(R.string.instance_rename_empty_error)); return; }
                     InstanceStore.rename(requireContext(), in.id, nl);
                     refresh();
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     private void showDelete(Instance in) {
         new MaterialAlertDialogBuilder(requireContext())
-                .setTitle("删除实例")
-                .setMessage("删除「" + in.label + "」？此操作不可撤销。")
-                .setPositiveButton("删除", (d, w) -> {
+                .setTitle(R.string.instance_delete_title)
+                .setMessage(getString(R.string.instance_delete_confirm_message, in.label))
+                .setPositiveButton(R.string.common_delete, (d, w) -> {
                     InstanceStore.delete(requireContext(), in.id);
-                    toast("已删除");
+                    toast(getString(R.string.instance_deleted));
                     refresh();
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
@@ -210,16 +211,16 @@ public class InstancesFragment extends Fragment {
             }
             Instance in = instances.get(position);
             b.tvLabel.setText(in.label);
-            String sub = "版本 " + in.versionName + " · "
-                    + (in.abi == null || in.abi.isEmpty() ? "无 native 库" : in.abi)
-                    + " · #" + in.versionCode;
+            String sub = getString(R.string.instance_subtitle_format, in.versionName,
+                    in.abi == null || in.abi.isEmpty() ? getString(R.string.instance_no_native_libs) : in.abi,
+                    in.versionCode);
             b.tvSubtitle.setText(sub);
             b.tvId.setText(in.id);
             boolean active = in.id.equals(activeId);
             b.chipActive.setVisibility(active ? View.VISIBLE : View.GONE);
             boolean aligned = in.aligned16kb;
             b.tvAlign.setVisibility(View.VISIBLE);
-            b.tvAlign.setText(aligned ? "16KB" : "非16KB");
+            b.tvAlign.setText(aligned ? "16KB" : getString(R.string.instance_not_16kb));
             b.tvAlign.setTextColor(aligned ? 0xFF2E7D32 : 0xFFC62828);
             final Instance current = in;
             b.btnMore.setOnClickListener(v -> showOptions(current));

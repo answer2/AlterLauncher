@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import com.answer.launcher.R
 import com.answer.launcher.core.bridge.GameBridgeClient
 import com.answer.launcher.databinding.FragmentAboutBinding
 import com.answer.launcher.utils.CrashHandler
@@ -54,7 +55,7 @@ class AboutFragment : Fragment() {
         // appeared there; onPluginsChanged() calls back and refresh() runs again.
         binding.reloadPlugins.setOnClickListener {
             bridge.reloadPlugins()
-            Toast.makeText(requireContext(), "已请求 :game 重新扫描插件", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), R.string.about_rescan_requested, Toast.LENGTH_SHORT).show()
             refresh()
         }
 
@@ -77,23 +78,23 @@ class AboutFragment : Fragment() {
 
         val text = StringBuilder()
         val pid = bridge.gamePid()
-        text.append("游戏进程  ").append(if (pid > 0) "pid $pid" else "未运行").append('\n')
-        text.append("运行状态  ").append(bridge.runtimeState()).append('\n')
-        text.append("引擎钩子  ").append(bridge.hookStats()).append('\n')
-        text.append("菜单状态  ").append(bridge.menuState()).append('\n')
-        text.append("游戏版本  ").append(bridge.minecraftVersion()).append('\n')
+        text.append(getString(R.string.about_label_game_process)).append(if (pid > 0) "pid $pid" else getString(R.string.about_not_running)).append('\n')
+        text.append(getString(R.string.about_label_runtime_state)).append(bridge.runtimeState()).append('\n')
+        text.append(getString(R.string.about_label_engine_hooks)).append(bridge.hookStats()).append('\n')
+        text.append(getString(R.string.about_label_menu_state)).append(bridge.menuState()).append('\n')
+        text.append(getString(R.string.about_label_game_version)).append(bridge.minecraftVersion()).append('\n')
         // M4 license obligation (docs/levi-compat-design.md 4.2): the menu-state
         // hooks derive from LiteLDev/preloader-android signature rules, treated as
         // Apache-2.0; attribution ships with the app, full text in NOTICE.
-        text.append("第三方  ").append("preloader-android / LeviLaunchroid (LiteLDev, Apache-2.0) · MinecraftAuth (RaphiMC, LGPL-3.0) — 见项目根 NOTICE")
+        text.append(getString(R.string.about_label_third_party)).append("preloader-android / LeviLaunchroid (LiteLDev, Apache-2.0) · MinecraftAuth (RaphiMC, LGPL-3.0) — ").append(getString(R.string.about_see_notice))
 
-        appendFiles(text, "Dex/Apk 插件", bridge.pluginFiles())
-        appendFiles(text, "Native 插件", bridge.nativePluginFiles())
+        appendFiles(text, getString(R.string.about_label_dex_plugins), bridge.pluginFiles())
+        appendFiles(text, getString(R.string.about_label_native_plugins), bridge.nativePluginFiles())
 
         val infos = bridge.pluginInfos()
-        text.append("\n已加载插件 ").append(infos.size).append('\n')
+        text.append(getString(R.string.about_loaded_plugin_count, infos.size)).append('\n')
         if (infos.isEmpty()) {
-            text.append("  (无)\n")
+            text.append(getString(R.string.about_none_loaded)).append('\n')
         } else {
             for (info in infos) {
                 // name|author|version|description - the shape PluginInfo.info() reports
@@ -116,7 +117,7 @@ class AboutFragment : Fragment() {
     private fun appendFiles(text: StringBuilder, title: String, items: List<String>) {
         text.append('\n').append(title).append(' ').append(items.size).append('\n')
         if (items.isEmpty()) {
-            text.append("  (无)\n")
+            text.append(getString(R.string.about_none_loaded)).append('\n')
             return
         }
         for (item in items) text.append("  · ").append(item).append('\n')

@@ -24,6 +24,7 @@ import com.answer.launcher.core.bridge.GameRuntime;
 import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.core.manager.IdentityStore;
 import com.answer.launcher.core.manager.MultiVersionManager;
+import com.answer.launcher.R;
 import com.answer.launcher.databinding.FragmentHomeBinding;
 import com.answer.launcher.ui.SignInSheet;
 import com.answer.launcher.ui.LauncherPrefs;
@@ -86,28 +87,28 @@ public class HomeFragment extends Fragment {
          * last look.
          */
         binding.accountLogin.setText("…");
-        binding.userStatus.setText("正在检查登录状态…");
+        binding.userStatus.setText(R.string.account_checking_status);
         checkLogin(host);
 
         String version = guestVersion(host);
         binding.versionLabel.setText(version == null ? "VERSION" : version);
         binding.archLabel.setText(Build.SUPPORTED_ABIS.length > 0
-                ? (Build.SUPPORTED_ABIS[0].contains("64") ? "64 位" : "32 位") : "ARCH");
+                ? (Build.SUPPORTED_ABIS[0].contains("64") ? getString(R.string.home_arch_64) : getString(R.string.home_arch_32)) : "ARCH");
 
         String state = GameBridgeClient.get().runtimeState();
         int pid = GameBridgeClient.get().gamePid();
         String text;
         if (state.startsWith(GameRuntime.FAILED_PREFIX)) {
-            text = "运行时装配失败：" + state.substring(GameRuntime.FAILED_PREFIX.length());
+            text = getString(R.string.home_runtime_failed, state.substring(GameRuntime.FAILED_PREFIX.length()));
         } else if (GameRuntime.READY.equals(state)) {
-            text = "运行中 · 进程 " + pid;
+            text = getString(R.string.home_runtime_running, pid);
         } else if (GameRuntime.ASSEMBLING.equals(state)) {
-            text = "正在装配运行时…";
+            text = getString(R.string.home_runtime_assembling);
         } else {
-            text = "运行时未启动";
+            text = getString(R.string.home_runtime_not_started);
         }
         binding.runtimeStatus.setText(text);
-        binding.loadGame.setText(GameRuntime.READY.equals(state) ? "回到游戏" : "启动");
+        binding.loadGame.setText(GameRuntime.READY.equals(state) ? getString(R.string.home_back_to_game) : "启动");
     }
 
     /**
@@ -160,19 +161,19 @@ public class HomeFragment extends Fragment {
         boolean signedIn = account.signedIn && !expired;
         if (signedIn) {
             binding.userId.setText(validity.gamertag != null ? validity.gamertag
-                    : (account.xuid != null ? "XUID " + account.xuid : "已登录"));
+                    : (account.xuid != null ? "XUID " + account.xuid : getString(R.string.account_signed_in_fallback)));
             binding.userStatus.setText(account.shared
-                    ? "所有版本共用这份登录状态"
-                    : "仅本版本使用这份登录状态");
-            binding.accountLogin.setText("重新登录");
+                    ? getString(R.string.account_shared_status)
+                    : getString(R.string.account_isolated_status));
+            binding.accountLogin.setText(R.string.account_relogin_button);
         } else if (expired) {
-            binding.userId.setText("登录已失效");
-            binding.userStatus.setText("登录已过期或被撤销，请重新登录");
-            binding.accountLogin.setText("重新登录");
+            binding.userId.setText(R.string.account_expired_label);
+            binding.userStatus.setText(R.string.account_expired_status);
+            binding.accountLogin.setText(R.string.account_relogin_button);
         } else {
-            binding.userId.setText("未登录");
-            binding.userStatus.setText("未登录 · 点击下方按钮使用微软账号登录");
-            binding.accountLogin.setText("登录");
+            binding.userId.setText(R.string.account_not_signed_in);
+            binding.userStatus.setText(R.string.account_not_signed_in_hint);
+            binding.accountLogin.setText(R.string.account_login_button);
         }
         binding.accountSignout.setVisibility(signedIn ? View.VISIBLE : View.GONE);
     }
@@ -185,20 +186,20 @@ public class HomeFragment extends Fragment {
     private void confirmSignOut() {
         String state = GameBridgeClient.get().runtimeState();
         if (GameRuntime.READY.equals(state) || GameRuntime.ASSEMBLING.equals(state)) {
-            Toast.makeText(requireContext(), "游戏正在运行，先退出游戏再操作", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), R.string.account_game_running_block, Toast.LENGTH_SHORT).show();
             return;
         }
         new MaterialAlertDialogBuilder(requireContext())
-                .setTitle("退出登录")
-                .setMessage("将清除本机保存的微软登录状态（共享模式下会同时影响所有版本），需要重新在浏览器登录才能恢复。确定退出？")
-                .setNegativeButton("取消", null)
-                .setPositiveButton("退出登录", (d, w) -> {
+                .setTitle(R.string.account_signout_title)
+                .setMessage(R.string.account_signout_confirm_message)
+                .setNegativeButton(R.string.common_cancel, null)
+                .setPositiveButton(R.string.account_signout_confirm_button, (d, w) -> {
                     Context host = requireContext().getApplicationContext();
                     new Thread(() -> {
                         boolean ok = IdentityStore.signOut(host);
                         requireActivity().runOnUiThread(() -> {
                             Toast.makeText(requireContext(),
-                                    ok ? "已退出登录" : "已退出，但部分文件未能清除",
+                                    ok ? R.string.account_signout_success : R.string.account_signout_partial,
                                     Toast.LENGTH_SHORT).show();
                             refresh();
                         });
@@ -284,7 +285,7 @@ public class HomeFragment extends Fragment {
         binding.accountLogin.setOnClickListener(view -> SignInSheet.show(requireActivity(),
                 (success, message) -> {
                     Toast.makeText(requireContext(),
-                            success ? "登录完成，启动游戏即是已登录状态" : "登录失败：" + message,
+                            success ? getString(R.string.sign_in_complete_toast) : getString(R.string.sign_in_failed_toast, message),
                             Toast.LENGTH_LONG).show();
                     refresh();
                 }));
@@ -302,7 +303,7 @@ public class HomeFragment extends Fragment {
             try {
                 File file = new File("/sdcard/base.apk");
                 if (!file.exists()){
-                    Toast.makeText(getActivity(), "似乎没有导入安装包", Toast.LENGTH_LONG).show();
+                    Toast.makeText(getActivity(), R.string.home_no_apk_imported, Toast.LENGTH_LONG).show();
                     return;
                 }
 

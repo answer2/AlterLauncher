@@ -30,7 +30,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="账号与登录"
+                    android:text="@string/account_section_header"
                     android:textSize="18sp"
                     android:textStyle="bold" />
 
@@ -39,7 +39,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="跨版本共享登录数据"
+                    android:text="@string/account_share_toggle"
                     android:textSize="16sp" />
 
                 <TextView
@@ -56,7 +56,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:text="未登录"
+                    android:text="@string/account_not_signed_in"
                     android:textSize="14sp" />
 
                 <TextView
@@ -86,7 +86,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="登录方式"
+                    android:text="@string/account_login_method_header"
                     android:textSize="18sp"
                     android:textStyle="bold" />
 
@@ -95,14 +95,14 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="在应用内使用 WebView 登录"
+                    android:text="@string/account_webview_toggle"
                     android:textSize="16sp" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="默认用系统浏览器打开微软登录页。开启后改用内置 WebView；若微软拒绝内嵌浏览器会自动回退到系统浏览器。"
+                    android:text="@string/account_webview_summary"
                     android:textColor="?android:attr/textColorSecondary"
                     android:textSize="13sp" />
             </LinearLayout>
@@ -124,7 +124,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="外观与启动"
+                    android:text="@string/setting_appearance_header"
                     android:textSize="18sp"
                     android:textStyle="bold" />
 
@@ -133,30 +133,14 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="启动前自动校验登录状态"
+                    android:text="@string/setting_auto_validate_toggle"
                     android:textSize="16sp" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="关闭后不再每次联网向 Xbox 校验，只按本地记录显示登录状态。"
-                    android:textColor="?android:attr/textColorSecondary"
-                    android:textSize="13sp" />
-
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/dynamic_color"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:text="动态取色（Material You）"
-                    android:textSize="16sp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="跟随系统壁纸配色，重启应用后生效。"
+                    android:text="@string/setting_auto_validate_summary"
                     android:textColor="?android:attr/textColorSecondary"
                     android:textSize="13sp" />
 
@@ -166,7 +150,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="清除缓存"
+                    android:text="@string/setting_clear_cache_button"
                     app:cornerRadius="8dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -187,7 +171,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="安装与数据"
+                    android:text="@string/setting_install_data_header"
                     android:textSize="18sp"
                     android:textStyle="bold" />
 
@@ -196,7 +180,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="版本：—"
+                    android:text="@string/setting_version_placeholder"
                     android:textSize="14sp" />
 
                 <TextView
@@ -226,7 +210,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="运行时"
+                    android:text="@string/setting_runtime_header"
                     android:textSize="18sp"
                     android:textStyle="bold" />
 
@@ -235,7 +219,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="运行时未启动"
+                    android:text="@string/setting_runtime_not_started"
                     android:textSize="14sp" />
 
                 <TextView
@@ -252,7 +236,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:text="重新扫描插件"
+                    android:text="@string/setting_rescan_plugins_button"
                     app:cornerRadius="8dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>

@@ -13,7 +13,6 @@ public final class LauncherPrefs {
     private static final String FILE = "alter_launcher_prefs";
     private static final String KEY_LOGIN_WEBVIEW = "login_in_webview";
     private static final String KEY_AUTO_VALIDATE = "auto_validate_login";
-    private static final String KEY_DYNAMIC_COLOR = "dynamic_color";
 
     private LauncherPrefs() {
     }
@@ -38,18 +37,5 @@ public final class LauncherPrefs {
 
     public static void setAutoValidateLogin(Context context, boolean enabled) {
         prefs(context).edit().putBoolean(KEY_AUTO_VALIDATE, enabled).apply();
-    }
-
-    /**
-     * Material You dynamic color. Off by default so the launcher ships with its own accent
-     * palette; the user can opt into wallpaper-based color in settings. Read once at process
-     * start, so a change needs a restart.
-     */
-    public static boolean dynamicColor(Context context) {
-        return prefs(context).getBoolean(KEY_DYNAMIC_COLOR, false);
-    }
-
-    public static void setDynamicColor(Context context, boolean enabled) {
-        prefs(context).edit().putBoolean(KEY_DYNAMIC_COLOR, enabled).apply();
     }
 }

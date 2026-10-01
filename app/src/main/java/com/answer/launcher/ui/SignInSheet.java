@@ -29,6 +29,7 @@ import com.answer.launcher.core.bridge.GameBridgeClient;
 import com.answer.launcher.core.bridge.GameRuntime;
 import com.answer.launcher.core.manager.IdentityStore;
 import com.answer.launcher.ui.activity.WebViewLoginActivity;
+import com.answer.launcher.R;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import net.raphimc.minecraftauth.bedrock.BedrockAuthManager;
@@ -71,7 +72,7 @@ public final class SignInSheet {
     public static void show(@NonNull Activity activity, @NonNull Callback callback) {
         String state = GameBridgeClient.get().runtimeState();
         if (GameRuntime.READY.equals(state) || GameRuntime.ASSEMBLING.equals(state)) {
-            callback.onFinished(false, "游戏正在运行，先退出游戏再登录");
+            callback.onFinished(false, activity.getString(R.string.sign_in_game_running_error));
             return;
         }
 
@@ -83,7 +84,7 @@ public final class SignInSheet {
 
         TextView status = new TextView(activity);
         status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f);
-        status.setText("正在向 Xbox Live 申请登录代码…");
+        status.setText(R.string.sign_in_requesting_code);
 
         ProgressBar spinner = new ProgressBar(activity);
         spinner.setIndeterminate(true);
@@ -116,12 +117,12 @@ public final class SignInSheet {
         box.addView(link);
 
         AlertDialog dialog = new MaterialAlertDialogBuilder(activity)
-                .setTitle("登录 Microsoft 账户")
+                .setTitle(R.string.sign_in_dialog_title)
                 .setView(box)
                 .setCancelable(true)
-                .setNegativeButton("取消", null)
-                .setNeutralButton("复制代码", null)
-                .setPositiveButton("打开网页", null)
+                .setNegativeButton(R.string.common_cancel, null)
+                .setNeutralButton(R.string.sign_in_copy_code, null)
+                .setPositiveButton(R.string.sign_in_open_browser, null)
                 .create();
 
         /*
@@ -158,8 +159,8 @@ public final class SignInSheet {
                     (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
             if (clipboard != null) {
                 clipboard.setPrimaryClip(
-                        ClipData.newPlainText("Microsoft 登录代码", deviceCode.getUserCode()));
-                status.setText("代码已复制，在任意浏览器里粘贴即可");
+                        ClipData.newPlainText(activity.getString(R.string.sign_in_clip_label), deviceCode.getUserCode()));
+                status.setText(R.string.sign_in_code_copied);
             }
         });
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
@@ -180,7 +181,7 @@ public final class SignInSheet {
             }
             if (redeemWait[0] && startedAt[0] != 0L) {
                 long secs = (System.currentTimeMillis() - startedAt[0]) / 1000L;
-                status.setText("等待你在浏览器完成登录…（已等待 " + secs + " 秒，检测中）");
+                status.setText(activity.getString(R.string.sign_in_waiting_elapsed, secs));
             }
             ui.postDelayed(ticker[0], 1000L);
         };
@@ -209,7 +210,7 @@ public final class SignInSheet {
                         code.setVisibility(View.VISIBLE);
                         link.setText(deviceCode.getVerificationUri());
                         link.setVisibility(View.VISIBLE);
-                        status.setText("在任意设备上打开这个地址并输入下面的代码，然后等待即可。");
+                        status.setText(R.string.sign_in_enter_code_hint);
                         // Begin the elapsed wait indicator: from here the network poll runs.
                         startedAt[0] = System.currentTimeMillis();
                         redeemWait[0] = true;
@@ -226,7 +227,7 @@ public final class SignInSheet {
                     return;
                 }
                 spinner.setVisibility(View.VISIBLE);
-                status.setText("登录已验证，正在同步账户信息，请稍候…");
+                status.setText(R.string.sign_in_syncing_account);
             });
 
             File root = IdentityStore.accountRoot(app);
@@ -242,10 +243,10 @@ public final class SignInSheet {
             // left to show and would otherwise sit on a stale page.
             LoginSession.ACTIVE.finish(false);
             if (cancelled.get()) {
-                ui.post(() -> callback.onFinished(false, "已取消登录"));
+                ui.post(() -> callback.onFinished(false, activity.getString(R.string.sign_in_cancelled)));
                 return;
             }
-            String message = describe(failure);
+            String message = describe(failure, activity);
             ui.post(() -> {
                 if (dialog.isShowing()) {
                     status.setText(message);
@@ -279,7 +280,7 @@ public final class SignInSheet {
         }
     }
 
-    private static String describe(Throwable failure) {
+    private static String describe(Throwable failure, Activity activity) {
         String direct = failure.getClass().getSimpleName()
                 + (failure.getMessage() == null ? "" : ": " + failure.getMessage());
         String detail = HostAuthManager.lastError();
@@ -291,7 +292,7 @@ public final class SignInSheet {
         if (detail == null || detail.isEmpty() || "unknown".equals(detail)) {
             return direct;
         }
-        return direct + "（" + detail + "）";
+        return direct + activity.getString(R.string.sign_in_error_detail_suffix, detail);
     }
 
     /**

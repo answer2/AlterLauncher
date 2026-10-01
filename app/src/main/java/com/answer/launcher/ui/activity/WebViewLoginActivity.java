@@ -19,6 +19,7 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.answer.launcher.R;
 import com.answer.launcher.databinding.ActivityWebviewLoginBinding;
 import com.answer.launcher.ui.LoginSession;
 
@@ -52,7 +53,7 @@ public class WebViewLoginActivity extends AppCompatActivity {
             return;
         }
         if (success) {
-            Toast.makeText(this, "登录成功", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.sign_in_success, Toast.LENGTH_SHORT).show();
         }
         finish();
     });
@@ -70,7 +71,7 @@ public class WebViewLoginActivity extends AppCompatActivity {
         url = getIntent().getStringExtra(EXTRA_URL);
         String code = getIntent().getStringExtra(EXTRA_CODE);
         if (code != null && !code.isEmpty()) {
-            binding.webviewHint.setText("登录代码 " + code + " · 完成登录后返回即可，正在自动检测。");
+            binding.webviewHint.setText(getString(R.string.sign_in_webview_hint, code));
         }
 
         WebView web = binding.loginWeb;
@@ -102,7 +103,7 @@ public class WebViewLoginActivity extends AppCompatActivity {
         binding.openExternal.setOnClickListener(v -> openInSystemBrowser());
 
         if (url == null || url.isEmpty()) {
-            Toast.makeText(this, "没有可打开的登录地址", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.sign_in_no_url_error, Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
@@ -127,7 +128,7 @@ public class WebViewLoginActivity extends AppCompatActivity {
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
         } catch (Throwable ignored) {
-            Toast.makeText(this, "没有可用的浏览器", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.sign_in_no_browser_error, Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -136,7 +137,7 @@ public class WebViewLoginActivity extends AppCompatActivity {
             return;
         }
         fellBack = true;
-        Toast.makeText(this, "内置浏览器不被支持，已改用系统浏览器", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, R.string.sign_in_webview_fallback, Toast.LENGTH_LONG).show();
         openInSystemBrowser();
         finish();
     }

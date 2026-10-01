@@ -11,6 +11,7 @@ import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import com.answer.launcher.R
 import com.answer.launcher.databinding.FragmentDownloadBinding
 import com.answer.launcher.databinding.ItemVersionBinding
 import com.answer.launcher.ui.VersionApi
@@ -59,7 +60,7 @@ class DownloadFragment : Fragment() {
             return
         }
         loading = true
-        binding?.status?.text = "正在加载版本列表…"
+        binding?.status?.text = getString(R.string.download_loading_versions)
         Thread {
             try {
                 val list = VersionApi.lastVersions()
@@ -70,12 +71,12 @@ class DownloadFragment : Fragment() {
                     versions.addAll(list)
                     adapter?.notifyDataSetChanged()
                     bind.status.text =
-                        if (list.isEmpty()) "没有可用版本" else "共 ${list.size} 个版本 · 点击选择下载网盘"
+                        if (list.isEmpty()) getString(R.string.download_no_versions) else getString(R.string.download_version_count, list.size)
                 }
             } catch (e: Exception) {
                 main.post {
                     loading = false
-                    binding?.status?.text = "加载失败：${e.message}"
+                    binding?.status?.text = getString(R.string.download_load_failed, e.message)
                 }
             }
         }.apply { name = "version-fetch" }.start()
@@ -83,12 +84,12 @@ class DownloadFragment : Fragment() {
 
     private fun showProviders(v: VersionApi.Version) {
         if (v.links.isEmpty()) {
-            toast("该版本没有下载链接")
+            toast(getString(R.string.download_no_links))
             return
         }
         val providers = v.links.keys.toList()
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle("${v.versionAll} · 选择网盘")
+            .setTitle(getString(R.string.download_provider_dialog_title, v.versionAll))
             .setItems(providers.toTypedArray()) { _, which -> pickAbi(v, providers[which]) }
             .show()
     }
@@ -98,10 +99,10 @@ class DownloadFragment : Fragment() {
         val armv7 = urls.getOrNull(0).orEmpty()
         val armv8 = urls.getOrNull(1).orEmpty()
         val options = ArrayList<Pair<String, String>>()
-        if (armv8.isNotEmpty()) options.add("ARMv8（64 位）" to armv8)
-        if (armv7.isNotEmpty()) options.add("ARMv7（32 位）" to armv7)
+        if (armv8.isNotEmpty()) options.add(getString(R.string.download_armv8_label) to armv8)
+        if (armv7.isNotEmpty()) options.add(getString(R.string.download_armv7_label) to armv7)
         if (options.isEmpty()) {
-            toast("无可用链接")
+            toast(getString(R.string.download_no_abi_links))
             return
         }
         MaterialAlertDialogBuilder(requireContext())
@@ -116,7 +117,7 @@ class DownloadFragment : Fragment() {
         try {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         } catch (e: Exception) {
-            toast("没有可打开该链接的应用")
+            toast(getString(R.string.download_no_app_for_link))
         }
     }
 

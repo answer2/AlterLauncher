@@ -33,7 +33,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:text="测试版"
+                android:text="@string/download_beta_badge"
                 android:textColor="@color/md_theme_error"
                 android:textSize="13sp"
                 android:visibility="gone" />

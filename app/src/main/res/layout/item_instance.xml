@@ -73,7 +73,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:text="当前"
+            android:text="@string/instance_active_chip"
             android:visibility="gone"
             app:chipBackgroundColor="?attr/colorPrimaryContainer"
             app:chipIconVisible="false" />
@@ -85,7 +85,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:padding="8dp"
             android:src="@drawable/ic_action_more"
-            android:contentDescription="更多" />
+            android:contentDescription="@string/instance_more_content_desc" />
 
     </LinearLayout>
 

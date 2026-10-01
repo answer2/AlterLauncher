@@ -33,7 +33,7 @@ class SettingFragment : Fragment() {
 
         binding.rescanPlugins.setOnClickListener {
             GameBridgeClient.get().reloadPlugins()
-            Toast.makeText(requireContext(), "已通知游戏进程重新扫描", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), R.string.setting_rescan_notified, Toast.LENGTH_SHORT).show()
         }
         return binding.root;
     }
@@ -63,20 +63,20 @@ class SettingFragment : Fragment() {
         } catch (ignored: Throwable) {
             null
         }
-        binding.versionLine.text = "版本：" + (version ?: "未安装")
+        binding.versionLine.text = getString(R.string.setting_version_line, version ?: getString(R.string.setting_version_not_installed))
         val active = IdentityStore.activeSlug(host)
         binding.instancePath.text = if (active == null) {
-            "本次运行的数据目录：尚未启动过任何版本"
+            getString(R.string.setting_data_dir_no_launch)
         } else {
-            "本次运行的数据目录：" + IdentityStore.instanceRoot(host, active)
+            getString(R.string.setting_data_dir_path, IdentityStore.instanceRoot(host, active))
         }
 
         val state = GameBridgeClient.get().runtimeState()
         binding.runtimeLine.text = when {
-            state.startsWith(GameRuntime.FAILED_PREFIX) -> "运行时装配失败：" + state.substring(GameRuntime.FAILED_PREFIX.length)
-            state == GameRuntime.READY -> "运行中 · 进程 " + GameBridgeClient.get().gamePid()
-            state == GameRuntime.ASSEMBLING -> "正在装配运行时…"
-            else -> "运行时未启动"
+            state.startsWith(GameRuntime.FAILED_PREFIX) -> getString(R.string.setting_runtime_failed, state.substring(GameRuntime.FAILED_PREFIX.length))
+            state == GameRuntime.READY -> getString(R.string.setting_runtime_running, GameBridgeClient.get().gamePid())
+            state == GameRuntime.ASSEMBLING -> getString(R.string.setting_runtime_assembling)
+            else -> getString(R.string.setting_runtime_not_started)
         }
         binding.hookLine.text = GameBridgeClient.get().hookStats()
     }
@@ -88,7 +88,7 @@ class SettingFragment : Fragment() {
             val host = requireContext().applicationContext
             IdentityStore.setMode(host, if (checked) IdentityStore.MODE_SHARED else IdentityStore.MODE_ISOLATED)
             bindIdentity(IdentityStore.readAccount(host))
-            Toast.makeText(host, "下次启动游戏生效", Toast.LENGTH_SHORT).show()
+            Toast.makeText(host, R.string.setting_identity_change_effect, Toast.LENGTH_SHORT).show()
         }
         binding.identityShare.setOnCheckedChangeListener(null)
         binding.identityShare.isChecked = account.shared
@@ -97,9 +97,10 @@ class SettingFragment : Fragment() {
             if (account.shared) R.string.identity_share_summary else R.string.identity_isolated_summary
         )
         binding.accountLine.text = when {
-            account.signedIn -> "已登录 · XUID " + (account.xuid ?: "未知") +
-                    " · 账号 " + (account.maskedAccount() ?: "未知")
-            else -> "未登录"
+            account.signedIn -> getString(R.string.account_setting_line_signed_in,
+                    account.xuid ?: getString(R.string.account_unknown_xuid),
+                    account.maskedAccount() ?: getString(R.string.account_unknown_xuid))
+            else -> getString(R.string.account_setting_line_not_signed_in)
         }
         binding.identityPath.text = account.root.absolutePath
     }
@@ -111,7 +112,7 @@ class SettingFragment : Fragment() {
             LauncherPrefs.setLoginInWebView(host, checked)
             Toast.makeText(
                 host,
-                if (checked) "下次登录将尝试内置 WebView" else "下次登录将使用系统浏览器",
+                if (checked) R.string.setting_webview_on_toast else R.string.setting_webview_off_toast,
                 Toast.LENGTH_SHORT
             ).show()
         }
@@ -127,22 +128,15 @@ class SettingFragment : Fragment() {
             LauncherPrefs.setAutoValidateLogin(host, checked)
         }
 
-        binding.dynamicColor.setOnCheckedChangeListener(null)
-        binding.dynamicColor.isChecked = LauncherPrefs.dynamicColor(host)
-        binding.dynamicColor.setOnCheckedChangeListener { _, checked ->
-            LauncherPrefs.setDynamicColor(host, checked)
-            Toast.makeText(host, "重启应用后生效", Toast.LENGTH_SHORT).show()
-        }
-
         binding.clearCache.setOnClickListener { confirmClearCache(host) }
     }
 
     private fun confirmClearCache(host: Context) {
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle("清除缓存")
-            .setMessage("只清除启动器自身的缓存目录，不影响游戏数据、账号或已导入的实例。确定清除？")
-            .setNegativeButton("取消", null)
-            .setPositiveButton("清除") { _, _ ->
+            .setTitle(R.string.setting_clear_cache_title)
+            .setMessage(R.string.setting_clear_cache_message)
+            .setNegativeButton(R.string.common_cancel, null)
+            .setPositiveButton(R.string.setting_clear_cache_confirm) { _, _ ->
                 Thread {
                     var freed = 0L
                     for (dir in listOfNotNull(host.cacheDir, host.externalCacheDir)) {
@@ -153,7 +147,7 @@ class SettingFragment : Fragment() {
                     }
                     val mb = freed / 1024.0 / 1024.0
                     activity?.runOnUiThread {
-                        Toast.makeText(host, "已释放 %.1f MB".format(mb), Toast.LENGTH_SHORT).show()
+                        Toast.makeText(host, getString(R.string.setting_cache_freed, mb), Toast.LENGTH_SHORT).show()
                     }
                 }.apply { name = "clear-cache" }.start()
             }
