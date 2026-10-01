@@ -41,6 +41,15 @@ public class AbiUtils {
     }
   }
 
+  /**
+   * True when an abi string names a 64-bit ABI (arm64-v8a, x86_64). Used to compare an instance's
+   * extracted library set against the bitness of the process that would host it — a 32-bit-only
+   * game cannot be loaded into a 64-bit process, and vice versa.
+   */
+  public static boolean is64BitAbi(String abi) {
+    return abi != null && abi.contains("64");
+  }
+
   public AbiUtils(File apkFile) {
     ZipFile zipFile = null;
     try {

@@ -178,6 +178,8 @@
     <!-- Home fragment -->
     <string name="home_arch_64">64 位</string>
     <string name="home_arch_32">32 位</string>
+    <string name="home_arch_mismatch_title">位数不匹配</string>
+    <string name="home_arch_mismatch">%1$s 的库是 %2$s，但启动器当前以 %3$s 运行，位数不同无法加载游戏。Android 上一个应用只能整体以 32 位或 64 位运行，请改用 %3$s 的安装包（多数新版基岩版同时含两种库），或安装 %2$s 版启动器。</string>
     <string name="home_runtime_failed">运行时装配失败：%s</string>
     <string name="home_runtime_running">运行中 · 进程 %d</string>
     <string name="home_runtime_assembling">正在装配运行时…</string>

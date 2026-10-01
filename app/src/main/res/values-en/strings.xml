@@ -178,6 +178,8 @@
     <!-- Home fragment -->
     <string name="home_arch_64">64-bit</string>
     <string name="home_arch_32">32-bit</string>
+    <string name="home_arch_mismatch_title">Architecture mismatch</string>
+    <string name="home_arch_mismatch">%1$s ships %2$s libraries, but the launcher is running as %3$s, so the game cannot be loaded. An Android app runs entirely as 32-bit or 64-bit; use a %3$s build (most recent Bedrock APKs carry both), or install a %2$s launcher.</string>
     <string name="home_runtime_failed">Runtime assembly failed: %s</string>
     <string name="home_runtime_running">Running · pid %d</string>
     <string name="home_runtime_assembling">Assembling runtime…</string>

@@ -25,6 +25,7 @@ import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.core.manager.IdentityStore;
 import com.answer.launcher.core.manager.Instance;
 import com.answer.launcher.core.manager.InstanceStore;
+import com.answer.launcher.core.tool.AbiUtils;
 import com.answer.launcher.R;
 import com.answer.launcher.databinding.FragmentHomeBinding;
 import com.answer.launcher.ui.AvatarLoader;
@@ -100,8 +101,7 @@ public class HomeFragment extends Fragment {
 
         String version = guestVersion(host);
         binding.versionLabel.setText(version == null ? "VERSION" : version);
-        binding.archLabel.setText(Build.SUPPORTED_ABIS.length > 0
-                ? (Build.SUPPORTED_ABIS[0].contains("64") ? getString(R.string.home_arch_64) : getString(R.string.home_arch_32)) : "ARCH");
+        binding.archLabel.setText(archLabel(host));
 
         String state = GameBridgeClient.get().runtimeState();
         int pid = GameBridgeClient.get().gamePid();
@@ -164,6 +164,45 @@ public class HomeFragment extends Fragment {
 
     private static boolean sameId(String a, String b) {
         return a == null ? b == null : a.equals(b);
+    }
+
+    /** The arch chip: the bitness of the instance that will actually boot, not the device's. */
+    private String archLabel(Context host) {
+        Instance active = InstanceStore.getActiveInstance(host);
+        String abi = active != null && active.abi != null && !active.abi.isEmpty()
+                ? active.abi
+                : (Build.SUPPORTED_ABIS.length > 0 ? Build.SUPPORTED_ABIS[0] : "");
+        if (abi.isEmpty()) {
+            return "ARCH";
+        }
+        return getString(AbiUtils.is64BitAbi(abi) ? R.string.home_arch_64 : R.string.home_arch_32);
+    }
+
+    /**
+     * A readable reason the selected instance cannot boot in this process, or null when it can.
+     *
+     * <p>An Android app runs every one of its processes at a single bitness, chosen at install
+     * from the ABIs it ships — so the {@code :game} process that hosts the guest is 64-bit here
+     * because the launcher carries {@code arm64-v8a}. A game whose extracted libraries are only
+     * 32-bit cannot be {@code dlopen}ed into that process (and the reverse). Rather than let the
+     * launch die in a native SIGSEGV, the button refuses up front and says what to do about it.
+     */
+    private String abiMismatchMessage() {
+        Context host = requireContext();
+        Instance active = InstanceStore.getActiveInstance(host);
+        if (active == null || active.abi == null || active.abi.isEmpty()) {
+            return null;
+        }
+        boolean game64 = AbiUtils.is64BitAbi(active.abi);
+        boolean proc64 = AbiUtils.is64BitCheck();
+        if (game64 == proc64) {
+            return null;
+        }
+        String gameArch = getString(game64 ? R.string.home_arch_64 : R.string.home_arch_32);
+        String procArch = getString(proc64 ? R.string.home_arch_64 : R.string.home_arch_32);
+        String label = active.label == null || active.label.trim().isEmpty()
+                ? active.id : active.label.trim();
+        return getString(R.string.home_arch_mismatch, label, gameArch, procArch);
     }
 
     /**
@@ -335,6 +374,15 @@ public class HomeFragment extends Fragment {
         binding = FragmentHomeBinding.inflate(inflater, container, false);
 
         binding.loadGame.setOnClickListener(view->{
+            String mismatch = abiMismatchMessage();
+            if (mismatch != null) {
+                new MaterialAlertDialogBuilder(requireContext())
+                        .setTitle(R.string.home_arch_mismatch_title)
+                        .setMessage(mismatch)
+                        .setPositiveButton(R.string.common_got_it, null)
+                        .show();
+                return;
+            }
             XXPermissions.with(this)
                     // 申请多个权限
                     .permission(Permission.Group.STORAGE)

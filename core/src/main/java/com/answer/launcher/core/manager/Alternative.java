@@ -351,6 +351,17 @@ public class Alternative {
                     if (instance.abi != null && !instance.abi.isEmpty()
                             && libDir != null && libDir.isDirectory()) {
                         applicationInfo.nativeLibraryDir = libDir.getAbsolutePath();
+                        // nativeloader picks the guest's library namespace from primaryCpuAbi, not
+                        // from the directory name. Without this a 32-bit instance still resolves
+                        // against the host's 64-bit ABI and fails to find its own .so (issue #45).
+                        // The field is @hide, so it is written reflectively like the others here.
+                        try {
+                            Reflector.on(ApplicationInfo.class)
+                                    .field("primaryCpuAbi").set(applicationInfo, instance.abi);
+                            Reflector.on(ApplicationInfo.class)
+                                    .field("secondaryCpuAbi").set(applicationInfo, null);
+                        } catch (Throwable ignored) {
+                        }
                     }
                     activeInstance = instance;
                 } else {
