@@ -104,6 +104,15 @@
                     android:text="@string/download_nav_release"
                     android:textAppearance="?attr/textAppearanceTitleMedium" />
 
+                <!-- The site's download page is driven by a version-family dropdown (1.10.x ..
+                     1.21.x); get_version returns the whole family for the chosen channel. -->
+                <androidx.appcompat.widget.AppCompatSpinner
+                    android:id="@+id/family_spinner"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:minWidth="96dp" />
+
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btn_refresh"
                     style="?attr/materialButtonOutlinedStyle"
@@ -113,6 +122,68 @@
                     app:icon="@drawable/ic_action_download"
                     app:iconGravity="textStart"
                     app:cornerRadius="8dp" />
+            </LinearLayout>
+
+            <!-- search_version block: last_version only ever reports the newest stable + beta, so
+                 reaching any other build means asking for one version family by number. The field
+                 gets the whole width because the hint has to show an example to be useful. -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/search_field"
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/download_search_hint"
+                    app:boxCornerRadiusBottomEnd="8dp"
+                    app:boxCornerRadiusBottomStart="8dp"
+                    app:boxCornerRadiusTopEnd="8dp"
+                    app:boxCornerRadiusTopStart="8dp">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/search_input"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:imeOptions="actionSearch"
+                        android:inputType="text"
+                        android:maxLines="1"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_search"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/download_search_button"
+                        app:icon="@drawable/ic_action_search"
+                        app:iconGravity="textStart"
+                        app:cornerRadius="8dp" />
+
+                    <!-- Only while the list is showing a search_version result: the way back to the
+                         two 最新 builds the refresh button maintains. An empty search box or another
+                         tab does the same thing. -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_show_latest"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="@string/download_show_latest"
+                        android:visibility="gone"
+                        app:cornerRadius="8dp" />
+                </LinearLayout>
             </LinearLayout>
 
             <TextView
