@@ -63,6 +63,14 @@
     <string name="account_signout_confirm_message">将清除本机保存的微软登录状态（共享模式下会同时影响所有版本），需要重新在浏览器登录才能恢复。确定退出？</string>
     <string name="account_signout_confirm_button">退出登录</string>
     <string name="account_signout_button">退出登录</string>
+    <string name="account_switch_button">切换账号</string>
+    <string name="account_switch_title">账号</string>
+    <string name="account_add_button">＋ 添加账号</string>
+    <string name="account_delete_current">删除当前账号</string>
+    <string name="account_delete_confirm">从启动器账号列表移除「%s」？不会删除游戏已写入的登录文件。</string>
+    <string name="account_switching">正在切换账号…</string>
+    <string name="account_switched">已切换，下次启动游戏生效</string>
+    <string name="account_switch_failed">切换失败，请重新登录该账号</string>
     <string name="account_signout_success">已退出登录</string>
     <string name="account_signout_partial">已退出，但部分文件未能清除</string>
     <string name="account_setting_line_signed_in">已登录 · XUID %1$s · 账号 %2$s</string>
@@ -96,9 +104,19 @@
     <string name="download_nav_release">正式版</string>
     <string name="download_nav_beta">测试版</string>
     <string name="download_reserved_coming">敬请期待</string>
+    <string name="download_search_hint">输入版本号搜索，如 26.52 或 1.26.52.3</string>
+    <string name="download_search_button">搜索</string>
+    <string name="download_search_loading">正在搜索 %1$s…</string>
+    <string name="download_search_count">搜索 %1$s：共 %2$d 个版本 · 点击选择下载网盘</string>
+    <string name="download_search_not_found">未找到该版本（%1$s）</string>
+    <string name="download_search_format_error">版本号格式不正确，请输入如 26.52 或 1.26.52.3</string>
+    <string name="download_show_latest">显示最新</string>
 
     <!-- Settings -->
     <string name="setting_rescan_notified">已通知游戏进程重新扫描</string>
+    <string name="setting_account_xuid_line">XUID %1$s · %2$s</string>
+    <string name="setting_account_state_valid">登录状态有效</string>
+    <string name="setting_account_state_local">本机登录记录（未联网验证）</string>
     <string name="setting_version_line">版本：%s</string>
     <string name="setting_version_not_installed">未安装</string>
     <string name="setting_data_dir_no_launch">本次运行的数据目录：尚未启动过任何版本</string>

@@ -63,6 +63,14 @@
     <string name="account_signout_confirm_message">This clears the Microsoft sign-in stored on this device (in shared mode it also affects all versions). You will need to sign in again in the browser. Continue?</string>
     <string name="account_signout_confirm_button">Sign out</string>
     <string name="account_signout_button">Sign out</string>
+    <string name="account_switch_button">Switch account</string>
+    <string name="account_switch_title">Accounts</string>
+    <string name="account_add_button">+ Add account</string>
+    <string name="account_delete_current">Remove current account</string>
+    <string name="account_delete_confirm">Remove "%s" from the launcher\'s account list? This does not delete the sign-in files the game already wrote.</string>
+    <string name="account_switching">Switching account…</string>
+    <string name="account_switched">Switched; takes effect on next game launch</string>
+    <string name="account_switch_failed">Switch failed — sign in to that account again</string>
     <string name="account_signout_success">Signed out</string>
     <string name="account_signout_partial">Signed out, but some files could not be removed</string>
     <string name="account_setting_line_signed_in">Signed in · XUID %1$s · Account %2$s</string>
@@ -96,9 +104,19 @@
     <string name="download_nav_release">Stable</string>
     <string name="download_nav_beta">Beta</string>
     <string name="download_reserved_coming">Coming soon</string>
+    <string name="download_search_hint">Type a version to search, e.g. 26.52 or 1.26.52.3</string>
+    <string name="download_search_button">Search</string>
+    <string name="download_search_loading">Searching %1$s…</string>
+    <string name="download_search_count">Search %1$s: %2$d versions · tap to choose a mirror</string>
+    <string name="download_search_not_found">No version matches %1$s</string>
+    <string name="download_search_format_error">Invalid version format. Try 26.52 or 1.26.52.3</string>
+    <string name="download_show_latest">Show latest</string>
 
     <!-- Settings -->
     <string name="setting_rescan_notified">Rescan requested for the game process</string>
+    <string name="setting_account_xuid_line">XUID %1$s · %2$s</string>
+    <string name="setting_account_state_valid">Sign-in is valid</string>
+    <string name="setting_account_state_local">Local record (not verified online)</string>
     <string name="setting_version_line">Version: %s</string>
     <string name="setting_version_not_installed">Not installed</string>
     <string name="setting_data_dir_no_launch">Data directory for this run: no version launched yet</string>
