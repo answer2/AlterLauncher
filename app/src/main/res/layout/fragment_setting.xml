@@ -4,21 +4,14 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/md_theme_surfaceContainerHighest"
-    android:orientation="vertical">
+    android:orientation="horizontal">
 
-    <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
+    <ScrollView
+        android:id="@+id/sidebar_scroll"
+        android:layout_width="84dp"
+        android:layout_height="match_parent"
         android:background="?attr/colorSurface"
-        app:title="@string/title_setting"
-        app:titleTextAppearance="?attr/textAppearanceTitleMedium" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:orientation="horizontal">
+        android:scrollbars="none">
 
         <LinearLayout
             android:id="@+id/sidebar"
@@ -60,6 +53,7 @@
                 <TextView style="@style/SidebarItemText" android:text="@string/setting_nav_data" />
             </LinearLayout>
         </LinearLayout>
+    </ScrollView>
 
         <ScrollView
             android:layout_width="0dp"
@@ -351,5 +345,4 @@
                 </LinearLayout>
             </LinearLayout>
         </ScrollView>
-    </LinearLayout>
 </LinearLayout>

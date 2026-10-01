@@ -4,21 +4,14 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?android:attr/colorBackground"
-    android:orientation="vertical">
+    android:orientation="horizontal">
 
-    <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
+    <ScrollView
+        android:id="@+id/sidebar_scroll"
+        android:layout_width="84dp"
+        android:layout_height="match_parent"
         android:background="?attr/colorSurface"
-        app:title="@string/title_content"
-        app:titleTextAppearance="?attr/textAppearanceTitleMedium" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:orientation="horizontal">
+        android:scrollbars="none">
 
         <LinearLayout
             android:id="@+id/sidebar"
@@ -60,18 +53,22 @@
                 <TextView style="@style/SidebarItemText" android:text="@string/content_tab_global" />
             </LinearLayout>
         </LinearLayout>
+    </ScrollView>
+
+    <FrameLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1">
 
         <FrameLayout
             android:id="@+id/content_frame"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1" />
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
 
         <TextView
             android:id="@+id/text_no_instance"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_weight="1"
             android:gravity="center"
             android:padding="32dp"
             android:text="@string/content_no_instance"
@@ -79,5 +76,5 @@
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOutline"
             android:visibility="gone" />
-    </LinearLayout>
+    </FrameLayout>
 </LinearLayout>

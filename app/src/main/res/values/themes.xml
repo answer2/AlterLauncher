@@ -60,14 +60,15 @@
   </style>
 
   <!-- Compact PCL-style left sidebar. Narrower than a NavigationRail (which is stuck
-       at an 80dp minimum) and the icons are guaranteed to render. -->
+       at an 80dp minimum) and the icons are guaranteed to render. Top-aligned so it
+       can scroll when the window is too short to show every row. -->
   <style name="Sidebar">
-    <item name="android:layout_width">84dp</item>
-    <item name="android:layout_height">match_parent</item>
+    <item name="android:layout_width">match_parent</item>
+    <item name="android:layout_height">wrap_content</item>
+    <item name="android:minHeight">0dp</item>
     <item name="android:orientation">vertical</item>
-    <item name="android:gravity">center_vertical</item>
-    <item name="android:paddingTop">8dp</item>
-    <item name="android:paddingBottom">8dp</item>
+    <item name="android:paddingTop">12dp</item>
+    <item name="android:paddingBottom">12dp</item>
     <item name="android:background">?attr/colorSurface</item>
   </style>
 
