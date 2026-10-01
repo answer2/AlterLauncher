@@ -60,6 +60,48 @@
                 android:text="@string/home_runtime_not_started"
                 android:textColor="?android:attr/textColorSecondary"
                 android:textSize="13sp" />
+
+            <!-- PCL-style launch page: the version to boot is picked here, not buried in the
+                 instance list. Tapping opens a picker over the imported installations. -->
+            <LinearLayout
+                android:id="@+id/version_selector"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_version_selector"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="12dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="6dp">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_block_grass" />
+
+                <TextView
+                    android:id="@+id/version_selector_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="Minecraft"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textSize="14sp" />
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:layout_marginStart="6dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_arrow_dropdown"
+                    app:tint="?attr/colorOnSurfaceVariant" />
+            </LinearLayout>
         </LinearLayout>
 
         <com.google.android.material.button.MaterialButton

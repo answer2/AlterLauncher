@@ -20,6 +20,14 @@
         android:orientation="horizontal"
         android:padding="16dp">
 
+        <ImageView
+            android:id="@+id/item_icon"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="12dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_block_grass" />
+
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"

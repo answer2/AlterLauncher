@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- dirt body -->
+    <path
+        android:fillColor="#7A5230"
+        android:pathData="M3,3 L21,3 L21,21 L3,21 Z" />
+    <!-- grass cap, with a few blades dripping into the dirt -->
+    <path
+        android:fillColor="#5FB842"
+        android:pathData="M3,3 L21,3 L21,8 L19,8 L19,10 L18,10 L18,8 L14,8 L14,11 L13,11 L13,8 L7,8 L7,10 L6,10 L6,8 L3,8 Z" />
+    <!-- dirt speckles -->
+    <path
+        android:fillColor="#5E3E22"
+        android:pathData="M7,13 L10,13 L10,16 L7,16 Z M14,15 L17,15 L17,18 L14,18 Z" />
+</vector>

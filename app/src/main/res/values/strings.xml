@@ -101,6 +101,7 @@
     <string name="download_api_error">接口返回错误</string>
     <string name="download_parse_error">响应解析失败: %s</string>
     <string name="download_beta_badge">测试版</string>
+    <string name="download_installed_badge">已安装</string>
     <string name="download_nav_release">正式版</string>
     <string name="download_nav_beta">测试版</string>
     <string name="download_reserved_coming">敬请期待</string>
@@ -183,6 +184,8 @@
     <string name="home_runtime_not_started">运行时未启动</string>
     <string name="home_back_to_game">回到游戏</string>
     <string name="home_version_support_chip">版本支持</string>
+    <string name="home_version_select_title">选择要启动的游戏</string>
+    <string name="home_version_system">系统安装</string>
 
     <!-- About -->
     <string name="about_rescan_requested">已请求 :game 重新扫描插件</string>

@@ -101,6 +101,7 @@
     <string name="download_api_error">API returned an error</string>
     <string name="download_parse_error">Failed to parse response: %s</string>
     <string name="download_beta_badge">Beta</string>
+    <string name="download_installed_badge">Installed</string>
     <string name="download_nav_release">Stable</string>
     <string name="download_nav_beta">Beta</string>
     <string name="download_reserved_coming">Coming soon</string>
@@ -183,6 +184,8 @@
     <string name="home_runtime_not_started">Runtime not started</string>
     <string name="home_back_to_game">Back to game</string>
     <string name="home_version_support_chip">Version support</string>
+    <string name="home_version_select_title">Select game to launch</string>
+    <string name="home_version_system">System install</string>
 
     <!-- About -->
     <string name="about_rescan_requested">Rescan requested for the :game process</string>

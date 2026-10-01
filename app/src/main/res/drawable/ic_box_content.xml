@@ -1,0 +1,16 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- isometric content box: top, left and right faces -->
+    <path
+        android:fillColor="#B0B7C0"
+        android:pathData="M12,3 L20,7 L12,11 L4,7 Z" />
+    <path
+        android:fillColor="#7A828D"
+        android:pathData="M4,7 L12,11 L12,20 L4,16 Z" />
+    <path
+        android:fillColor="#5A616B"
+        android:pathData="M20,7 L12,11 L12,20 L20,16 Z" />
+</vector>

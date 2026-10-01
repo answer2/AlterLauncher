@@ -57,6 +57,25 @@ class DownloadFragment : Fragment() {
     private var currentTab = TAB_RELEASE
     private var currentFamily = VersionApi.FAMILIES[VersionApi.FAMILIES.size - 1]
 
+    /** Version names already imported as an instance, so the list can mark them 已安装. */
+    private val installedVersions = HashSet<String>()
+
+    private fun refreshInstalled() {
+        val ctx = context ?: return
+        installedVersions.clear()
+        for (instance in com.answer.launcher.core.manager.InstanceStore.list(ctx)) {
+            if (!instance.versionName.isNullOrEmpty()) installedVersions.add(instance.versionName)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // An APK can be imported from the 实例 page while this screen is backgrounded; re-read
+        // the store so the 已安装 marks match what is actually on disk when the player returns.
+        refreshInstalled()
+        adapter?.notifyDataSetChanged()
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -108,6 +127,7 @@ class DownloadFragment : Fragment() {
         bindRow(b.navDlBehavior, TAB_RESERVED)
         bindRow(b.navDlWorld, TAB_RESERVED)
         bindRow(b.navDlPlugin, TAB_RESERVED)
+        refreshInstalled()
         select(b.navRelease)
 
         load()
@@ -357,6 +377,9 @@ class DownloadFragment : Fragment() {
             val v = shown[position]
             b.tvVersion.text = v.versionAll
             b.tvBeta.visibility = if (v.beta) View.VISIBLE else View.GONE
+            b.itemIcon.setImageResource(R.drawable.ic_block_grass)
+            b.tvInstalled.visibility =
+                if (installedVersions.contains(v.versionAll)) View.VISIBLE else View.GONE
             val date = v.updateTime.substringBefore('T')
             b.tvMeta.text = listOf(date, v.fileSize).filter { it.isNotEmpty() }
                 .joinToString("  ·  ")

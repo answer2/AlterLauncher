@@ -22,6 +22,8 @@ import com.answer.launcher.core.bridge.GameBridgeClient;
 import com.answer.launcher.core.bridge.GameRuntime;
 import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.core.manager.IdentityStore;
+import com.answer.launcher.core.manager.Instance;
+import com.answer.launcher.core.manager.InstanceStore;
 import com.answer.launcher.R;
 import com.answer.launcher.databinding.FragmentHomeBinding;
 import com.answer.launcher.ui.AvatarLoader;
@@ -37,6 +39,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.List;
 
 
@@ -104,7 +107,84 @@ public class HomeFragment extends Fragment {
             text = getString(R.string.home_runtime_not_started);
         }
         binding.runtimeStatus.setText(text);
+        binding.versionSelectorLabel.setText(versionSelectorLabel(host));
         binding.loadGame.setText(GameRuntime.READY.equals(state) ? getString(R.string.home_back_to_game) : "启动");
+    }
+
+    /** The version the launch button will boot: the active instance, or the system install. */
+    private String versionSelectorLabel(Context host) {
+        String activeId = InstanceStore.getActive(host);
+        if (activeId != null && !activeId.isEmpty()) {
+            Instance in = InstanceStore.get(host, activeId);
+            if (in != null) {
+                return instanceDisplayName(in);
+            }
+        }
+        String v = guestVersion(host);
+        return v == null || v.isEmpty()
+                ? getString(R.string.home_version_system)
+                : getString(R.string.home_version_system) + " · " + v;
+    }
+
+    /** The label the instance list uses, so the picker and the list say the same thing. */
+    private String instanceDisplayName(Instance in) {
+        String label = in.label == null || in.label.trim().isEmpty() ? in.id : in.label.trim();
+        String version = in.versionName;
+        return version == null || version.isEmpty() || version.equals(label)
+                ? label : label + " · " + version;
+    }
+
+    /**
+     * Boots-picking lives here, not just in the instance list: the launch page should say which
+     * installation the 启动 button is about to run and let it be changed without leaving the page.
+     * Content-only instances are left out — they have no APK to boot — and a running game blocks the
+     * switch, because {@code :game} resolved its data root at launch and would keep running the old
+     * one.
+     */
+    private void showVersionPicker() {
+        String state = GameBridgeClient.get().runtimeState();
+        if (GameRuntime.READY.equals(state) || GameRuntime.ASSEMBLING.equals(state)) {
+            Toast.makeText(requireContext(), R.string.account_game_running_block, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Context host = requireContext();
+        final List<Instance> launchable = new ArrayList<>();
+        for (Instance in : InstanceStore.list(host)) {
+            if (in.isLaunchable()) launchable.add(in);
+        }
+        String[] items = new String[launchable.size() + 1];
+        String systemVersion = guestVersion(host);
+        items[0] = systemVersion == null || systemVersion.isEmpty()
+                ? getString(R.string.home_version_system)
+                : getString(R.string.home_version_system) + " · " + systemVersion;
+        for (int i = 0; i < launchable.size(); i++) {
+            items[i + 1] = instanceDisplayName(launchable.get(i));
+        }
+        String activeId = InstanceStore.getActive(host);
+        int checked = 0;
+        for (int i = 0; i < launchable.size(); i++) {
+            if (launchable.get(i).id.equals(activeId)) {
+                checked = i + 1;
+                break;
+            }
+        }
+        new MaterialAlertDialogBuilder(host)
+                .setTitle(R.string.home_version_select_title)
+                .setSingleChoiceItems(items, checked, (d, which) -> {
+                    if (which == 0) {
+                        InstanceStore.clearActive(host);
+                        Toast.makeText(host, R.string.instance_switched_to_system, Toast.LENGTH_SHORT).show();
+                    } else {
+                        Instance sel = launchable.get(which - 1);
+                        InstanceStore.setActive(host, sel.id);
+                        Toast.makeText(host, getString(R.string.instance_set_active, sel.label),
+                                Toast.LENGTH_SHORT).show();
+                    }
+                    d.dismiss();
+                    refresh();
+                })
+                .setNegativeButton(R.string.common_cancel, null)
+                .show();
     }
 
     /**
@@ -335,6 +415,8 @@ public class HomeFragment extends Fragment {
          * is the single entry point for every account action (sign-in, re-login, sign-out).
          */
         binding.userImage.setOnClickListener(view -> showAccountDialog());
+
+        binding.versionSelector.setOnClickListener(view -> showVersionPicker());
 
         return binding.getRoot();
     }
