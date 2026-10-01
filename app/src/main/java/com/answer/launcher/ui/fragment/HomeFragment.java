@@ -99,7 +99,7 @@ public class HomeFragment extends Fragment {
         binding.userStatus.setText(R.string.account_checking_status);
         checkLogin(host);
 
-        String version = guestVersion(host);
+        String version = activeVersionOrSystem(host);
         binding.versionLabel.setText(version == null ? "VERSION" : version);
         binding.archLabel.setText(archLabel(host));
 
@@ -176,6 +176,15 @@ public class HomeFragment extends Fragment {
             return "ARCH";
         }
         return getString(AbiUtils.is64BitAbi(abi) ? R.string.home_arch_64 : R.string.home_arch_32);
+    }
+
+    /** The version the card shows: the active instance's, so it agrees with the dropdown. */
+    private String activeVersionOrSystem(Context host) {
+        Instance active = InstanceStore.getActiveInstance(host);
+        if (active != null && active.versionName != null && !active.versionName.isEmpty()) {
+            return active.versionName;
+        }
+        return guestVersion(host);
     }
 
     /**
