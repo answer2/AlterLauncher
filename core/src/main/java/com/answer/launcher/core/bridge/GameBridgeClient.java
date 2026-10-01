@@ -359,7 +359,7 @@ public final class GameBridgeClient {
 
     public static Intent serviceIntent() {
         return new Intent(LauncherConstants.GAME_BRIDGE_ACTION)
-                .setPackage(LauncherConstants.PACKAGE);
+                .setPackage(LauncherConstants.SELF_PACKAGE);
     }
 
     /** Last state reported by :game, or "idle" while nothing is connected. */

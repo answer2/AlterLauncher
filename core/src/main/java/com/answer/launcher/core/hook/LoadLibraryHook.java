@@ -276,7 +276,7 @@ public class LoadLibraryHook extends BaseHook {
                 return null;
             }
             ApplicationInfo hostInfo = host.getPackageManager()
-                    .getApplicationInfo(LauncherConstants.PACKAGE, 0);
+                    .getApplicationInfo(LauncherConstants.SELF_PACKAGE, 0);
             hostNativeLibraryDir = hostInfo.nativeLibraryDir;
             Log.i(TAG, "launcher native lib dir = " + hostNativeLibraryDir);
         } catch (Throwable ignored) {

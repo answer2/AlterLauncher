@@ -6,6 +6,19 @@ public class LauncherConstants {
     public static int LAUNCHER_VERSION = 1;
     public static final String PACKAGE = "com.answer.launcher";
 
+    /**
+     * The running app's package id — {@code com.answer.launcher} normally, but
+     * {@code com.answer.launcher.x32} for the 32-bit flavour (its {@code applicationIdSuffix}).
+     * Set once in {@code Application.onCreate}, before any component is started or bound.
+     *
+     * <p>Self-referential {@code ComponentName}/{@code Intent}/{@code getApplicationInfo}/data-dir
+     * calls must use THIS, not {@link #PACKAGE}. {@code PACKAGE} is the Java namespace — class
+     * names and the swap's {@code startsWith} checks — and never carries the suffix, while the
+     * installed package does. Targeting {@code PACKAGE} from the {@code .x32} build points at the
+     * <em>other</em> app's non-exported components and dies with a SecurityException.
+     */
+    public static String SELF_PACKAGE = PACKAGE;
+
 
     public static String MINECRAFTPACKAGE = "com.mojang.minecraftpe";
     public static final String MINECRAFTACTIVITY = "com.mojang.minecraftpe.MainActivity";

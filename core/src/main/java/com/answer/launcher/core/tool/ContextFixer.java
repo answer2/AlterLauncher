@@ -31,7 +31,7 @@ public class ContextFixer {
                 }
             }
 
-            String packageName = LauncherConstants.PACKAGE;
+            String packageName = LauncherConstants.SELF_PACKAGE;
 
             // Force PackageManager to be re-created against the fixed package.
             try {

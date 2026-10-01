@@ -382,7 +382,7 @@ public class IOManager {
         String packageName = context.getPackageName();
 
         try {
-            ApplicationInfo packageInfo = context.getPackageManager().getApplicationInfo(LauncherConstants.PACKAGE, 0);
+            ApplicationInfo packageInfo = context.getPackageManager().getApplicationInfo(packageName, 0);
             // The library directory is the launcher's own, shared by every
             // installation: it holds the .so files this process already mapped,
             // and isolating it would only duplicate them per version.
@@ -438,7 +438,7 @@ public class IOManager {
             if (slug != null) {
                 String gamesTarget = new File(internalRoot, "games").getAbsolutePath();
                 rule.put(packageInfo.dataDir + "/games", gamesTarget);
-                rule.put("/data/user/0/" + LauncherConstants.PACKAGE + "/games", gamesTarget);
+                rule.put("/data/user/0/" + packageName + "/games", gamesTarget);
                 if (hostData != null) {
                     rule.put(new File(hostData, "files/games").getAbsolutePath(),
                             new File(isolate(hostData, slug), "files/games").getAbsolutePath());

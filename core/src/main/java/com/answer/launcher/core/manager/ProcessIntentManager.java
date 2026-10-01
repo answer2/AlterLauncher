@@ -69,7 +69,7 @@ public class ProcessIntentManager extends Activity {
              * same process a moment later anyway.
              */
             intent.setComponent(new ComponentName(
-                    LauncherConstants.PACKAGE,
+                    LauncherConstants.SELF_PACKAGE,
                     LauncherConstants.GAME_HOST_ACTIVITY));
 
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);

@@ -19,6 +19,11 @@ public class AlterApplication extends Application{
     public void onCreate() {
         super.onCreate();
 
+        // Resolve the running package before anything binds or launches: the 32-bit flavour
+        // installs as com.answer.launcher.x32, and every self-referential component/path must
+        // target that, not the fixed namespace (issue #45).
+        LauncherConstants.SELF_PACKAGE = getPackageName();
+
         /*
          * Hidden-API exemptions and the crash handlers are per-process by design:
          * each of the two processes reflects into the framework on its own, and a

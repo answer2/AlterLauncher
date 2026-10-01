@@ -1139,7 +1139,7 @@ public class Alternative {
                             null,
                             activityThread,
                             apk,
-                            LauncherConstants.PACKAGE
+                            LauncherConstants.SELF_PACKAGE
                     );
 
             if (viaOpPackage instanceof Context) {
@@ -1568,7 +1568,7 @@ public class Alternative {
 
             intent.setComponent(
                     new ComponentName(
-                            LauncherConstants.PACKAGE,
+                            LauncherConstants.SELF_PACKAGE,
                             LauncherConstants.GAME_HOST_ACTIVITY
                     )
             );
