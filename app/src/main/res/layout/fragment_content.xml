@@ -76,34 +76,21 @@
             android:id="@+id/instance_picker"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="?attr/selectableItemBackground"
-            android:clickable="true"
-            android:focusable="true"
             android:gravity="center_vertical"
             android:minHeight="44dp"
             android:orientation="horizontal"
-            android:paddingStart="16dp"
-            android:paddingTop="8dp"
+            android:paddingStart="12dp"
+            android:paddingTop="4dp"
             android:paddingEnd="16dp"
-            android:paddingBottom="8dp">
+            android:paddingBottom="4dp">
 
-            <TextView
-                android:id="@+id/text_managing_instance"
+            <androidx.appcompat.widget.AppCompatSpinner
+                android:id="@+id/instance_spinner"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textAppearance="?attr/textAppearanceBodyMedium"
-                android:textColor="?attr/colorOnSurface" />
-
-            <ImageView
-                android:layout_width="18dp"
-                android:layout_height="18dp"
-                android:layout_marginStart="8dp"
-                android:src="@drawable/ic_arrow_dropdown"
-                android:contentDescription="@null"
-                android:tint="@color/sidebar_item_text" />
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp" />
         </LinearLayout>
 
         <FrameLayout

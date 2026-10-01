@@ -9,6 +9,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -27,6 +28,7 @@ import com.answer.launcher.core.manager.InstanceStore;
 import com.answer.launcher.R;
 import com.answer.launcher.databinding.FragmentHomeBinding;
 import com.answer.launcher.ui.AvatarLoader;
+import com.answer.launcher.ui.InstanceSpinnerAdapter;
 import com.answer.launcher.ui.SignInSheet;
 import com.answer.launcher.ui.LauncherPrefs;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -46,6 +48,13 @@ import java.util.List;
 
 public class HomeFragment extends Fragment {
     private FragmentHomeBinding binding;
+
+    /** The launch-page version dropdown. Its rows are rebuilt on every {@link #refresh()}. */
+    private InstanceSpinnerAdapter versionAdapter;
+    /** True while {@link #refreshVersionSpinner} reprograms the selection, so the listener stays quiet. */
+    private boolean spinnerSuppress = false;
+    /** The instance id the dropdown currently reflects; used to ignore no-op re-selections. */
+    private String appliedActiveId = null;
 
     /** Guards against stacking a second network validity probe when one is already running. */
     private boolean accountCheckInFlight = false;
@@ -107,23 +116,8 @@ public class HomeFragment extends Fragment {
             text = getString(R.string.home_runtime_not_started);
         }
         binding.runtimeStatus.setText(text);
-        binding.versionSelectorLabel.setText(versionSelectorLabel(host));
+        refreshVersionSpinner(host, state);
         binding.loadGame.setText(GameRuntime.READY.equals(state) ? getString(R.string.home_back_to_game) : "启动");
-    }
-
-    /** The version the launch button will boot: the active instance, or the system install. */
-    private String versionSelectorLabel(Context host) {
-        String activeId = InstanceStore.getActive(host);
-        if (activeId != null && !activeId.isEmpty()) {
-            Instance in = InstanceStore.get(host, activeId);
-            if (in != null) {
-                return instanceDisplayName(in);
-            }
-        }
-        String v = guestVersion(host);
-        return v == null || v.isEmpty()
-                ? getString(R.string.home_version_system)
-                : getString(R.string.home_version_system) + " · " + v;
     }
 
     /** The label the instance list uses, so the picker and the list say the same thing. */
@@ -135,56 +129,41 @@ public class HomeFragment extends Fragment {
     }
 
     /**
-     * Boots-picking lives here, not just in the instance list: the launch page should say which
-     * installation the 启动 button is about to run and let it be changed without leaving the page.
-     * Content-only instances are left out — they have no APK to boot — and a running game blocks the
-     * switch, because {@code :game} resolved its data root at launch and would keep running the old
-     * one.
+     * The version the 启动 button will boot, as a dropdown: the system install plus every
+     * launchable instance. Content-only instances are left out (they have no APK to boot), and a
+     * running game disables the control — {@code :game} resolved its data root at launch, so
+     * switching now would not move the process that is already up.
      */
-    private void showVersionPicker() {
-        String state = GameBridgeClient.get().runtimeState();
-        if (GameRuntime.READY.equals(state) || GameRuntime.ASSEMBLING.equals(state)) {
-            Toast.makeText(requireContext(), R.string.account_game_running_block, Toast.LENGTH_SHORT).show();
+    private void refreshVersionSpinner(Context host, String state) {
+        if (versionAdapter == null) {
             return;
         }
-        Context host = requireContext();
-        final List<Instance> launchable = new ArrayList<>();
+        spinnerSuppress = true;
+        List<InstanceSpinnerAdapter.Item> items = new ArrayList<>();
+        String sysVersion = guestVersion(host);
+        items.add(new InstanceSpinnerAdapter.Item(null,
+                sysVersion == null || sysVersion.isEmpty()
+                        ? getString(R.string.home_version_system)
+                        : getString(R.string.home_version_system) + " · " + sysVersion,
+                R.drawable.mincraft));
         for (Instance in : InstanceStore.list(host)) {
-            if (in.isLaunchable()) launchable.add(in);
-        }
-        String[] items = new String[launchable.size() + 1];
-        String systemVersion = guestVersion(host);
-        items[0] = systemVersion == null || systemVersion.isEmpty()
-                ? getString(R.string.home_version_system)
-                : getString(R.string.home_version_system) + " · " + systemVersion;
-        for (int i = 0; i < launchable.size(); i++) {
-            items[i + 1] = instanceDisplayName(launchable.get(i));
-        }
-        String activeId = InstanceStore.getActive(host);
-        int checked = 0;
-        for (int i = 0; i < launchable.size(); i++) {
-            if (launchable.get(i).id.equals(activeId)) {
-                checked = i + 1;
-                break;
+            if (in.isLaunchable()) {
+                items.add(new InstanceSpinnerAdapter.Item(in.id, instanceDisplayName(in),
+                        R.drawable.mincraft));
             }
         }
-        new MaterialAlertDialogBuilder(host)
-                .setTitle(R.string.home_version_select_title)
-                .setSingleChoiceItems(items, checked, (d, which) -> {
-                    if (which == 0) {
-                        InstanceStore.clearActive(host);
-                        Toast.makeText(host, R.string.instance_switched_to_system, Toast.LENGTH_SHORT).show();
-                    } else {
-                        Instance sel = launchable.get(which - 1);
-                        InstanceStore.setActive(host, sel.id);
-                        Toast.makeText(host, getString(R.string.instance_set_active, sel.label),
-                                Toast.LENGTH_SHORT).show();
-                    }
-                    d.dismiss();
-                    refresh();
-                })
-                .setNegativeButton(R.string.common_cancel, null)
-                .show();
+        versionAdapter.setItems(items);
+        String activeId = InstanceStore.getActive(host);
+        boolean hasActive = activeId != null && !activeId.isEmpty();
+        binding.versionSpinner.setSelection(versionAdapter.indexOfId(hasActive ? activeId : null));
+        appliedActiveId = hasActive ? activeId : null;
+        binding.versionSpinner.setEnabled(
+                !GameRuntime.READY.equals(state) && !GameRuntime.ASSEMBLING.equals(state));
+        spinnerSuppress = false;
+    }
+
+    private static boolean sameId(String a, String b) {
+        return a == null ? b == null : a.equals(b);
     }
 
     /**
@@ -416,7 +395,41 @@ public class HomeFragment extends Fragment {
          */
         binding.userImage.setOnClickListener(view -> showAccountDialog());
 
-        binding.versionSelector.setOnClickListener(view -> showVersionPicker());
+        versionAdapter = new InstanceSpinnerAdapter(requireContext());
+        binding.versionSpinner.setAdapter(versionAdapter);
+        binding.versionSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (spinnerSuppress) {
+                    return;
+                }
+                InstanceSpinnerAdapter.Item item = versionAdapter.getItemAt(position);
+                if (item == null || sameId(item.id, appliedActiveId)) {
+                    return;
+                }
+                String state = GameBridgeClient.get().runtimeState();
+                if (GameRuntime.READY.equals(state) || GameRuntime.ASSEMBLING.equals(state)) {
+                    Toast.makeText(requireContext(), R.string.account_game_running_block,
+                            Toast.LENGTH_SHORT).show();
+                    refresh();
+                    return;
+                }
+                Context host = requireContext();
+                if (item.id == null) {
+                    InstanceStore.clearActive(host);
+                    Toast.makeText(host, R.string.instance_switched_to_system, Toast.LENGTH_SHORT).show();
+                } else {
+                    InstanceStore.setActive(host, item.id);
+                    Toast.makeText(host, getString(R.string.instance_set_active, item.label),
+                            Toast.LENGTH_SHORT).show();
+                }
+                appliedActiveId = item.id;
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
 
         return binding.getRoot();
     }

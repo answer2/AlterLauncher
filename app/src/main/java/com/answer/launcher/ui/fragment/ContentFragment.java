@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -18,7 +19,7 @@ import com.answer.launcher.core.manager.IdentityStore;
 import com.answer.launcher.core.manager.Instance;
 import com.answer.launcher.core.manager.InstanceStore;
 import com.answer.launcher.databinding.FragmentContentBinding;
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.answer.launcher.ui.InstanceSpinnerAdapter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,6 +48,11 @@ public class ContentFragment extends Fragment {
 
     private FragmentContentBinding binding;
     private View selectedItem;
+
+    /** The header dropdown that picks which installation the sidebar manages (task #33/#44). */
+    private InstanceSpinnerAdapter instanceAdapter;
+    /** True while the adapter is reprogrammed, so a rebuild does not look like a user choice. */
+    private boolean spinnerSuppress;
 
     /** The instance being managed; null means the active one, which is the default choice. */
     private String selectedSlug;
@@ -77,7 +83,20 @@ public class ContentFragment extends Fragment {
         bindRow(binding.navBehavior, PAGE_BEHAVIOR);
         bindRow(binding.navGlobal, PAGE_GLOBAL);
         bindRow(binding.navPlugin, PAGE_PLUGIN);
-        binding.instancePicker.setOnClickListener(v -> showInstancePicker());
+        instanceAdapter = new InstanceSpinnerAdapter(requireContext());
+        binding.instanceSpinner.setAdapter(instanceAdapter);
+        binding.instanceSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (spinnerSuppress) return;
+                InstanceSpinnerAdapter.Item item = instanceAdapter.getItemAt(position);
+                if (item != null) chooseInstance(item.id);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
         updateHeader();
         select(binding.navWorlds);
     }
@@ -186,32 +205,6 @@ public class ContentFragment extends Fragment {
         return activeSlug;
     }
 
-    private void showInstancePicker() {
-        if (getContext() == null) return;
-        if (instances.isEmpty()) {
-            toast(getString(R.string.content_no_instance_list));
-            return;
-        }
-        final String current = currentSlug();
-        String[] items = new String[instances.size()];
-        int checked = -1;
-        for (int i = 0; i < instances.size(); i++) {
-            Instance in = instances.get(i);
-            String label = labelOf(in);
-            items[i] = in.id.equals(activeSlug)
-                    ? label + " · " + getString(R.string.instance_active_chip) : label;
-            if (in.id.equals(current)) checked = i;
-        }
-        new MaterialAlertDialogBuilder(requireContext())
-                .setTitle(R.string.content_pick_instance_title)
-                .setSingleChoiceItems(items, checked, (dialog, which) -> {
-                    dialog.dismiss();
-                    chooseInstance(instances.get(which).id);
-                })
-                .setNegativeButton(R.string.common_cancel, null)
-                .show();
-    }
-
     private void chooseInstance(String slug) {
         if (slug == null || slug.equals(currentSlug())) return;
         selectedSlug = slug;
@@ -222,10 +215,18 @@ public class ContentFragment extends Fragment {
         updateAvailability();
     }
 
+    /** Rebuilds the header dropdown from the loaded instances and selects the one being managed. */
     private void updateHeader() {
-        if (binding == null) return;
-        binding.textManagingInstance.setText(
-                getString(R.string.content_managing_instance, displayName(currentSlug())));
+        if (binding == null || instanceAdapter == null) return;
+        spinnerSuppress = true;
+        List<InstanceSpinnerAdapter.Item> items = new ArrayList<>();
+        for (Instance in : instances) {
+            items.add(new InstanceSpinnerAdapter.Item(in.id, labelOf(in),
+                    in.isContentOnly() ? R.drawable.ic_box_content : R.drawable.mincraft));
+        }
+        instanceAdapter.setItems(items);
+        binding.instanceSpinner.setSelection(instanceAdapter.indexOfId(currentSlug()));
+        spinnerSuppress = false;
     }
 
     /** The header's short name for one instance: its label, plus the version it holds. */
@@ -234,17 +235,6 @@ public class ContentFragment extends Fragment {
         String version = in.versionName;
         return version == null || version.isEmpty() || version.equals(name)
                 ? name : name + " · " + version;
-    }
-
-    private String displayName(@Nullable String slug) {
-        if (slug == null) slug = activeSlug;
-        if (slug == null) return getString(R.string.content_unknown);
-        for (Instance in : instances) {
-            if (slug.equals(in.id)) return labelOf(in);
-        }
-        // A data root the store cannot describe: the system package booted without an
-        // imported instance. The slug is still the right thing to show.
-        return slug;
     }
 
     /**

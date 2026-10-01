@@ -377,7 +377,7 @@ class DownloadFragment : Fragment() {
             val v = shown[position]
             b.tvVersion.text = v.versionAll
             b.tvBeta.visibility = if (v.beta) View.VISIBLE else View.GONE
-            b.itemIcon.setImageResource(R.drawable.ic_block_grass)
+            b.itemIcon.setImageResource(R.drawable.mincraft)
             b.tvInstalled.visibility =
                 if (installedVersions.contains(v.versionAll)) View.VISIBLE else View.GONE
             val date = v.updateTime.substringBefore('T')

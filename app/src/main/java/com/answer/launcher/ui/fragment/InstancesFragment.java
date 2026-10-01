@@ -390,7 +390,7 @@ public class InstancesFragment extends Fragment {
             }
             Instance in = instances.get(position);
             b.itemIcon.setImageResource(in.isContentOnly()
-                    ? R.drawable.ic_box_content : R.drawable.ic_block_grass);
+                    ? R.drawable.ic_box_content : R.drawable.mincraft);
             b.tvLabel.setText(in.label);
             String sub = getString(R.string.instance_subtitle_format, in.versionName,
                     in.abi == null || in.abi.isEmpty() ? getString(R.string.instance_no_native_libs) : in.abi,
