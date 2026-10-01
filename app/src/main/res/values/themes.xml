@@ -58,6 +58,47 @@
     <item name="cornerFamily">rounded</item>
     <item name="cornerSize">8dp</item>
   </style>
+
+  <!-- Compact PCL-style left sidebar. Narrower than a NavigationRail (which is stuck
+       at an 80dp minimum) and the icons are guaranteed to render. -->
+  <style name="Sidebar">
+    <item name="android:layout_width">84dp</item>
+    <item name="android:layout_height">match_parent</item>
+    <item name="android:orientation">vertical</item>
+    <item name="android:gravity">center_vertical</item>
+    <item name="android:paddingTop">8dp</item>
+    <item name="android:paddingBottom">8dp</item>
+    <item name="android:background">?attr/colorSurface</item>
+  </style>
+
+  <style name="SidebarItem">
+    <item name="android:layout_width">match_parent</item>
+    <item name="android:layout_height">wrap_content</item>
+    <item name="android:layout_marginHorizontal">8dp</item>
+    <item name="android:layout_marginVertical">3dp</item>
+    <item name="android:orientation">vertical</item>
+    <item name="android:gravity">center</item>
+    <item name="android:paddingVertical">8dp</item>
+    <item name="android:background">@drawable/bg_sidebar_item</item>
+    <item name="android:clickable">true</item>
+    <item name="android:focusable">true</item>
+  </style>
+
+  <style name="SidebarItemIcon">
+    <item name="android:layout_width">22dp</item>
+    <item name="android:layout_height">22dp</item>
+    <item name="android:tint">@color/sidebar_item_text</item>
+  </style>
+
+  <style name="SidebarItemText">
+    <item name="android:layout_width">wrap_content</item>
+    <item name="android:layout_height">wrap_content</item>
+    <item name="android:layout_marginTop">3dp</item>
+    <item name="android:textSize">11sp</item>
+    <item name="android:maxLines">1</item>
+    <item name="android:ellipsize">end</item>
+    <item name="android:textColor">@color/sidebar_item_text</item>
+  </style>
   <!-- Base application theme. -->
     <style name="Base.AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Customize your light theme here. -->

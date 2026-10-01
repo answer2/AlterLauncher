@@ -36,15 +36,28 @@ class SettingFragment : Fragment() {
             GameBridgeClient.get().reloadPlugins()
             Toast.makeText(requireContext(), R.string.setting_rescan_notified, Toast.LENGTH_SHORT).show()
         }
-        binding.navRail.setOnItemSelectedListener { item ->
-            showGroup(item.itemId)
-            true
-        }
-        showGroup(R.id.nav_account)
+        bindRow(binding.navAccount, R.id.nav_account)
+        bindRow(binding.navLogin, R.id.nav_login)
+        bindRow(binding.navAppearance, R.id.nav_appearance)
+        bindRow(binding.navData, R.id.nav_data)
+        selectRow(binding.navAccount)
         return binding.root;
     }
 
-    /** PCL-style single-pane switch: only the selected section's cards are shown. */
+    private fun bindRow(row: android.view.View, id: Int) {
+        row.setOnClickListener { selectRow(row) }
+        row.tag = id
+    }
+
+    /** PCL-style single-pane switch: highlight the active row, show only its cards. */
+    private fun selectRow(row: android.view.View) {
+        sidebarRows().forEach { it.isActivated = (it === row) }
+        showGroup(row.tag as Int)
+    }
+
+    private fun sidebarRows(): List<android.view.View> =
+        listOf(binding.navAccount, binding.navLogin, binding.navAppearance, binding.navData)
+
     private fun showGroup(id: Int) {
         binding.groupAccount.visibility = if (id == R.id.nav_account) View.VISIBLE else View.GONE
         binding.groupLogin.visibility = if (id == R.id.nav_login) View.VISIBLE else View.GONE

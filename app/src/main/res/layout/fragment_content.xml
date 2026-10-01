@@ -20,14 +20,46 @@
         android:layout_weight="1"
         android:orientation="horizontal">
 
-        <com.google.android.material.navigationrail.NavigationRailView
-            android:id="@+id/nav_rail"
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:background="?attr/colorSurface"
-            app:labelVisibilityMode="labeled"
-            app:menu="@menu/menu_content_nav"
-            app:menuGravity="center" />
+        <LinearLayout
+            android:id="@+id/sidebar"
+            style="@style/Sidebar">
+
+            <LinearLayout
+                android:id="@+id/nav_worlds"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_nav_world" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/content_tab_worlds" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/nav_resource"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_nav_resource" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/content_tab_resource" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/nav_behavior"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_nav_behavior" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/content_tab_behavior" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/nav_global"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_nav_global" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/content_tab_global" />
+            </LinearLayout>
+        </LinearLayout>
 
         <FrameLayout
             android:id="@+id/content_frame"

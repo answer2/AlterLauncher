@@ -20,14 +20,46 @@
         android:layout_weight="1"
         android:orientation="horizontal">
 
-        <com.google.android.material.navigationrail.NavigationRailView
-            android:id="@+id/nav_rail"
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:background="?attr/colorSurface"
-            app:labelVisibilityMode="labeled"
-            app:menu="@menu/menu_setting_nav"
-            app:menuGravity="center" />
+        <LinearLayout
+            android:id="@+id/sidebar"
+            style="@style/Sidebar">
+
+            <LinearLayout
+                android:id="@+id/nav_account"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_account_circle" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/setting_nav_account" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/nav_login"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_nav_resource" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/setting_nav_login" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/nav_appearance"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_nav_behavior" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/setting_nav_appearance" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/nav_data"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_nav_world" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/setting_nav_data" />
+            </LinearLayout>
+        </LinearLayout>
 
         <ScrollView
             android:layout_width="0dp"
