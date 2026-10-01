@@ -1,5 +1,6 @@
 #include <mcpe/ClientInstance.h>
 
+#include <android/log.h>
 #include <cstring>
 #include <vector>
 
@@ -90,6 +91,32 @@ Handle ClientInstance::getCamera() const {
 
 Handle ClientInstance::getOptions() const {
     if (self_ == 0) return Handle{};
+    // 1. Inline sub-object. On 1.26.x the getter body is `add x0,x0,#<off>; ret`
+    //    - Options is constructed in place inside ClientInstance, so the pinned
+    //    offset is the SUB-OBJECT address, not a stored pointer. A pointer scan
+    //    can never find it (it is not referenced by any pointer), which is why
+    //    this getter used to fall straight into the fragile cross-version virtual
+    //    and take the host down. Certify the vtable that sits AT ci+off before
+    //    publishing it - the same structural, read-only rung GuiData uses, and no
+    //    call into the game.
+    uintptr_t subOff = 0;
+    if (dataPin("optionsField", &subOff)) {
+        uintptr_t cand = self_ + subOff;
+        uintptr_t vt = 0;
+        if (safeReadPtr(cand, 0, &vt) && inGuestLib(vt)) {
+            const std::vector<uintptr_t> &tables = tablesFor("Options");
+            if (tables.empty() ||
+                Reflection::vtableMatchesAny(cand, tables.data(), tables.size()))
+                return Handle{cand, "sub"};
+        }
+    }
+    // 2. Pointer-member build (a version that stores Options* at the pin):
+    //    fieldByPinOrScan dereferences + RTTI-validates, still read-only.
+    Handle pinned = fieldByPinOrScan(self_, "optionsField", "Options");
+    if (pinned.ptr != 0) return pinned;
+    // 3. Last resort only: the pinned virtual, unchanged. A build whose getter
+    //    neither inlines Options nor stores it as a scanned pointer still works,
+    //    but no 1.26.x build ever reaches it now.
     const HookRules::Rule *rule = GameSdk::rule();
     size_t slot = 0;
     if (rule && rule->lookupVtable(std::string("clientInstanceGetOptions"), nullptr, &slot)) {
@@ -104,7 +131,7 @@ Handle ClientInstance::getOptions() const {
             }
         }
     }
-    return fieldByPinOrScan(self_, "optionsField", "Options");
+    return Handle{};
 }
 
 Handle ClientInstance::getLocalPlayer() const {
@@ -122,12 +149,35 @@ Handle ClientInstance::getLocalPlayer() const {
     Handle pinned = fieldByPinOrScan(self_, "localPlayerField", "LocalPlayer");
     if (pinned.ptr != 0) return pinned;
 
-    // 2. The pinned virtual. Its AArch64 body (1.26.45.1, 0x9443364, 112 bytes)
-    //    is:  mov x8,x0            <- `this` scratch, NOT a struct-return buffer
-    //          copy the ref at this+0x218 into a 0x19-byte local,
-    //          test the local's +0x18 flag, and on the empty path `mov x0,xzr`
-    //          before `ret`. The value therefore leaves in x0, so the plain
-    //          uintptr_t(*)(void*) trampoline below is the correct ABI.
+    // 2. The same function by signature FIRST. The pattern is byte-matched
+    //    against THIS exact mapping, so it lands on the real getter even where
+    //    the reference/BedrockTools slot number has shifted - which is precisely
+    //    what faulted the game process when the slot rung ran ahead of it
+    //    (slot 32 is getLocalPlayer in the reference table, but not at offset
+    //    32 of the runtime primary vtable on 1.26.45.1). Identical body, so the
+    //    plain uintptr_t(*)(void*) trampoline is the correct ABI and every
+    //    result still passes looksLikePlayer.
+    uintptr_t sigFn = SigScanner::resolve(std::string("clientInstanceGetLocalPlayer"));
+    if (sigFn != 0 && inExec(sigFn)) {
+        using Fn = uintptr_t (*)(void *);
+        uintptr_t result = reinterpret_cast<Fn>(sigFn)(reinterpret_cast<void *>(self_));
+        uintptr_t vt = 0;
+        bool vtOk = result != 0 && safeReadPtr(result, 0, &vt);
+        __android_log_print(ANDROID_LOG_INFO, "AlterSelfTest",
+                            "lp-sig probe: fn=%p result=%p writable=%d vt=%p guestVt=%d "
+                            "looksPlayer=%d",
+                            reinterpret_cast<void *>(sigFn), reinterpret_cast<void *>(result),
+                            result != 0 && inWritable(result) ? 1 : 0, reinterpret_cast<void *>(vt),
+                            vtOk && inGuestLib(vt) ? 1 : 0, looksLikePlayer(result) ? 1 : 0);
+        if (result != 0 && inWritable(result) && looksLikePlayer(result))
+            return Handle{result, "sig"};
+    }
+    // 3. Last resort: the pinned vtable virtual, only for a build that carries
+    //    neither the pattern nor a plain member. Its AArch64 body (1.26.45.1,
+    //    0x9443364, 112 bytes) is `mov x8,x0` (this scratch), copy the ref at
+    //    this+0x218 into a 0x19-byte local, test the local's +0x18 flag, and on
+    //    the empty path `mov x0,xzr; ret` - value leaves in x0, so the plain
+    //    trampoline ABI holds.
     const HookRules::Rule *rule = GameSdk::rule();
     size_t slot = 0;
     if (rule && rule->lookupVtable(std::string("clientInstanceGetLocalPlayerVt"), nullptr, &slot)) {
@@ -142,15 +192,6 @@ Handle ClientInstance::getLocalPlayer() const {
                     return Handle{result, "vcall"};
             }
         }
-    }
-    // 3. The same function by signature, for a build where the slot number
-    //    moved but the body did not. Identical ABI, identical checks.
-    uintptr_t sigFn = SigScanner::resolve(std::string("clientInstanceGetLocalPlayer"));
-    if (sigFn != 0 && inExec(sigFn)) {
-        using Fn = uintptr_t (*)(void *);
-        uintptr_t result = reinterpret_cast<Fn>(sigFn)(reinterpret_cast<void *>(self_));
-        if (result != 0 && inWritable(result) && looksLikePlayer(result))
-            return Handle{result, "sig"};
     }
     return Handle{};
 }

@@ -286,20 +286,25 @@ void selfTest() {
             STLOG("windowSize FAIL (pin dat.guiDataWindowSize)");
     }
 
-    // ClientInstance subsystem handles.
+    // ClientInstance subsystem handles. Resolved ONE AT A TIME, each announced
+    // before the call: some getters make a validated virtual call into the game,
+    // and a diagnostic must never be able to take the host down without saying
+    // which step it was on. The "calling" line is the crash boundary - the last
+    // one without a matching result names the faulting getter.
     ClientInstance ci(GameSdk::clientInstance());
-    struct { const char *name; Handle h; } subs[] = {
-        {"minecraft", ci.minecraft()},
-        {"levelRenderer", ci.levelRenderer()},
-        {"loopbackPacketSender", ci.loopbackPacketSender()},
-        {"getOptions", ci.getOptions()},
-        {"getRegion", ci.getRegion()},
-        {"getCamera", ci.getCamera()},
-        {"getLevel", ci.getLevel()},
-        {"getLocalPlayer", ci.getLocalPlayer()},
+    auto probe = [&ci](const char *name, Handle (ClientInstance::*fn)() const) {
+        STLOG("ci.%s: calling", name);
+        Handle h = (ci.*fn)();
+        STLOG("ci.%s: %s %p", name, h.valid() ? "OK" : "--", reinterpret_cast<void *>(h.ptr));
     };
-    for (auto &s : subs)
-        STLOG("ci.%s: %s %p", s.name, s.h.valid() ? "OK" : "--", reinterpret_cast<void *>(s.h.ptr));
+    probe("minecraft", &ClientInstance::minecraft);
+    probe("levelRenderer", &ClientInstance::levelRenderer);
+    probe("loopbackPacketSender", &ClientInstance::loopbackPacketSender);
+    probe("getOptions", &ClientInstance::getOptions);
+    probe("getRegion", &ClientInstance::getRegion);
+    probe("getCamera", &ClientInstance::getCamera);
+    probe("getLevel", &ClientInstance::getLevel);
+    probe("getLocalPlayer", &ClientInstance::getLocalPlayer);
 
     // Projection math with the pinned matrix/fov.
     Mat4 m{};
@@ -339,7 +344,13 @@ void selfTest() {
         uint64_t rid = 0;
         STLOG("actor.getRuntimeID: %s", actor.getRuntimeID(&rid) ? "OK" : "-- (pin)");
         STLOG("actor.getNameTag: '%s'", actor.getNameTag().c_str());
-        STLOG("actor.isAlive: %d", actor.isAlive() ? 1 : 0);
+        // Actor::isAlive() is a virtual reached through vtable.actorIsAlive=
+        // Actor:47, an index derived by the same size-class alignment that
+        // shifted the ClientInstance slots and faulted this process twice. A
+        // self-test must never be able to take the host down, so the virtual is
+        // reported UNVERIFIED here instead of called on the game thread; it is
+        // static-audited in game-hooks.ini.
+        STLOG("actor.isAlive: -- (virtual Actor:47 not called on the game thread)");
         STLOG("actor.getDimension: %p", reinterpret_cast<void *>(actor.getDimension().ptr));
         STLOG("actor.getRegion: %p", reinterpret_cast<void *>(actor.getRegion().ptr));
         LocalPlayer me(lp);
@@ -347,7 +358,8 @@ void selfTest() {
         STLOG("lp.getHeldItem: %p", reinterpret_cast<void *>(me.getHeldItem().ptr));
         STLOG("lp.getMoveInputHandler: %p", reinterpret_cast<void *>(me.getMoveInputHandler().ptr));
     } else {
-        STLOG("localPlayer UNRESOLVED (vtable.clientInstanceGetLocalPlayerVt + sig both empty)");
+        STLOG("localPlayer UNRESOLVED (sig.clientInstanceGetLocalPlayer empty; the "
+              "ClientInstance slot rung is retired - see the rule note)");
     }
 
     // ModApi convenience layer.

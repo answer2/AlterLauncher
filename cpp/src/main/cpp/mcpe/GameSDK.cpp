@@ -232,6 +232,65 @@ bool isGuiData(uintptr_t candidate) {
     return looksLikeGuiData(candidate) || plausibleGuiData(candidate);
 }
 
+// --- read-only structural discovery of the inline GuiData sub-object --------
+// plausibleGuiData is a WEAK test (one anchor is enough) because it validates a
+// pointer we already trust. For a blind scan over ClientInstance's bytes we need
+// the opposite: a candidate is GuiData only when its independent anchors hold
+// TOGETHER - a polymorphic pane sub-object at +0xA0 whose vtable lives in the
+// guest image, BOTH begin/end deque pairs (+0x140 and +0x188), and a resolution
+// vec2 inside +0x40..+0x58 carrying plausible screen dimensions. That exact
+// conjunction is the 1.26.x HUD layout (verified at ci+0xDE0 on 1.26.45.1) and
+// is specific enough that a single surviving match across the whole object is
+// meaningful. Strictly read-only: every access is bounded by inWritable and no
+// guest function is ever called.
+static bool guiDequeAt(uintptr_t base) {
+    uintptr_t b = 0, e = 0;
+    if (!inWritable(base, 2 * sizeof(uintptr_t))) return false;
+    memcpy(&b, reinterpret_cast<const void *>(base), sizeof(b));
+    memcpy(&e, reinterpret_cast<const void *>(base + 8), sizeof(e));
+    if (b == 0 || (b & 0x7) != 0 || e < b || (e - b) > 0x10000) return false;
+    if (!inWritable(b, sizeof(uintptr_t))) return false;
+    if (e != b && !inWritable(e - 8, sizeof(uintptr_t))) return false;
+    return true;
+}
+
+static bool guiStructuralAnchors(uintptr_t cand) {
+    if (cand == 0 || (cand & 0x7) != 0 || !inWritable(cand, 0x1B0)) return false;
+
+    uintptr_t pane = 0;
+    memcpy(&pane, reinterpret_cast<const void *>(cand + 0xA0), sizeof(pane));
+    if (pane == 0 || (pane & 0x7) != 0 || !inWritable(pane, sizeof(uintptr_t))) return false;
+    uintptr_t vt = 0;
+    memcpy(&vt, reinterpret_cast<const void *>(pane), sizeof(vt));
+    if (vt == 0 || (vt & 0x7) != 0 || !inGuestLib(vt)) return false;
+
+    if (!guiDequeAt(cand + 0x140) || !guiDequeAt(cand + 0x188)) return false;
+
+    float v[6];
+    if (!inWritable(cand + 0x40, sizeof(v))) return false;
+    memcpy(v, reinterpret_cast<const void *>(cand + 0x40), sizeof(v));
+    auto ok = [](float f) { return std::isfinite(f) && f >= 100.f && f <= 20000.f; };
+    if (!((ok(v[0]) && ok(v[1])) || (ok(v[2]) && ok(v[3])) || (ok(v[4]) && ok(v[5]))))
+        return false;
+    return true;
+}
+
+// Scan a bounded window of ClientInstance for exactly one structurally-GuiData
+// region. More than one match is treated as ambiguous and rejected (fail closed),
+// so this can only ever replace the pinned sub-object path, never guess between
+// two candidates.
+static uintptr_t scanGuiDataInline(uintptr_t ci) {
+    uintptr_t found = 0;
+    int matches = 0;
+    for (uintptr_t off = 0x80; off <= 0x2000; off += 8) {
+        if (guiStructuralAnchors(ci + off)) {
+            if (++matches == 1) found = ci + off;
+        }
+    }
+    return matches == 1 ? found : 0;
+}
+
+
 // The self argument of the game's OWN last addMessage call — a proven GuiData
 // instance even when looksLikeGuiData could not certify it (subobject tables).
 uintptr_t g_lastSeenGuiData = 0;
@@ -494,32 +553,19 @@ uintptr_t guiData() {
             return candidate;
         }
     }
-    // Ladder step 2.7: empirical getter probe. No RTTI table or signature names
-    // GuiData (non-polymorphic), but it is reachable as a ClientInstance field
-    // behind a plain 'ldr x0,[x0,#off]; ret' getter. The offline .so analysis
-    // (RTTI + getter scan of all 436 CI slots) flagged these slots; the winner
-    // is logged with its slot so it can be pinned as
-    // vtable.clientInstanceGetGuiData / dat.guiDataField.
-    {
-        static const size_t kCandidateSlots[] = {101, 219, 223, 224, 249, 352, 353, 354, 355};
-        for (size_t i = 0; i < sizeof(kCandidateSlots) / sizeof(size_t); i++) {
-            size_t slot = kCandidateSlots[i];
-            if (state.ciSlots <= slot) continue;
-            uintptr_t fn = RttiLookup::slotAt(state.ciVtable, slot);
-            if (!inExec(fn)) continue;
-            uintptr_t got = reinterpret_cast<GetterFn>(fn)(reinterpret_cast<void *>(ci));
-            if (plausibleGuiData(got)) {
-                state.guiData = got;
-                state.gdSource = "probe";
-                __android_log_print(ANDROID_LOG_INFO, "Alternative_Core",
-                                    "GameSdk: GuiData %p via ClientInstance getter SLOT %zu "
-                                    "(pin vtable.clientInstanceGetGuiData=ClientInstance:%zu)",
-                                    reinterpret_cast<void *>(got), slot, slot);
-                return got;
-            }
-        }
-    }
-
+    // REMOVED "empirical getter probe": it blindly CALLED the ClientInstance
+    // vtable slots {101,219,223,224,249,352..355} with a GetterFn trampoline and
+    // only then checked plausibleGuiData. A call is not a read: on any build
+    // whose GuiData is not pinned by one of the deterministic rungs above, slot
+    // 101 (the reference's getSkinRepositoryClientInterface, NOT a GuiData
+    // getter) was invoked through the wrong ABI and segfaulted the host - fault
+    // reproduced on-device for the 1.26.5x instance. inExec/plausibility guards
+    // cannot catch it because the crash happens inside the call, before any
+    // result exists. GuiData is now acquired ONLY from a rule pin (field /
+    // inline sub-object), a validated signature, or the read-only RTTI member
+    // scan below; if none certifies it, the ladder returns 0 and the feature
+    // that needs it fails closed. Nothing guessed, and never a blind call.
+    //
     // Ladder step 3: read-only member scan of the captured object against every
     // known GuiData table — works with no pin at all, which is why the reference
     // offsets never need hardcoding.
@@ -542,6 +588,26 @@ uintptr_t guiData() {
             state.guiData = member;
             state.gdSource = "scan";
             return member;
+        }
+    }
+
+    // Ladder step 3.5: read-only STRUCTURAL scan for the inline sub-object. The
+    // 1.26.5x instances have no guiDataSubobject pin yet and their RTTI set does
+    // not always carry the live object vptr, so step 3 can miss while GuiData is
+    // plainly present in ClientInstance. This finds it by its layout alone -
+    // unique match required, no call - and the discovered offset is logged so a
+    // future rule block can pin dat.guiDataSubobject explicitly.
+    {
+        uintptr_t sub = scanGuiDataInline(ci);
+        if (sub != 0) {
+            state.guiData = sub;
+            state.gdSource = "struct";
+            __android_log_print(ANDROID_LOG_INFO, "Alternative_Core",
+                                "GameSdk: GuiData %p via read-only structural scan at "
+                                "ClientInstance+0x%llx (pin it as dat.guiDataSubobject)",
+                                reinterpret_cast<void *>(sub),
+                                (unsigned long long)(sub - ci));
+            return sub;
         }
     }
 
