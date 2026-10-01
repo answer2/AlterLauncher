@@ -164,6 +164,7 @@
     <string name="instance_delete_title">删除实例</string>
     <string name="instance_delete_confirm_message">删除「%s」？此操作不可撤销。</string>
     <string name="instance_deleted">已删除</string>
+    <string name="instance_content_not_launchable">内容实例没有安装包，不能启动；请在"内容"页管理它</string>
     <string name="instance_subtitle_format">版本 %1$s · %2$s · #%3$d</string>
     <string name="instance_no_native_libs">无 native 库</string>
     <string name="instance_not_16kb">非16KB</string>

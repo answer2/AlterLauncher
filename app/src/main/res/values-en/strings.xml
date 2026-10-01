@@ -164,6 +164,7 @@
     <string name="instance_delete_title">Delete instance</string>
     <string name="instance_delete_confirm_message">Delete "%s"? This cannot be undone.</string>
     <string name="instance_deleted">Deleted</string>
+    <string name="instance_content_not_launchable">A content instance has no APK and cannot launch; manage it from the Content page</string>
     <string name="instance_subtitle_format">Version %1$s · %2$s · #%3$d</string>
     <string name="instance_no_native_libs">No native libs</string>
     <string name="instance_not_16kb">Not 16 KB</string>

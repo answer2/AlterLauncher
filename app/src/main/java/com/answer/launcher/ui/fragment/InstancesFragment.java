@@ -159,6 +159,11 @@ public class InstancesFragment extends Fragment {
     }
 
     private void setActive(Instance in) {
+        if (in.isContentOnly()) {
+            // A content-only instance has no APK to boot; it is managed from 内容, not launched.
+            toast(getString(R.string.instance_content_not_launchable));
+            return;
+        }
         InstanceStore.setActive(requireContext(), in.id);
         toast(getString(R.string.instance_set_active, in.label));
         refresh();

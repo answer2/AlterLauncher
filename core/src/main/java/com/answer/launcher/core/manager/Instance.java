@@ -26,6 +26,16 @@ import java.util.List;
  */
 public class Instance {
 
+    /** An imported Minecraft APK — has {@code base.apk}, can be launched. */
+    public static final String TYPE_APK = "apk";
+    /**
+     * A content-only instance: a {@code games/com.mojang} data tree with no APK behind
+     * it. It exists so worlds/packs/plugins can be authored and shared independently of
+     * a specific build, and so a modpack can be imported without an APK. It is NOT
+     * launchable — {@link #isLaunchable()} is false and the launch path must refuse it.
+     */
+    public static final String TYPE_CONTENT = "content";
+
     public final String id;
     public final String label;
     public final String sourceApk;
@@ -36,12 +46,20 @@ public class Instance {
     public final boolean isolation;
     public final String account;
     public final List<String> enabledMods;
+    public final String type;
     /** Populated at import time; not persisted. */
     public transient boolean aligned16kb;
 
     public Instance(String id, String label, String sourceApk, String versionName,
                     long versionCode, String abi, long createdAt, boolean isolation,
                     String account, List<String> enabledMods) {
+        this(id, label, sourceApk, versionName, versionCode, abi, createdAt, isolation,
+                account, enabledMods, TYPE_APK);
+    }
+
+    public Instance(String id, String label, String sourceApk, String versionName,
+                    long versionCode, String abi, long createdAt, boolean isolation,
+                    String account, List<String> enabledMods, String type) {
         this.id = id;
         this.label = label;
         this.sourceApk = sourceApk;
@@ -52,6 +70,16 @@ public class Instance {
         this.isolation = isolation;
         this.account = account == null ? "" : account;
         this.enabledMods = enabledMods == null ? Collections.emptyList() : enabledMods;
+        this.type = type == null || type.isEmpty() ? TYPE_APK : type;
+    }
+
+    /** Only an APK-backed instance can boot the game; a content-only one cannot. */
+    public boolean isLaunchable() {
+        return TYPE_APK.equals(type);
+    }
+
+    public boolean isContentOnly() {
+        return TYPE_CONTENT.equals(type);
     }
 
     public File dir(File root) { return new File(root, id); }
@@ -76,6 +104,7 @@ public class Instance {
             JSONArray mods = new JSONArray();
             for (String m : enabledMods) mods.put(m);
             o.put("enabledMods", mods);
+            o.put("type", type);
         } catch (JSONException ignored) { }
         return o.toString();
     }
@@ -96,7 +125,8 @@ public class Instance {
                     o.optLong("createdAt", 0),
                     o.optBoolean("isolation", true),
                     o.optString("account", ""),
-                    mods);
+                    mods,
+                    o.optString("type", TYPE_APK));
         } catch (JSONException e) {
             return null;
         }

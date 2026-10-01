@@ -142,11 +142,51 @@ public class InstanceStore {
         return f.delete();
     }
 
-    /** Rename the human label only; the id (fs identity) never changes. */
+    /** Rename the human label only; the id (fs identity) and type never change. */
     public static boolean rename(Context ctx, String id, String newLabel) {
         Instance in = get(ctx, id);
         if (in == null) return false;
         return writeJson(ctx, new Instance(in.id, newLabel, in.sourceApk, in.versionName,
-                in.versionCode, in.abi, in.createdAt, in.isolation, in.account, in.enabledMods));
+                in.versionCode, in.abi, in.createdAt, in.isolation, in.account, in.enabledMods,
+                in.type));
+    }
+
+    /**
+     * Create a content-only instance: a {@code games/com.mojang} data tree with no APK
+     * behind it, so worlds / packs / plugins can be authored and shared independently of a
+     * build, and a modpack can be imported without one. The id is a slug containing
+     * {@code @} so {@link GameDataStore#allInstanceSlugs} and the content manager find it;
+     * the data root is created eagerly so the picker and importers have somewhere to write.
+     * Not launchable — {@link #setActive} callers and the launch path must reject it.
+     */
+    public static Instance createContentInstance(Context ctx, String label) {
+        String base = "content@" + sanitize(label == null || label.isEmpty() ? "pack" : label);
+        String id = base;
+        int n = 2;
+        while (dir(ctx, id).exists()) {
+            id = base + "-" + n++;
+        }
+        File dataRoot = new File(mcRoot(ctx), id);
+        if (!new File(dataRoot, "games/com.mojang").mkdirs()) {
+            Log.w(TAG, "cannot create content data root " + dataRoot);
+            return null;
+        }
+        Instance in = new Instance(id, label == null || label.isEmpty() ? "内容实例" : label,
+                "", "", 0L, "", System.currentTimeMillis(), true, "",
+                Collections.emptyList(), Instance.TYPE_CONTENT);
+        if (!writeJson(ctx, in)) {
+            return null;
+        }
+        return in;
+    }
+
+    private static String sanitize(String s) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (Character.isLetterOrDigit(c) || c == '.' || c == '-' || c == '_') sb.append(c);
+            else sb.append('_');
+        }
+        return sb.length() == 0 ? "pack" : sb.toString();
     }
 }
