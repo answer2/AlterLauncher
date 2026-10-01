@@ -8,7 +8,7 @@
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="6.0"
-        android:background="@color/md_theme_surfaceContainerHighest">
+        android:background="?android:attr/colorBackground">
 
         <LinearLayout
             android:id="@+id/identity_block"

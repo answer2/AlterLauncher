@@ -1,5 +1,6 @@
 package com.answer.launcher.ui.fragment
 
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -12,14 +13,13 @@ import com.answer.launcher.databinding.FragmentAboutBinding
 import com.answer.launcher.utils.CrashHandler
 
 /**
- * About page. Under the crash test button it mirrors what the `:game` process
- * reports over the AIDL bridge: runtime state, hook accounting and the plugin
- * lists.
+ * About page, PCL-style: a compact left sidebar swaps between four cards —
+ * 关于 (identity), 运行时 (live runtime state), 插件 (loaded plugins) and
+ * 鸣谢 (third-party attribution).
  *
- * Every value here is read from the other process - the UI process never
- * assembles the Minecraft runtime, and merely opening this page does not start
- * `:game` either (GameBridgeClient.bind() parks a read-only binding; only the
- * launch paths call wake()). So an empty page with "未运行" is the honest answer
+ * The runtime and plugin values are read from the `:game` process over the AIDL
+ * bridge, never from this process: the UI process only parks a read-only binding, so
+ * opening this page cannot cold-boot the runtime. An empty "未运行" answer is honest
  * when the game has not been started yet.
  */
 class AboutFragment : Fragment() {
@@ -59,7 +59,40 @@ class AboutFragment : Fragment() {
             refresh()
         }
 
+        bindRow(binding.navAbout, R.id.group_about)
+        bindRow(binding.navRuntime, R.id.group_runtime)
+        bindRow(binding.navPlugins, R.id.group_plugins)
+        bindRow(binding.navCredits, R.id.group_credits)
+        selectRow(binding.navAbout)
+        binding.appVersion.text = versionLine()
+
         return binding.root
+    }
+
+    private fun bindRow(row: View, groupId: Int) {
+        row.setOnClickListener { selectRow(row) }
+        row.tag = groupId
+    }
+
+    private fun selectRow(row: View) {
+        rows().forEach { it.isActivated = (it === row) }
+        val show = row.tag as Int
+        binding.groupAbout.visibility = if (show == R.id.group_about) View.VISIBLE else View.GONE
+        binding.groupRuntime.visibility = if (show == R.id.group_runtime) View.VISIBLE else View.GONE
+        binding.groupPlugins.visibility = if (show == R.id.group_plugins) View.VISIBLE else View.GONE
+        binding.groupCredits.visibility = if (show == R.id.group_credits) View.VISIBLE else View.GONE
+    }
+
+    private fun rows(): List<View> =
+        listOf(binding.navAbout, binding.navRuntime, binding.navPlugins, binding.navCredits)
+
+    private fun versionLine(): String {
+        return try {
+            val info = requireContext().packageManager.getPackageInfo(requireContext().packageName, 0)
+            getString(R.string.about_version_line, info.versionName ?: "?", info.longVersionCode)
+        } catch (ignored: PackageManager.NameNotFoundException) {
+            getString(R.string.about_version_unknown)
+        }
     }
 
     override fun onResume() {
@@ -76,25 +109,22 @@ class AboutFragment : Fragment() {
     private fun refresh() {
         if (!::binding.isInitialized) return
 
-        val text = StringBuilder()
+        val runtime = StringBuilder()
         val pid = bridge.gamePid()
-        text.append(getString(R.string.about_label_game_process)).append(if (pid > 0) "pid $pid" else getString(R.string.about_not_running)).append('\n')
-        text.append(getString(R.string.about_label_runtime_state)).append(bridge.runtimeState()).append('\n')
-        text.append(getString(R.string.about_label_engine_hooks)).append(bridge.hookStats()).append('\n')
-        text.append(getString(R.string.about_label_menu_state)).append(bridge.menuState()).append('\n')
-        text.append(getString(R.string.about_label_game_version)).append(bridge.minecraftVersion()).append('\n')
-        // M4 license obligation (docs/levi-compat-design.md 4.2): the menu-state
-        // hooks derive from LiteLDev/preloader-android signature rules, treated as
-        // Apache-2.0; attribution ships with the app, full text in NOTICE.
-        text.append(getString(R.string.about_label_third_party)).append("preloader-android / LeviLaunchroid (LiteLDev, Apache-2.0) · MinecraftAuth (RaphiMC, LGPL-3.0) — ").append(getString(R.string.about_see_notice))
+        runtime.append(getString(R.string.about_label_game_process)).append(if (pid > 0) "pid $pid" else getString(R.string.about_not_running)).append('\n')
+        runtime.append(getString(R.string.about_label_runtime_state)).append(bridge.runtimeState()).append('\n')
+        runtime.append(getString(R.string.about_label_engine_hooks)).append(bridge.hookStats()).append('\n')
+        runtime.append(getString(R.string.about_label_menu_state)).append(bridge.menuState()).append('\n')
+        runtime.append(getString(R.string.about_label_game_version)).append(bridge.minecraftVersion())
+        binding.runtimeStatus.text = runtime.toString()
 
-        appendFiles(text, getString(R.string.about_label_dex_plugins), bridge.pluginFiles())
-        appendFiles(text, getString(R.string.about_label_native_plugins), bridge.nativePluginFiles())
-
+        val plugins = StringBuilder()
+        appendFiles(plugins, getString(R.string.about_label_dex_plugins), bridge.pluginFiles())
+        appendFiles(plugins, getString(R.string.about_label_native_plugins), bridge.nativePluginFiles())
         val infos = bridge.pluginInfos()
-        text.append(getString(R.string.about_loaded_plugin_count, infos.size)).append('\n')
+        plugins.append(getString(R.string.about_loaded_plugin_count, infos.size)).append('\n')
         if (infos.isEmpty()) {
-            text.append(getString(R.string.about_none_loaded)).append('\n')
+            plugins.append(getString(R.string.about_none_loaded)).append('\n')
         } else {
             for (info in infos) {
                 // name|author|version|description - the shape PluginInfo.info() reports
@@ -103,23 +133,23 @@ class AboutFragment : Fragment() {
                 val author = parts.getOrElse(1) { "-" }
                 val version = parts.getOrElse(2) { "-" }
                 val description = parts.getOrElse(3) { "" }
-                text.append("  · ").append(name)
+                plugins.append("  · ").append(name)
                     .append(" v").append(version)
                     .append("  ").append(author)
-                if (description.isNotEmpty()) text.append("  —  ").append(description)
-                text.append('\n')
+                if (description.isNotEmpty()) plugins.append("  —  ").append(description)
+                plugins.append('\n')
             }
         }
-
-        binding.runtimeStatus.text = text.toString()
+        binding.pluginStatus.text = plugins.toString().trim()
     }
 
     private fun appendFiles(text: StringBuilder, title: String, items: List<String>) {
-        text.append('\n').append(title).append(' ').append(items.size).append('\n')
+        text.append(title).append(' ').append(items.size).append('\n')
         if (items.isEmpty()) {
             text.append(getString(R.string.about_none_loaded)).append('\n')
             return
         }
         for (item in items) text.append("  · ").append(item).append('\n')
+        text.append('\n')
     }
 }

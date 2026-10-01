@@ -10,7 +10,7 @@
         android:id="@+id/sidebar_scroll"
         android:layout_width="84dp"
         android:layout_height="match_parent"
-        android:background="?attr/colorSurface"
+        android:background="?android:attr/colorBackground"
         android:scrollbars="none">
 
         <LinearLayout

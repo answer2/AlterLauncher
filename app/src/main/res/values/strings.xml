@@ -178,6 +178,17 @@
     <string name="about_none_loaded">  (无)</string>
     <string name="about_rescan_button">重新扫描插件</string>
     <string name="about_crash_test_button">测试</string>
+    <string name="about_nav_about">关于</string>
+    <string name="about_nav_runtime">运行时</string>
+    <string name="about_nav_plugins">插件</string>
+    <string name="about_nav_credits">鸣谢</string>
+    <string name="about_tagline">一个开源的 Minecraft 基岩版第三方启动器</string>
+    <string name="about_version_line">正式版 %1$s · build %2$d</string>
+    <string name="about_version_unknown">版本未知</string>
+    <string name="about_author_header">开发者</string>
+    <string name="about_author_body">AlterLauncher 由 AnswerDev 独立开发维护，用于在 Android 上以多实例方式加载并运行 Minecraft 基岩版，支持模组钩子、插件与微软登录。</string>
+    <string name="about_credits_header">特别鸣谢</string>
+    <string name="about_credits_body">MinecraftAuth（RaphiMC，LGPL-3.0）提供微软 / Xbox 登录能力；preloader-android、LeviLaunchroid（LiteLDev，Apache-2.0）启发引擎钩子与签名规则；Material Components for Android 提供界面组件。完整许可见项目根 NOTICE 文件。</string>
 
     <!-- Content manager: worlds / resource packs / behaviour packs -->
     <string name="title_content">内容</string>

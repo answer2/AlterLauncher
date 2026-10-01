@@ -3,14 +3,14 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/md_theme_surfaceContainerHighest"
+    android:background="?android:attr/colorBackground"
     android:orientation="horizontal">
 
     <ScrollView
         android:id="@+id/sidebar_scroll"
         android:layout_width="84dp"
         android:layout_height="match_parent"
-        android:background="?attr/colorSurface"
+        android:background="?android:attr/colorBackground"
         android:scrollbars="none">
 
         <LinearLayout
