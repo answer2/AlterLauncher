@@ -71,6 +71,12 @@ public final class AvatarLoader {
             drawLetter(view, gamertag);
             return;
         }
+        // Already showing this exact picture: do nothing. Without this guard every bridge-driven
+        // repaint of the account card would redraw the letter and re-fetch the head, which reads
+        // as the avatar flickering on a timer. It now loads once per fresh view (re-entry).
+        if (src.equals(view.getTag())) {
+            return;
+        }
         drawLetter(view, gamertag);
         view.setTag(src);
         new Thread(() -> {
@@ -78,15 +84,18 @@ public final class AvatarLoader {
             if (picture == null) {
                 return; // the letter already painted stays; a missing avatar is not an error state
             }
-            Bitmap circle = toCircle(picture);
+            Bitmap rounded = toRounded(picture);
             picture.recycle();
             view.post(() -> {
                 if (src.equals(view.getTag())) {
-                    view.setImageBitmap(circle);
+                    view.setImageBitmap(rounded);
                 }
             });
         }, "avatar-load").start();
     }
+
+    /** Corner radius of the avatar tile, as a fraction of its side — a soft rounded square. */
+    private static final float CORNER_FRACTION = 0.22f;
 
     /** The theme's container colors, a bold first character: the identity without a picture. */
     private static void drawLetter(ImageView view, @Nullable String gamertag) {
@@ -99,9 +108,10 @@ public final class AvatarLoader {
         int size = LETTER_SIZE_PX;
         Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
-        Paint circle = new Paint(Paint.ANTI_ALIAS_FLAG);
-        circle.setColor(ctx.getColor(R.color.md_theme_primaryContainer));
-        canvas.drawCircle(size / 2f, size / 2f, size / 2f, circle);
+        Paint tile = new Paint(Paint.ANTI_ALIAS_FLAG);
+        tile.setColor(ctx.getColor(R.color.md_theme_primaryContainer));
+        float radius = size * CORNER_FRACTION;
+        canvas.drawRoundRect(new RectF(0, 0, size, size), radius, radius, tile);
 
         int codePoint = name.codePointAt(0);
         String letter = new String(Character.toChars(codePoint)).toUpperCase(Locale.ROOT);
@@ -200,24 +210,25 @@ public final class AvatarLoader {
     }
 
     /**
-     * Crops to the centered square and clips to a circle. Xbox avatars arrive square, but the
-     * crop is what lets a non-square answer keep working, and the clip is what makes a photo look
-     * like it belongs in this app instead of a tile dropped onto the warm beige background.
+     * Crops to the centered square and clips to a rounded square. Persona heads arrive square, but
+     * the crop lets a non-square answer keep working, and the rounded clip (soft corners, not a
+     * circle) is what makes the tile look like it belongs in this app.
      */
-    private static Bitmap toCircle(Bitmap source) {
+    private static Bitmap toRounded(Bitmap source) {
         int side = Math.max(1, Math.min(source.getWidth(), source.getHeight()));
         int left = (source.getWidth() - side) / 2;
         int top = (source.getHeight() - side) / 2;
         int out = Math.min(side, LETTER_SIZE_PX);
-        Bitmap circle = Bitmap.createBitmap(out, out, Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(circle);
+        Bitmap rounded = Bitmap.createBitmap(out, out, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(rounded);
+        float radius = out * CORNER_FRACTION;
         Paint clip = new Paint(Paint.ANTI_ALIAS_FLAG);
-        canvas.drawCircle(out / 2f, out / 2f, out / 2f, clip);
+        canvas.drawRoundRect(new RectF(0, 0, out, out), radius, radius, clip);
         Paint draw = new Paint(Paint.ANTI_ALIAS_FLAG);
         draw.setFilterBitmap(true);
         draw.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_IN));
         Rect from = new Rect(left, top, left + side, top + side);
         canvas.drawBitmap(source, from, new RectF(0, 0, out, out), draw);
-        return circle;
+        return rounded;
     }
 }

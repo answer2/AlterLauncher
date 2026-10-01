@@ -79,7 +79,9 @@
         android:layout_weight="1"
         android:orientation="vertical">
 
-        <!-- Version list group: shown for 正式版 / 测试版 -->
+        <!-- Version list group: shown for 正式版 / 测试版. The header and search are kept to two
+             compact rows so the list itself gets the vertical room — in landscape the chrome was
+             eating half the pane and only a couple of builds stayed visible. -->
         <LinearLayout
             android:id="@+id/group_versions"
             android:layout_width="match_parent"
@@ -93,7 +95,7 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
                 android:paddingStart="16dp"
-                android:paddingTop="12dp"
+                android:paddingTop="10dp"
                 android:paddingEnd="16dp">
 
                 <TextView
@@ -124,22 +126,23 @@
                     app:cornerRadius="8dp" />
             </LinearLayout>
 
-            <!-- search_version block: last_version only ever reports the newest stable + beta, so
-                 reaching any other build means asking for one version family by number. The field
-                 gets the whole width because the hint has to show an example to be useful. -->
+            <!-- One compact row: the search field takes the width, the action buttons sit to its
+                 right. 显示最新 only appears while a search result is on screen. -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="vertical"
+                android:layout_marginTop="6dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp">
 
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/search_field"
                     style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                    android:layout_width="match_parent"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_weight="1"
                     android:hint="@string/download_search_hint"
                     app:boxCornerRadiusBottomEnd="8dp"
                     app:boxCornerRadiusBottomStart="8dp"
@@ -156,42 +159,33 @@
                         android:textSize="14sp" />
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <LinearLayout
-                    android:layout_width="match_parent"
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_search"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:orientation="horizontal">
+                    android:layout_marginStart="8dp"
+                    android:text="@string/download_search_button"
+                    app:icon="@drawable/ic_action_search"
+                    app:iconGravity="textStart"
+                    app:cornerRadius="8dp" />
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btn_search"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/download_search_button"
-                        app:icon="@drawable/ic_action_search"
-                        app:iconGravity="textStart"
-                        app:cornerRadius="8dp" />
-
-                    <!-- Only while the list is showing a search_version result: the way back to the
-                         two 最新 builds the refresh button maintains. An empty search box or another
-                         tab does the same thing. -->
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btn_show_latest"
-                        style="?attr/materialButtonOutlinedStyle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:text="@string/download_show_latest"
-                        android:visibility="gone"
-                        app:cornerRadius="8dp" />
-                </LinearLayout>
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_show_latest"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/download_show_latest"
+                    android:visibility="gone"
+                    app:cornerRadius="8dp" />
             </LinearLayout>
 
             <TextView
                 android:id="@+id/status"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:layout_marginBottom="6dp"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="2dp"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"
                 android:text="@string/download_loading_versions"
