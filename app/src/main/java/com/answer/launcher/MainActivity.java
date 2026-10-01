@@ -26,6 +26,7 @@ import com.answer.launcher.core.MinecraftLoader;
 import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.databinding.ActivityMainBinding;
 import com.answer.launcher.ui.fragment.AboutFragment;
+import com.answer.launcher.ui.fragment.ContentFragment;
 import com.answer.launcher.ui.fragment.DownloadFragment;
 import com.answer.launcher.ui.fragment.HomeFragment;
 import com.answer.launcher.ui.fragment.HomePagerAdapter;
@@ -70,6 +71,7 @@ public class MainActivity extends AppCompatActivity {
         List<Fragment> fragments = new ArrayList<>();
         fragments.add(new HomeFragment());
         fragments.add(new InstancesFragment());
+        fragments.add(new ContentFragment());
         fragments.add(new DownloadFragment());
         fragments.add(new SettingFragment());
         fragments.add(new AboutFragment());
@@ -99,14 +101,18 @@ public class MainActivity extends AppCompatActivity {
                     tabView.setText(R.string.title_instance);
                     break;
                 case 2:
+                    imageView.setImageResource(R.drawable.ic_action_content);
+                    tabView.setText(R.string.title_content);
+                    break;
+                case 3:
                     imageView.setImageResource(R.drawable.ic_action_download);
                     tabView.setText(R.string.title_download);
                     break;
-                case 3:
+                case 4:
                     imageView.setImageResource(R.drawable.ic_action_setting);
                     tabView.setText(R.string.title_setting);
                     break;
-                case 4:
+                case 5:
                     imageView.setImageResource(R.drawable.ic_action_about);
                     tabView.setText(R.string.title_about);
                     break;

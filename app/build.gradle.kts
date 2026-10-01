@@ -101,3 +101,20 @@ dependencies {
     compileOnly(fileTree(mapOf("dir" to "compile_only", "include" to listOf("*.jar"))))
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
 }
+
+// The compile-only dumps in app/compile_only are dex2jar output of the guest APK, and AGP
+// puts compileOnly jars ahead of the real AAR jars on the javac classpath. Their androidx.*
+// copies carry no usable InnerClasses metadata, so a nested lookup such as
+// `RecyclerView.Adapter` resolves against the dump and fails to compile. Push the dumps to
+// the back: real artifacts then win every shared lookup, and the guest classes the launcher
+// reflects on exist nowhere else, so nothing is lost.
+tasks.withType<JavaCompile>().configureEach {
+    doFirst {
+        val dumps = setOf("mc.jar", "mc2.jar", "jetified-mc.jar", "jetified-mc2.jar")
+        val entries = classpath.files.toList()
+        val moved = entries.filter { dumps.contains(it.name) }
+        if (moved.isNotEmpty()) {
+            setClasspath(files(entries.filterNot { moved.contains(it) } + moved))
+        }
+    }
+}

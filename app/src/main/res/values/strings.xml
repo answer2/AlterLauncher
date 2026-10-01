@@ -171,4 +171,53 @@
     <string name="about_none_loaded">  (无)</string>
     <string name="about_rescan_button">重新扫描插件</string>
     <string name="about_crash_test_button">测试</string>
+
+    <!-- Content manager: worlds / resource packs / behaviour packs -->
+    <string name="title_content">内容</string>
+    <string name="content_tab_worlds">世界</string>
+    <string name="content_tab_resource">资源包</string>
+    <string name="content_tab_behavior">行为包</string>
+    <string name="content_no_instance">还没有当前实例：先到「实例」导入并选择一个 Minecraft 实例，才能查看和管理世界与包。</string>
+    <string name="content_unreadable">无法读取所选文件（已被移动，或没有访问权限）</string>
+    <string name="content_too_large">压缩包过大，已取消导入</string>
+    <string name="content_import_empty">压缩包里没有找到世界或包（缺少 level.dat / manifest.json）</string>
+    <string name="content_import_success">已导入 %d 项</string>
+    <string name="content_export_success">已导出：%s</string>
+    <string name="content_export_failed">导出失败，目标可能不可写</string>
+    <string name="content_delete_failed">删除失败：%s</string>
+    <string name="content_label_name">名称：%s</string>
+    <string name="content_label_folder">文件夹：%s</string>
+    <string name="content_label_modified">修改时间：%s</string>
+    <string name="content_label_size">大小：%s</string>
+    <string name="content_label_version">版本：%s</string>
+    <string name="content_label_description">说明：%s</string>
+    <string name="content_label_modules">模块数：%d</string>
+    <string name="content_label_uuid">UUID：%s</string>
+    <string name="content_unknown">未提供</string>
+
+    <!-- Shared by the content screens -->
+    <string name="common_more">更多</string>
+    <string name="common_working">正在处理…</string>
+    <string name="common_delete_confirm_message">删除「%s」？此操作不可撤销。</string>
+
+    <!-- Worlds -->
+    <string name="world_import">导入世界</string>
+    <string name="world_export">导出世界</string>
+    <string name="world_preview">世界信息</string>
+    <string name="world_empty">还没有世界\n点右下角按钮导入 .mcworld 存档</string>
+    <string name="world_meta_format">%1$s · %2$s</string>
+    <string name="world_import_type_error">请选择 .mcworld（或 .zip）世界存档</string>
+    <string name="world_delete_title">删除世界</string>
+
+    <!-- Packs -->
+    <string name="pack_import">导入包</string>
+    <string name="pack_export">导出包</string>
+    <string name="pack_preview">包信息</string>
+    <string name="pack_empty">还没有包\n点右下角按钮导入 .mcpack 或 .mcaddon</string>
+    <string name="pack_enable">已启用</string>
+    <string name="pack_disable">已停用</string>
+    <string name="pack_switch_desc">加入全局资源</string>
+    <string name="pack_import_type_error">请选择 .mcpack、.mcaddon（或 .zip）文件</string>
+    <string name="pack_delete_title">删除包</string>
+    <string name="pack_toggle_failed">切换失败：%s</string>
 </resources>

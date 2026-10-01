@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <!-- Backdrop behind pack/world preview bitmaps so a transparent icon stays readable. -->
+    <solid android:color="?attr/colorSurfaceContainerHigh" />
+    <corners android:radius="10dp" />
+</shape>

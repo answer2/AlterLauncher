@@ -171,4 +171,53 @@
     <string name="about_none_loaded">  (none)</string>
     <string name="about_rescan_button">Rescan plugins</string>
     <string name="about_crash_test_button">Test</string>
+
+    <!-- Content manager: worlds / resource packs / behaviour packs -->
+    <string name="title_content">Content</string>
+    <string name="content_tab_worlds">Worlds</string>
+    <string name="content_tab_resource">Resource packs</string>
+    <string name="content_tab_behavior">Behaviour packs</string>
+    <string name="content_no_instance">No active instance yet: import and select a Minecraft instance under \"Instances\" first, then worlds and packs become manageable here.</string>
+    <string name="content_unreadable">Cannot read the selected file (moved, or no access permission)</string>
+    <string name="content_too_large">Archive is too large, import cancelled</string>
+    <string name="content_import_empty">No world or pack found in the archive (missing level.dat / manifest.json)</string>
+    <string name="content_import_success">Imported %d item(s)</string>
+    <string name="content_export_success">Exported: %s</string>
+    <string name="content_export_failed">Export failed, the target may not be writable</string>
+    <string name="content_delete_failed">Could not delete: %s</string>
+    <string name="content_label_name">Name: %s</string>
+    <string name="content_label_folder">Folder: %s</string>
+    <string name="content_label_modified">Last modified: %s</string>
+    <string name="content_label_size">Size: %s</string>
+    <string name="content_label_version">Version: %s</string>
+    <string name="content_label_description">Description: %s</string>
+    <string name="content_label_modules">Modules: %d</string>
+    <string name="content_label_uuid">UUID: %s</string>
+    <string name="content_unknown">Not provided</string>
+
+    <!-- Shared by the content screens -->
+    <string name="common_more">More</string>
+    <string name="common_working">Working…</string>
+    <string name="common_delete_confirm_message">Delete \"%s\"? This cannot be undone.</string>
+
+    <!-- Worlds -->
+    <string name="world_import">Import world</string>
+    <string name="world_export">Export world</string>
+    <string name="world_preview">World details</string>
+    <string name="world_empty">No worlds yet\nUse the button in the corner to import a .mcworld</string>
+    <string name="world_meta_format">%1$s · %2$s</string>
+    <string name="world_import_type_error">Pick a .mcworld (or .zip) world archive</string>
+    <string name="world_delete_title">Delete world</string>
+
+    <!-- Packs -->
+    <string name="pack_import">Import pack</string>
+    <string name="pack_export">Export pack</string>
+    <string name="pack_preview">Pack details</string>
+    <string name="pack_empty">No packs yet\nUse the button in the corner to import a .mcpack or .mcaddon</string>
+    <string name="pack_enable">Enabled globally</string>
+    <string name="pack_disable">Removed from global resources</string>
+    <string name="pack_switch_desc">Apply to every world</string>
+    <string name="pack_import_type_error">Pick a .mcpack, .mcaddon (or .zip) archive</string>
+    <string name="pack_delete_title">Delete pack</string>
+    <string name="pack_toggle_failed">Could not switch: %s</string>
 </resources>
