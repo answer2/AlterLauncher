@@ -4,6 +4,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -14,6 +16,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
+import com.answer.launcher.auth.SessionValidator;
 import com.answer.launcher.core.MinecraftLoader;
 import com.answer.launcher.core.LauncherConstants;
 import com.answer.launcher.core.bridge.GameBridgeClient;
@@ -23,7 +26,9 @@ import com.answer.launcher.core.manager.IdentityStore;
 import com.answer.launcher.core.manager.MultiVersionManager;
 import com.answer.launcher.databinding.FragmentHomeBinding;
 import com.answer.launcher.ui.SignInSheet;
+import com.answer.launcher.ui.LauncherPrefs;
 import com.answer.launcher.ui.activity.CrashActivity;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.hjq.permissions.OnPermissionCallback;
 import com.hjq.permissions.Permission;
 import com.hjq.permissions.XXPermissions;
@@ -40,6 +45,9 @@ import java.util.List;
 
 public class HomeFragment extends Fragment {
     private FragmentHomeBinding binding;
+
+    /** Guards against stacking a second network validity probe when one is already running. */
+    private boolean accountCheckInFlight = false;
 
     /**
      * The bridge is the only source of truth about the runtime, and it now calls back on
@@ -69,19 +77,18 @@ public class HomeFragment extends Fragment {
             return;
         }
         Context host = requireContext().getApplicationContext();
-        IdentityStore.Account account = IdentityStore.readAccount(host);
-        if (account.signedIn) {
-            binding.userId.setText(account.xuid != null
-                    ? "XUID " + account.xuid : "已登录");
-            binding.userStatus.setText(account.shared
-                    ? "所有版本共用这份登录状态"
-                    : "仅本版本使用这份登录状态");
-            binding.accountLogin.setText("重新登录");
-        } else {
-            binding.userId.setText("未登录");
-            binding.userStatus.setText("未登录 · 点击下方按钮使用微软账号登录");
-            binding.accountLogin.setText("登录");
-        }
+        /*
+         * The account card is the slow part: readAccount() walks two directories and
+         * getPackageInfo is a binder call, and the honest "is this login still valid?" answer
+         * is a network round trip the old code never made (it trusted a file-size heuristic).
+         * So paint an in-between state now and let checkLogin() fill the card from a worker —
+         * that keeps the UI responsive and finally reflects a session that expired since the
+         * last look.
+         */
+        binding.accountLogin.setText("…");
+        binding.userStatus.setText("正在检查登录状态…");
+        checkLogin(host);
+
         String version = guestVersion(host);
         binding.versionLabel.setText(version == null ? "VERSION" : version);
         binding.archLabel.setText(Build.SUPPORTED_ABIS.length > 0
@@ -101,6 +108,103 @@ public class HomeFragment extends Fragment {
         }
         binding.runtimeStatus.setText(text);
         binding.loadGame.setText(GameRuntime.READY.equals(state) ? "回到游戏" : "启动");
+    }
+
+    /**
+     * Reads what the on-disk store can prove, then — only when it claims a sign-in — asks Xbox
+     * whether the persisted chain still authenticates. Both steps block on file/binder/network,
+     * so they run on a worker and the result is posted back before the card is repainted.
+     */
+    private void checkLogin(Context host) {
+        if (accountCheckInFlight) {
+            return;
+        }
+        accountCheckInFlight = true;
+        Handler main = new Handler(Looper.getMainLooper());
+        new Thread(() -> {
+            IdentityStore.Account disk = IdentityStore.readAccount(host);
+            SessionValidator.Status validity = new SessionValidator.Status();
+            try {
+                // Only spend a network round trip when the user opted in; otherwise the card
+                // reflects the local record alone.
+                if (disk.signedIn && LauncherPrefs.autoValidateLogin(host)) {
+                    String version = SignInSheet.gameVersion(host);
+                    validity = SessionValidator.check(IdentityStore.accountRoot(host), version,
+                            SignInSheet.userAgent(version));
+                }
+            } catch (Throwable probeFailure) {
+                // The card must never strand on "checking": fall back to whatever the disk
+                // proved and let the next resume retry the network answer.
+                Log.w("HomeFragment", "login validity probe failed", probeFailure);
+            }
+            final IdentityStore.Account diskRef = disk;
+            final SessionValidator.Status validityRef = validity;
+            main.post(() -> {
+                accountCheckInFlight = false;
+                if (binding == null || !isAdded()) {
+                    return;
+                }
+                applyAccountCard(diskRef, validityRef);
+            });
+        }, "login-check").start();
+    }
+
+    /**
+     * Paints the account card from the cached store plus the live validity answer. A persisted
+     * manager that fails to authenticate is shown as expired and prompts a re-login; a sign-in
+     * that was written by the game rather than the launcher has no manager here to test, so it
+     * stays "signed in" instead of falsely reporting an expiry we cannot actually prove.
+     */
+    private void applyAccountCard(IdentityStore.Account account, SessionValidator.Status validity) {
+        boolean expired = account.signedIn && validity.hasAccount && !validity.valid;
+        boolean signedIn = account.signedIn && !expired;
+        if (signedIn) {
+            binding.userId.setText(validity.gamertag != null ? validity.gamertag
+                    : (account.xuid != null ? "XUID " + account.xuid : "已登录"));
+            binding.userStatus.setText(account.shared
+                    ? "所有版本共用这份登录状态"
+                    : "仅本版本使用这份登录状态");
+            binding.accountLogin.setText("重新登录");
+        } else if (expired) {
+            binding.userId.setText("登录已失效");
+            binding.userStatus.setText("登录已过期或被撤销，请重新登录");
+            binding.accountLogin.setText("重新登录");
+        } else {
+            binding.userId.setText("未登录");
+            binding.userStatus.setText("未登录 · 点击下方按钮使用微软账号登录");
+            binding.accountLogin.setText("登录");
+        }
+        binding.accountSignout.setVisibility(signedIn ? View.VISIBLE : View.GONE);
+    }
+
+    /**
+     * Sign-out is destructive (the saved tokens are gone until a fresh browser login), so it is
+     * gated on the game not running and confirmed first; the file wipe itself runs off the main
+     * thread.
+     */
+    private void confirmSignOut() {
+        String state = GameBridgeClient.get().runtimeState();
+        if (GameRuntime.READY.equals(state) || GameRuntime.ASSEMBLING.equals(state)) {
+            Toast.makeText(requireContext(), "游戏正在运行，先退出游戏再操作", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("退出登录")
+                .setMessage("将清除本机保存的微软登录状态（共享模式下会同时影响所有版本），需要重新在浏览器登录才能恢复。确定退出？")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("退出登录", (d, w) -> {
+                    Context host = requireContext().getApplicationContext();
+                    new Thread(() -> {
+                        boolean ok = IdentityStore.signOut(host);
+                        requireActivity().runOnUiThread(() -> {
+                            Toast.makeText(requireContext(),
+                                    ok ? "已退出登录" : "已退出，但部分文件未能清除",
+                                    Toast.LENGTH_SHORT).show();
+                            refresh();
+                        });
+                    }, "signout").start();
+                })
+                .show();
     }
 
     private String guestVersion(Context host) {
@@ -184,6 +288,8 @@ public class HomeFragment extends Fragment {
                             Toast.LENGTH_LONG).show();
                     refresh();
                 }));
+
+        binding.accountSignout.setOnClickListener(view -> confirmSignOut());
 
         binding.versionSetting.setOnClickListener(view -> {
             Intent intent = new Intent(getActivity(), CrashActivity.class);

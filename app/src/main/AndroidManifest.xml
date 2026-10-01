@@ -113,6 +113,16 @@
             android:screenOrientation="landscape"
             tools:ignore="DiscouragedApi" />
 
+        <!-- Optional in-app surface for the Microsoft device-code verification page. -->
+        <activity
+            android:name=".ui.activity.WebViewLoginActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/AppTheme"
+            android:windowSoftInputMode="adjustResize"
+            tools:ignore="DiscouragedApi" />
+
 
         <!-- GameBaseActivity -->
         <activity

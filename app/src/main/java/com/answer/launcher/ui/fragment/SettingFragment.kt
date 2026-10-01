@@ -13,7 +13,10 @@ import com.answer.launcher.core.LauncherConstants
 import com.answer.launcher.core.bridge.GameBridgeClient
 import com.answer.launcher.core.bridge.GameRuntime
 import com.answer.launcher.core.manager.IdentityStore
+import com.answer.launcher.ui.LauncherPrefs
 import com.answer.launcher.databinding.FragmentSettingBinding
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import java.io.File
 
 class SettingFragment : Fragment() {
 
@@ -52,6 +55,8 @@ class SettingFragment : Fragment() {
         }
         val host: Context = requireContext().applicationContext
         bindIdentity(IdentityStore.readAccount(host))
+        bindLoginMethod(host)
+        bindAppearance(host)
 
         val version = try {
             host.packageManager.getPackageInfo(LauncherConstants.MINECRAFTPACKAGE, 0).versionName
@@ -97,6 +102,74 @@ class SettingFragment : Fragment() {
             else -> "未登录"
         }
         binding.identityPath.text = account.root.absolutePath
+    }
+
+    private fun bindLoginMethod(host: Context) {
+        // Detach while syncing from the preference, exactly like the identity switch: rendering
+        // the stored value must not immediately write it back.
+        val listener = android.widget.CompoundButton.OnCheckedChangeListener { _, checked ->
+            LauncherPrefs.setLoginInWebView(host, checked)
+            Toast.makeText(
+                host,
+                if (checked) "下次登录将尝试内置 WebView" else "下次登录将使用系统浏览器",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+        binding.loginWebview.setOnCheckedChangeListener(null)
+        binding.loginWebview.isChecked = LauncherPrefs.loginInWebView(host)
+        binding.loginWebview.setOnCheckedChangeListener(listener)
+    }
+
+    private fun bindAppearance(host: Context) {
+        binding.autoValidate.setOnCheckedChangeListener(null)
+        binding.autoValidate.isChecked = LauncherPrefs.autoValidateLogin(host)
+        binding.autoValidate.setOnCheckedChangeListener { _, checked ->
+            LauncherPrefs.setAutoValidateLogin(host, checked)
+        }
+
+        binding.dynamicColor.setOnCheckedChangeListener(null)
+        binding.dynamicColor.isChecked = LauncherPrefs.dynamicColor(host)
+        binding.dynamicColor.setOnCheckedChangeListener { _, checked ->
+            LauncherPrefs.setDynamicColor(host, checked)
+            Toast.makeText(host, "重启应用后生效", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.clearCache.setOnClickListener { confirmClearCache(host) }
+    }
+
+    private fun confirmClearCache(host: Context) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("清除缓存")
+            .setMessage("只清除启动器自身的缓存目录，不影响游戏数据、账号或已导入的实例。确定清除？")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("清除") { _, _ ->
+                Thread {
+                    var freed = 0L
+                    for (dir in listOfNotNull(host.cacheDir, host.externalCacheDir)) {
+                        dir.listFiles()?.forEach { file ->
+                            freed += sizeOf(file)
+                            deleteAll(file)
+                        }
+                    }
+                    val mb = freed / 1024.0 / 1024.0
+                    activity?.runOnUiThread {
+                        Toast.makeText(host, "已释放 %.1f MB".format(mb), Toast.LENGTH_SHORT).show()
+                    }
+                }.apply { name = "clear-cache" }.start()
+            }
+            .show()
+    }
+
+    private fun sizeOf(file: File): Long {
+        if (file.isFile) return file.length()
+        var total = 0L
+        file.listFiles()?.forEach { total += sizeOf(it) }
+        return total
+    }
+
+    private fun deleteAll(file: File) {
+        if (file.isDirectory) file.listFiles()?.forEach { deleteAll(it) }
+        file.delete()
     }
 
     override fun onDestroy() {

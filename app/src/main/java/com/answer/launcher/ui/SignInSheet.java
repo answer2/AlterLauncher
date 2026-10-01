@@ -14,6 +14,7 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -27,11 +28,14 @@ import com.answer.launcher.core.LauncherConstants;
 import com.answer.launcher.core.bridge.GameBridgeClient;
 import com.answer.launcher.core.bridge.GameRuntime;
 import com.answer.launcher.core.manager.IdentityStore;
+import com.answer.launcher.ui.activity.WebViewLoginActivity;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import net.raphimc.minecraftauth.bedrock.BedrockAuthManager;
 import net.raphimc.minecraftauth.msa.model.MsaDeviceCode;
 
 import java.io.File;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -74,10 +78,20 @@ public final class SignInSheet {
         Context app = activity.getApplicationContext();
         Handler ui = new Handler(Looper.getMainLooper());
         AtomicReference<MsaDeviceCode> pending = new AtomicReference<>();
+        AtomicReference<Thread> workerRef = new AtomicReference<>();
+        AtomicBoolean cancelled = new AtomicBoolean(false);
 
         TextView status = new TextView(activity);
         status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f);
         status.setText("正在向 Xbox Live 申请登录代码…");
+
+        ProgressBar spinner = new ProgressBar(activity);
+        spinner.setIndeterminate(true);
+        LinearLayout.LayoutParams spinnerLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        spinnerLp.gravity = Gravity.CENTER;
+        spinnerLp.topMargin = dp(activity, 10);
+        spinnerLp.bottomMargin = dp(activity, 4);
 
         TextView code = new TextView(activity);
         code.setTextSize(TypedValue.COMPLEX_UNIT_SP, 30f);
@@ -97,10 +111,11 @@ public final class SignInSheet {
         int pad = dp(activity, 24);
         box.setPadding(pad, pad, pad, 0);
         box.addView(status);
+        box.addView(spinner, spinnerLp);
         box.addView(code);
         box.addView(link);
 
-        AlertDialog dialog = new AlertDialog.Builder(activity)
+        AlertDialog dialog = new MaterialAlertDialogBuilder(activity)
                 .setTitle("登录 Microsoft 账户")
                 .setView(box)
                 .setCancelable(true)
@@ -108,7 +123,26 @@ public final class SignInSheet {
                 .setNeutralButton("复制代码", null)
                 .setPositiveButton("打开网页", null)
                 .create();
+
+        /*
+         * The poll inside the library sleeps between attempts and is only stopped by an
+         * interrupt; without a way to cancel it a player who backs out keeps a daemon thread
+         * chasing a redeem for up to fifteen minutes. Interruption is the contract the flow
+         * already documents (getToken throws InterruptedException), so route cancel through it.
+         */
+        Runnable abort = () -> {
+            cancelled.set(true);
+            Thread worker = workerRef.get();
+            if (worker != null) {
+                worker.interrupt();
+            }
+        };
+        dialog.setOnCancelListener(d -> abort.run());
         dialog.show();
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(v -> {
+            abort.run();
+            dialog.dismiss();
+        });
 
         /*
          * The default listeners dismiss the dialog, and neither of those actions ends the
@@ -130,26 +164,41 @@ public final class SignInSheet {
         });
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             MsaDeviceCode deviceCode = pending.get();
-            if (deviceCode == null) {
-                return;
-            }
-            try {
-                activity.startActivity(new Intent(Intent.ACTION_VIEW,
-                        Uri.parse(deviceCode.getDirectVerificationUri())));
-            } catch (Throwable ignored) {
-                // No browser able to take the intent; the code is on screen and copyable.
+            if (deviceCode != null) {
+                openVerification(activity, deviceCode);
             }
         });
 
-        Thread worker = new Thread(() -> run(activity, app, ui, dialog, status, code, link,
-                pending, callback), "microsoft-signin");
+        // While the code waits to be redeemed, show elapsed time so the wait reads as progress,
+        // not a freeze. Stopped as soon as the redemption lands (see the sink below).
+        Runnable[] ticker = new Runnable[1];
+        long[] startedAt = {0L};
+        boolean[] redeemWait = {false};
+        ticker[0] = () -> {
+            if (!dialog.isShowing() || cancelled.get()) {
+                return;
+            }
+            if (redeemWait[0] && startedAt[0] != 0L) {
+                long secs = (System.currentTimeMillis() - startedAt[0]) / 1000L;
+                status.setText("等待你在浏览器完成登录…（已等待 " + secs + " 秒，检测中）");
+            }
+            ui.postDelayed(ticker[0], 1000L);
+        };
+
+        Thread worker = new Thread(() -> run(activity, app, ui, dialog, spinner, status, code,
+                link, pending, cancelled, callback, ticker, startedAt, redeemWait),
+                "microsoft-signin");
+        workerRef.set(worker);
         worker.setDaemon(true);
         worker.start();
+        ui.post(ticker[0]);
     }
 
     private static void run(Activity activity, Context app, Handler ui, AlertDialog dialog,
-                            TextView status, TextView code, TextView link,
-                            AtomicReference<MsaDeviceCode> pending, Callback callback) {
+                            ProgressBar spinner, TextView status, TextView code, TextView link,
+                            AtomicReference<MsaDeviceCode> pending, AtomicBoolean cancelled,
+                            Callback callback, Runnable[] ticker, long[] startedAt,
+                            boolean[] redeemWait) {
         String version = gameVersion(app);
         try {
             BedrockAuthManager manager = HostAuthManager.signInDeviceCode(
@@ -161,7 +210,24 @@ public final class SignInSheet {
                         link.setText(deviceCode.getVerificationUri());
                         link.setVisibility(View.VISIBLE);
                         status.setText("在任意设备上打开这个地址并输入下面的代码，然后等待即可。");
+                        // Begin the elapsed wait indicator: from here the network poll runs.
+                        startedAt[0] = System.currentTimeMillis();
+                        redeemWait[0] = true;
                     }));
+
+            // The call returned, which only happens once the code has been redeemed: stop the
+            // waiting ticker, tell any open in-app WebView to close itself now that login is
+            // done, and move into the account-sync phase (XalExporter makes several more
+            // network calls here, which is where a bare dialog looked like it had hung).
+            redeemWait[0] = false;
+            LoginSession.ACTIVE.finish(true);
+            ui.post(() -> {
+                if (!dialog.isShowing()) {
+                    return;
+                }
+                spinner.setVisibility(View.VISIBLE);
+                status.setText("登录已验证，正在同步账户信息，请稍候…");
+            });
 
             File root = IdentityStore.accountRoot(app);
             String localId = XalExporter.export(root, manager);
@@ -172,10 +238,19 @@ public final class SignInSheet {
             });
         } catch (Throwable failure) {
             Log.w(TAG, "device-code sign-in failed for version " + version, failure);
+            // Close any open in-app WebView too: the redeem never completed, so it has nothing
+            // left to show and would otherwise sit on a stale page.
+            LoginSession.ACTIVE.finish(false);
+            if (cancelled.get()) {
+                ui.post(() -> callback.onFinished(false, "已取消登录"));
+                return;
+            }
             String message = describe(failure);
             ui.post(() -> {
                 if (dialog.isShowing()) {
                     status.setText(message);
+                    callback.onFinished(false, message);
+                } else {
                     callback.onFinished(false, message);
                 }
             });
@@ -224,7 +299,7 @@ public final class SignInSheet {
      * installed build reports a fourth hotfix component; every sign-in that has ever worked
      * from this code path sent the release ("1.26.45"), and the store endpoint is picky.
      */
-    private static String gameVersion(Context app) {
+    public static String gameVersion(Context app) {
         String version = null;
         try {
             version = app.getPackageManager()
@@ -239,9 +314,31 @@ public final class SignInSheet {
         return parts.length >= 4 ? parts[0] + "." + parts[1] + "." + parts[2] : version;
     }
 
-    private static String userAgent(String version) {
+    public static String userAgent(String version) {
         return "Mozilla/5.0 (Linux; Android " + Build.VERSION.RELEASE + "; " + Build.MODEL
                 + ") Minecraft/" + version;
+    }
+
+    /**
+     * Opens the verification page the way the player chose in settings: the in-app WebView when
+     * enabled, otherwise the system browser. The WebView auto-falls back if Microsoft rejects it,
+     * and the code redemption is detected by the sign-in worker's poll regardless of where the
+     * page was opened.
+     */
+    private static void openVerification(Activity activity, MsaDeviceCode deviceCode) {
+        String url = deviceCode.getDirectVerificationUri();
+        if (LauncherPrefs.loginInWebView(activity.getApplicationContext())) {
+            Intent intent = new Intent(activity, WebViewLoginActivity.class);
+            intent.putExtra(WebViewLoginActivity.EXTRA_URL, url);
+            intent.putExtra(WebViewLoginActivity.EXTRA_CODE, deviceCode.getUserCode());
+            activity.startActivity(intent);
+            return;
+        }
+        try {
+            activity.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+        } catch (Throwable ignored) {
+            // No browser able to take the intent; the code is on screen and copyable.
+        }
     }
 
     private static int dp(Context context, int value) {

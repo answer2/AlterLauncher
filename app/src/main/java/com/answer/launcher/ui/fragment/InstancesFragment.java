@@ -1,6 +1,5 @@
 package com.answer.launcher.ui.fragment;
 
-import android.app.AlertDialog;
 import android.content.Context;
 import android.net.Uri;
 import android.os.Bundle;
@@ -9,7 +8,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
-import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.Toast;
 
@@ -23,6 +21,9 @@ import com.answer.launcher.core.manager.InstanceImporter;
 import com.answer.launcher.core.manager.InstanceStore;
 import com.answer.launcher.databinding.FragmentInstancesBinding;
 import com.answer.launcher.databinding.ItemInstanceBinding;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -113,7 +114,7 @@ public class InstancesFragment extends Fragment {
                     toast("导入成功：" + r.instance.versionName
                             + (r.aligned16kb ? "" : "（部分 .so 非 16KB 对齐）"));
                 } else {
-                    new AlertDialog.Builder(ctx)
+                    new MaterialAlertDialogBuilder(ctx)
                             .setTitle("导入失败")
                             .setMessage(r.error == null ? "未知错误" : r.error)
                             .setPositiveButton("知道了", null)
@@ -131,7 +132,7 @@ public class InstancesFragment extends Fragment {
     }
 
     private void showOptions(Instance in) {
-        new AlertDialog.Builder(requireContext())
+        new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(in.label)
                 .setItems(new String[]{"设为当前实例", "重命名", "删除"}, (d, which) -> {
                     if (which == 0) setActive(in);
@@ -142,15 +143,19 @@ public class InstancesFragment extends Fragment {
     }
 
     private void showRename(Instance in) {
-        final EditText et = new EditText(requireContext());
+        Context ctx = requireContext();
+        TextInputLayout field = new TextInputLayout(ctx);
+        field.setPadding(dp(24), dp(8), dp(24), 0);
+        TextInputEditText et = new TextInputEditText(ctx);
         et.setInputType(InputType.TYPE_CLASS_TEXT);
         et.setText(in.label);
         et.setSelection(in.label.length());
-        new AlertDialog.Builder(requireContext())
+        field.addView(et);
+        new MaterialAlertDialogBuilder(ctx)
                 .setTitle("重命名")
-                .setView(et)
+                .setView(field)
                 .setPositiveButton("确定", (d, w) -> {
-                    String nl = et.getText().toString().trim();
+                    String nl = et.getText() == null ? "" : et.getText().toString().trim();
                     if (nl.isEmpty()) { toast("名称不能为空"); return; }
                     InstanceStore.rename(requireContext(), in.id, nl);
                     refresh();
@@ -160,7 +165,7 @@ public class InstancesFragment extends Fragment {
     }
 
     private void showDelete(Instance in) {
-        new AlertDialog.Builder(requireContext())
+        new MaterialAlertDialogBuilder(requireContext())
                 .setTitle("删除实例")
                 .setMessage("删除「" + in.label + "」？此操作不可撤销。")
                 .setPositiveButton("删除", (d, w) -> {
@@ -170,6 +175,10 @@ public class InstancesFragment extends Fragment {
                 })
                 .setNegativeButton("取消", null)
                 .show();
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
     private void toast(String s) {

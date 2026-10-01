@@ -57,6 +57,12 @@ public class AlterApplication extends Application{
              * deliberately does not create the service, so this cannot start the
              * game process by itself.
              */
+            // Material You: opt-in via settings, read once here so it applies to every
+            // activity created this process. A change needs a restart to take effect.
+            if (com.answer.launcher.ui.LauncherPrefs.dynamicColor(this)) {
+                com.google.android.material.color.DynamicColors
+                        .applyToActivitiesIfAvailable(this);
+            }
             GameBridgeClient.get().bind(this);
         }
     }

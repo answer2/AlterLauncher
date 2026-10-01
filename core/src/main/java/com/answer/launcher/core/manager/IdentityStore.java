@@ -88,6 +88,50 @@ public final class IdentityStore {
     }
 
     /**
+     * Clears the sign-in under the account root: the {@code xal/} token store, the crypto prefs
+     * that hold the device keypair, and the launcher's own {@code accounts.json}. This is
+     * deliberately destructive and irreversible — the tokens are not recoverable without a fresh
+     * browser sign-in — so callers must confirm with the user and refuse while {@code :game} is
+     * running (XAL keeps the store open and would rewrite it underneath us).
+     *
+     * <p>In shared mode the account root is the one live tree every installation links to, so this
+     * signs all of them out at once — which is the correct meaning of "log out" for a shared
+     * identity, not an accident.
+     */
+    public static boolean signOut(Context host) {
+        File root = accountRoot(host);
+        boolean ok = deleteRecursive(new File(root, "xal"));
+        File crypto = new File(root, "shared_prefs/com.microsoft.xal.crypto.xml");
+        if (crypto.isFile()) {
+            ok &= crypto.delete();
+        }
+        File accounts = new File(root, AccountStoreName);
+        if (accounts.isFile()) {
+            ok &= accounts.delete();
+        }
+        Log.i(TAG, "signed out " + root + " ok=" + ok);
+        return ok;
+    }
+
+    /** {@code accounts.json} lives beside {@code xal/}; the launcher owns it, the game does not. */
+    private static final String AccountStoreName = "accounts.json";
+
+    private static boolean deleteRecursive(File file) {
+        if (!file.exists()) {
+            return true;
+        }
+        if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    deleteRecursive(child);
+                }
+            }
+        }
+        return file.delete();
+    }
+
+    /**
      * The root the account card should read: the live installation, falling back to the
      * launcher's own directory before the first isolated boot (and to a slug recomputed
      * from the installed package when {@code :game} has not recorded one yet).
