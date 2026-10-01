@@ -13,6 +13,7 @@ import com.answer.launcher.core.LauncherConstants
 import com.answer.launcher.core.bridge.GameBridgeClient
 import com.answer.launcher.core.bridge.GameRuntime
 import com.answer.launcher.core.manager.IdentityStore
+import com.answer.launcher.core.manager.IOManager
 import com.answer.launcher.ui.LauncherPrefs
 import com.answer.launcher.databinding.FragmentSettingBinding
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -57,6 +58,7 @@ class SettingFragment : Fragment() {
         bindIdentity(IdentityStore.readAccount(host))
         bindLoginMethod(host)
         bindAppearance(host)
+        bindVersionIsolation(host)
 
         val version = try {
             host.packageManager.getPackageInfo(LauncherConstants.MINECRAFTPACKAGE, 0).versionName
@@ -129,6 +131,15 @@ class SettingFragment : Fragment() {
         }
 
         binding.clearCache.setOnClickListener { confirmClearCache(host) }
+    }
+
+    private fun bindVersionIsolation(host: Context) {
+        binding.versionIsolation.setOnCheckedChangeListener(null)
+        binding.versionIsolation.isChecked = IOManager.versionIsolated(host)
+        binding.versionIsolation.setOnCheckedChangeListener { _, checked ->
+            IOManager.setVersionIsolated(host, checked)
+            Toast.makeText(host, R.string.setting_isolation_effect, Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun confirmClearCache(host: Context) {

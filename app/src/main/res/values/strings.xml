@@ -114,6 +114,9 @@
     <string name="setting_appearance_header">外观与启动</string>
     <string name="setting_auto_validate_toggle">启动前自动校验登录状态</string>
     <string name="setting_auto_validate_summary">关闭后不再每次联网向 Xbox 校验，只按本地记录显示登录状态。</string>
+    <string name="setting_version_isolation_toggle">按版本隔离游戏数据</string>
+    <string name="setting_version_isolation_summary">开启后每个版本各自拥有独立的存档、资源包与行为包；关闭后所有版本共用同一份数据（下次启动游戏生效）。</string>
+    <string name="setting_isolation_effect">下次启动游戏时生效</string>
     <string name="setting_clear_cache_button">清除缓存</string>
     <string name="setting_install_data_header">安装与数据</string>
     <string name="setting_version_placeholder">版本：—</string>

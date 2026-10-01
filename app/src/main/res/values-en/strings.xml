@@ -114,6 +114,9 @@
     <string name="setting_appearance_header">Appearance &amp; startup</string>
     <string name="setting_auto_validate_toggle">Auto-verify sign-in before launch</string>
     <string name="setting_auto_validate_summary">When off, no online Xbox check is made — only the local record is shown.</string>
+    <string name="setting_version_isolation_toggle">Isolate game data per version</string>
+    <string name="setting_version_isolation_summary">When on, each version keeps its own worlds, resource packs and behavior packs. When off, all versions share one data tree (takes effect on next game launch).</string>
+    <string name="setting_isolation_effect">Takes effect on next game launch</string>
     <string name="setting_clear_cache_button">Clear cache</string>
     <string name="setting_install_data_header">Install &amp; data</string>
     <string name="setting_version_placeholder">Version: —</string>

@@ -43,6 +43,57 @@ public class IOManager {
 
     static final String[] SEEDED_SUFFIXES = {".ent"};
 
+    /**
+     * Version isolation mode. When ON (default), each guest version keeps its own
+     * {@code games/com.mojang} subtree — separate worlds, separate packs. When OFF,
+     * the subtree is a symlink into one shared location so every version reads the
+     * same worlds and packs. Stored as a plain file under the isolation root so the
+     * {@code :game} process can read it before any UI exists.
+     */
+    private static final String ISOLATION_MODE_FILE = ".version-isolation";
+    private static final String ISOLATION_SHARED_DIR = "shared";
+
+    public static boolean versionIsolated(Context host) {
+        String text = readText(new File(IdentityStore.instancesDir(host), ISOLATION_MODE_FILE));
+        return text == null || !"0".equals(text.trim());
+    }
+
+    /**
+     * Flip the isolation mode. This only writes the flag; the actual symlink/copy
+     * migration happens the next time {@link #prepareDataRoot} runs for each instance.
+     */
+    public static void setVersionIsolated(Context host, boolean isolated) {
+        File dir = IdentityStore.instancesDir(host);
+        //noinspection ResultOfMethodCallIgnored
+        dir.mkdirs();
+        writeText(new File(dir, ISOLATION_MODE_FILE), isolated ? "1" : "0");
+        Log.i(TAG, "version isolation = " + (isolated ? "on" : "off"));
+    }
+
+    /** The canonical shared games/com.mojang root used when isolation is off. */
+    private static File sharedGamesRoot(Context host) {
+        return new File(new File(IdentityStore.instancesDir(host), ISOLATION_SHARED_DIR), "games");
+    }
+
+    private static String readText(File f) {
+        if (!f.isFile()) return null;
+        try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
+            byte[] buf = new byte[(int) Math.min(f.length(), 64)];
+            int n = in.read(buf);
+            return n <= 0 ? null : new String(buf, 0, n, "UTF-8");
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static void writeText(File f, String s) {
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(f)) {
+            out.write(s.getBytes("UTF-8"));
+        } catch (Throwable t) {
+            Log.w(TAG, "cannot write " + f + ": " + t);
+        }
+    }
+
     public static IOManager get() {
         return sIOManager;
     }
@@ -172,7 +223,27 @@ public class IOManager {
         // copied: two live copies of the same world is the one outcome nobody can
         // repair. It is also the only name at the launcher's root that the launcher
         // itself never writes, which is what makes it safe to claim wholesale.
-        migrate(new File(host.getDataDir(), "games"), new File(root, "games"));
+        if (versionIsolated(host)) {
+            migrate(new File(host.getDataDir(), "games"), new File(root, "games"));
+        } else {
+            /*
+             * Shared mode: point every instance's games/ at one canonical location so
+             * worlds and packs are the same across versions. If an instance already has
+             * a real games/ directory from a previous isolated run, migrate it into the
+             * shared root the first time (the shared location wins on conflict).
+             */
+            File shared = sharedGamesRoot(host);
+            //noinspection ResultOfMethodCallIgnored
+            shared.mkdirs();
+            File local = new File(root, "games");
+            if (local.isDirectory() && !SymlinkUtil.isSymlink(local)) {
+                mergeInto(local, shared);
+                deleteRecursive(local);
+            }
+            SymlinkUtil.symlink(shared, local);
+            // Also migrate the launcher's own legacy games/ into the shared root once.
+            migrate(new File(host.getDataDir(), "games"), shared);
+        }
         Log.i(TAG, "guest data root " + root + " (" + identity + ")");
         return root;
     }
@@ -459,6 +530,36 @@ public class IOManager {
             Log.w(TAG, "could not move " + legacy + " to " + target
                     + "; this installation starts with an empty world list");
         }
+    }
+
+    /**
+     * Move every child of src into dst. When a name already exists in dst, the dst
+     * copy wins (the shared location is authoritative) and the src copy is deleted.
+     * Used when flipping an instance from isolated to shared mode.
+     */
+    private static void mergeInto(File src, File dst) {
+        if (src == null || !src.isDirectory()) return;
+        File[] kids = src.listFiles();
+        if (kids == null) return;
+        //noinspection ResultOfMethodCallIgnored
+        dst.mkdirs();
+        for (File k : kids) {
+            File t = new File(dst, k.getName());
+            if (t.exists()) {
+                deleteRecursive(k);
+            } else if (!k.renameTo(t)) {
+                Log.w(TAG, "merge: could not move " + k + " to " + t);
+            }
+        }
+    }
+
+    private static void deleteRecursive(File f) {
+        if (f == null || !f.exists()) return;
+        if (f.isDirectory()) {
+            File[] kids = f.listFiles();
+            if (kids != null) for (File k : kids) deleteRecursive(k);
+        }
+        if (!f.delete()) Log.w(TAG, "delete failed: " + f);
     }
 
     /**
