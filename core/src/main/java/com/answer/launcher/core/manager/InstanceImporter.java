@@ -1,11 +1,14 @@
 package com.answer.launcher.core.manager;
 
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.util.Log;
+
+import com.answer.launcher.core.tool.Reflector;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -14,6 +17,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
+import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -61,7 +65,7 @@ public class InstanceImporter {
             String versionName = pi.versionName == null ? "unknown" : pi.versionName;
             long versionCode = pi.getLongVersionCode();
 
-            String abi = pickAbi(cache);
+            String abi = pickAbi(ctx, cache);
             if (abi == null) {
                 return new Result(null, "APK 内未找到适配本机的 native 库 (abi 不匹配)", false);
             }
@@ -132,8 +136,17 @@ public class InstanceImporter {
         return base + "-" + System.currentTimeMillis();
     }
 
-    /** First device-supported abi that has lib entries; "" if APK has no libs; null if libs exist but none match. */
-    private static String pickAbi(File apk) {
+    /**
+     * First ABI this process can actually load that also has lib entries; "" if the APK has no
+     * libs; null if libs exist but none match.
+     *
+     * <p>The preference list leads with the running process's own primary ABI, not the device's.
+     * {@code Build.SUPPORTED_ABIS} reports the <em>device</em> list (arm64-v8a first on a 64-bit
+     * phone) regardless of the process bitness, so a 32-bit build would otherwise pick arm64-v8a
+     * out of a universal APK and then fail to {@code dlopen} it. Preferring {@code primaryCpuAbi}
+     * makes the 32-bit build import universal/32-bit packages as armeabi-v7a (issue #45).
+     */
+    private static String pickAbi(Context ctx, File apk) {
         Set<String> abisInApk = new LinkedHashSet<>();
         boolean hasLibs = false;
         try (ZipFile zf = new ZipFile(apk)) {
@@ -152,10 +165,29 @@ public class InstanceImporter {
             return null;
         }
         if (!hasLibs) return "";
-        for (String deviceAbi : Build.SUPPORTED_ABIS) {
-            if (abisInApk.contains(deviceAbi)) return deviceAbi;
+        for (String abi : abiPreference(ctx)) {
+            if (abisInApk.contains(abi)) return abi;
         }
         return null;
+    }
+
+    /** The ABIs this process can load, best first: its own primary ABI, then the device list. */
+    private static List<String> abiPreference(Context ctx) {
+        LinkedHashSet<String> pref = new LinkedHashSet<>();
+        try {
+            // primaryCpuAbi is @hide, so it is read reflectively — but it is the only field that
+            // names the ABI this process actually runs as (Build.SUPPORTED_ABIS is the device's
+            // full list regardless of process bitness).
+            Object primary = Reflector.on(ApplicationInfo.class)
+                    .field("primaryCpuAbi").get(ctx.getApplicationInfo());
+            if (primary instanceof String && !((String) primary).isEmpty()) {
+                pref.add((String) primary);
+            }
+        } catch (Throwable ignored) {
+            // Unreadable early on; the device list below still applies.
+        }
+        for (String abi : Build.SUPPORTED_ABIS) pref.add(abi);
+        return new ArrayList<>(pref);
     }
 
     private static boolean extractLibs(File apk, String abi, File dest) {

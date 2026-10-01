@@ -37,6 +37,26 @@ android {
             useSupportLibrary = true
         }
     }
+
+    // Two ABI flavours (issue #45): an Android app runs all its processes at a single bitness,
+    // chosen at install from the ABIs the APK ships. So a 64-bit launcher cannot dlopen a 32-bit
+    // libminecraftpe.so. arm64 ships arm64-v8a (the everyday build); arm32 ships armeabi-v7a only,
+    // installs alongside as com.answer.launcher.x32, and runs 32-bit-only / universal Bedrock
+    // builds in its own 32-bit :game process.
+    flavorDimensions += "abi"
+    productFlavors {
+        create("arm64") {
+            dimension = "abi"
+            ndk { abiFilters.add("arm64-v8a") }
+        }
+        create("arm32") {
+            dimension = "abi"
+            applicationIdSuffix = ".x32"
+            versionNameSuffix = "-32bit"
+            ndk { abiFilters.add("armeabi-v7a") }
+            resValue("string", "app_name", "Alter启动器 32位")
+        }
+    }
     
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -63,7 +83,9 @@ android {
     // so the gate cannot be satisfied. We consume only AlterCore/AlterHelper's
     // reflection surface, which compiles fine against android-36.
     // TODO: upgrade AGP to 8.9+/9.x + compileSdkMinor = 1, then delete this block.
-    tasks.matching { it.name.contains("checkDebugAarMetadata") || it.name.contains("checkReleaseAarMetadata") }
+    // Matched by substring so it still fires once the "abi" flavours prefix the task names
+    // (checkArm64DebugAarMetadata, checkArm32ReleaseAarMetadata, …).
+    tasks.matching { it.name.contains("AarMetadata") }
         .configureEach { enabled = false }
 
     kotlinOptions {
