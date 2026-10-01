@@ -41,6 +41,12 @@ public final class AccountStore {
         public long updatedAt;
         /** {@code BedrockAuthManager.toJson} output: the whole token chain plus the device keys. */
         public JsonObject auth;
+        /**
+         * The Xbox DisplayPicRaw image URL, once it has been fetched. It belongs to the account
+         * rather than to a session, so caching it here keeps every avatar on the UI off the network
+         * — the profile endpoint is only asked when this is still empty.
+         */
+        public String avatarUrl;
 
         public Account() {
         }
@@ -91,6 +97,7 @@ public final class AccountStore {
                     acc.xuid = str(a, "xuid");
                     acc.gamertag = str(a, "gamertag");
                     acc.updatedAt = a.has("updatedAt") ? a.get("updatedAt").getAsLong() : 0L;
+                    acc.avatarUrl = str(a, "avatarUrl");
                     if (a.has("auth") && a.get("auth").isJsonObject()) {
                         acc.auth = a.getAsJsonObject("auth");
                     }
@@ -130,6 +137,9 @@ public final class AccountStore {
                 o.addProperty("gamertag", a.gamertag);
             }
             o.addProperty("updatedAt", a.updatedAt);
+            if (a.avatarUrl != null) {
+                o.addProperty("avatarUrl", a.avatarUrl);
+            }
             o.add("auth", a.auth);
             list.add(o);
         }

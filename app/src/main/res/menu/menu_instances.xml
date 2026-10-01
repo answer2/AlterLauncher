@@ -10,4 +10,14 @@
         android:icon="@drawable/ic_action_add"
         android:title="@string/instance_import_button"
         app:showAsAction="ifRoom" />
+    <!-- Task #31/#32: the archive-level actions. They live in the overflow so the two
+         everyday buttons keep their room in a narrow landscape window. -->
+    <item
+        android:id="@+id/action_import_modpack"
+        android:title="@string/modpack_import_button"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_add_folder"
+        android:title="@string/modpack_add_folder_button"
+        app:showAsAction="never" />
 </menu>

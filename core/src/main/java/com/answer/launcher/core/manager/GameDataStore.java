@@ -25,23 +25,23 @@ public final class GameDataStore {
 
     /** The {@code games/com.mojang} directory for the active instance, or null. */
     public static File comMojang(Context host) {
-        File root = activeRoot(host);
-        return root == null ? null : new File(root, "games/com.mojang");
+        String slug = IdentityStore.activeSlug(host);
+        return slug == null ? null : comMojangFor(host, slug);
     }
 
     public static File worlds(Context host) {
-        File base = comMojang(host);
-        return base == null ? null : new File(base, "minecraftWorlds");
+        String slug = IdentityStore.activeSlug(host);
+        return slug == null ? null : worldsFor(host, slug);
     }
 
     public static File resourcePacks(Context host) {
-        File base = comMojang(host);
-        return base == null ? null : new File(base, "resource_packs");
+        String slug = IdentityStore.activeSlug(host);
+        return slug == null ? null : resourcePacksFor(host, slug);
     }
 
     public static File behaviorPacks(Context host) {
-        File base = comMojang(host);
-        return base == null ? null : new File(base, "behavior_packs");
+        String slug = IdentityStore.activeSlug(host);
+        return slug == null ? null : behaviorPacksFor(host, slug);
     }
 
     /**
@@ -50,7 +50,37 @@ public final class GameDataStore {
      * behavior_packs) is applied to every world the player opens.
      */
     public static File globalPacks(Context host) {
-        File base = comMojang(host);
+        String slug = IdentityStore.activeSlug(host);
+        return slug == null ? null : globalPacksFor(host, slug);
+    }
+
+    // --- per-instance (slug) variants: the content manager can target any installation,
+    //     not just the active one, so every path helper has a slug-taking twin. ---
+
+    /** The {@code games/com.mojang} directory for one instance, or null if it has none. */
+    public static File comMojangFor(Context host, String slug) {
+        if (slug == null) return null;
+        File base = new File(IdentityStore.instanceRoot(host, slug), "games/com.mojang");
+        return base.isDirectory() ? base : null;
+    }
+
+    public static File worldsFor(Context host, String slug) {
+        File base = comMojangFor(host, slug);
+        return base == null ? null : new File(base, "minecraftWorlds");
+    }
+
+    public static File resourcePacksFor(Context host, String slug) {
+        File base = comMojangFor(host, slug);
+        return base == null ? null : new File(base, "resource_packs");
+    }
+
+    public static File behaviorPacksFor(Context host, String slug) {
+        File base = comMojangFor(host, slug);
+        return base == null ? null : new File(base, "behavior_packs");
+    }
+
+    public static File globalPacksFor(Context host, String slug) {
+        File base = comMojangFor(host, slug);
         return base == null ? null : new File(base, "packs");
     }
 

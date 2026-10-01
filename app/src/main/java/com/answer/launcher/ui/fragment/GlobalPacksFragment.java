@@ -44,19 +44,40 @@ import java.util.List;
  * <p>This is distinct from the per-instance "globally enabled" {@code packs/} folder
  * (which controls whether a pack applies to every world inside one version): a pack
  * in this screen is shared across <em>versions</em>.
+ *
+ * <p>The content header still hands this screen a {@code "slug"} (task #33) so the page
+ * and the header never disagree, but the storage root deliberately ignores it: shared
+ * storage is not per-instance, and linking it into the picked instance only would defeat
+ * the whole point.
  */
 public class GlobalPacksFragment extends Fragment implements PackAdapter.Listener {
+
+    private static final String ARG_SLUG = "slug";
 
     private FragmentPacksBinding binding;
     private PackAdapter adapter;
     private ActivityResultLauncher<String[]> importLauncher;
     private volatile boolean listing;
+    /** The instance the header has selected; kept for the header's sake, not used for paths. */
+    private String slug;
     private final DateFormat dateFormat =
             DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT);
+
+    public static GlobalPacksFragment newInstance(String slug) {
+        GlobalPacksFragment f = new GlobalPacksFragment();
+        if (slug != null && !slug.isEmpty()) {
+            Bundle args = new Bundle();
+            args.putString(ARG_SLUG, slug);
+            f.setArguments(args);
+        }
+        return f;
+    }
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Bundle args = getArguments();
+        slug = args == null ? null : args.getString(ARG_SLUG);
         importLauncher = registerForActivityResult(
                 new ActivityResultContracts.OpenDocument(), this::onImportPicked);
     }
@@ -91,12 +112,24 @@ public class GlobalPacksFragment extends Fragment implements PackAdapter.Listene
         listing = false;
     }
 
+    // ----------------------------------------------------------------- paths
+
+    /**
+     * The shared pack storage. Unlike the worlds and pack screens this root never follows the
+     * selected instance: a global pack lives once under {@code mc/global_packs/} and is linked
+     * into every installation, so honouring {@code slug} here would quietly turn the screen into
+     * a per-version one.
+     */
+    private File storageRoot(Context ctx) {
+        return GameDataStore.sharedPackStorage(ctx);
+    }
+
     private void refresh() {
         if (binding == null || listing) return;
         final Context ctx = requireContext();
         listing = true;
         new Thread(() -> {
-            final File root = GlobalPackManager.storageRoot(ctx);
+            final File root = storageRoot(ctx);
             final List<PackAdapter.Pack> found = PackAdapter.Pack.list(root, null);
             FragmentActivity act = getActivity();
             if (act == null) return;
@@ -227,7 +260,7 @@ public class GlobalPacksFragment extends Fragment implements PackAdapter.Listene
             toast(getString(R.string.pack_import_type_error));
             return;
         }
-        final File storage = GameDataStore.ensure(GlobalPackManager.storageRoot(ctx));
+        final File storage = GameDataStore.ensure(storageRoot(ctx));
         if (storage == null) {
             toast(getString(R.string.content_import_empty));
             return;

@@ -27,6 +27,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.answer.launcher.R;
 import com.answer.launcher.core.manager.GameDataStore;
+import com.answer.launcher.core.manager.IdentityStore;
 import com.answer.launcher.databinding.FragmentPacksBinding;
 import com.answer.launcher.ui.PackAdapter;
 import com.answer.launcher.ui.PackZip;
@@ -40,9 +41,11 @@ import java.util.List;
 
 /**
  * 资源包 / 行为包 (task #19): one screen class for both pack roots, picked by
- * {@link #newInstance(int)}. Besides import/export/delete it carries the enable
- * switch, which publishes a pack into {@code games/com.mojang/packs} so the game
- * applies it to every world.
+ * {@link #newInstance(int)}, and both routed to the instance the content header chose
+ * (task #33) through the {@code "slug"} argument — with no slug the active instance is used.
+ *
+ * <p>Besides import/export/delete it carries the enable switch, which publishes a pack into
+ * {@code games/com.mojang/packs} so the game applies it to every world.
  *
  * <p>{@code packs/<id>} is created as a symlink back into the packs root: it is what
  * the game (and task #20's global-resource mechanism) expects to find there, and it
@@ -55,6 +58,7 @@ public class PacksFragment extends Fragment implements PackAdapter.Listener {
     public static final int KIND_BEHAVIOR = 1;
 
     private static final String ARG_KIND = "kind";
+    private static final String ARG_SLUG = "slug";
 
     private FragmentPacksBinding binding;
     private PackAdapter adapter;
@@ -66,11 +70,18 @@ public class PacksFragment extends Fragment implements PackAdapter.Listener {
             DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT);
 
     private int kind = KIND_RESOURCE;
+    /** The instance being managed; null or empty means the active one. */
+    private String slug;
 
     public static PacksFragment newInstance(int kind) {
+        return newInstance(kind, null);
+    }
+
+    public static PacksFragment newInstance(int kind, String slug) {
         PacksFragment f = new PacksFragment();
         Bundle args = new Bundle();
         args.putInt(ARG_KIND, kind);
+        if (slug != null && !slug.isEmpty()) args.putString(ARG_SLUG, slug);
         f.setArguments(args);
         return f;
     }
@@ -80,6 +91,7 @@ public class PacksFragment extends Fragment implements PackAdapter.Listener {
         super.onCreate(savedInstanceState);
         Bundle args = getArguments();
         kind = args == null ? KIND_RESOURCE : args.getInt(ARG_KIND, KIND_RESOURCE);
+        slug = args == null ? null : args.getString(ARG_SLUG);
         importLauncher = registerForActivityResult(
                 new ActivityResultContracts.OpenDocument(), this::onImportPicked);
         exportLauncher = registerForActivityResult(
@@ -122,8 +134,38 @@ public class PacksFragment extends Fragment implements PackAdapter.Listener {
     // ----------------------------------------------------------------- paths
 
     private File packsRoot(Context ctx) {
-        return kind == KIND_BEHAVIOR
-                ? GameDataStore.behaviorPacks(ctx) : GameDataStore.resourcePacks(ctx);
+        return kind == KIND_BEHAVIOR ? behaviorRoot(ctx) : resourceRoot(ctx);
+    }
+
+    /** The managed instance's {@code resource_packs} folder (task #33). */
+    private File resourceRoot(Context ctx) {
+        if (slug == null || slug.isEmpty()) return GameDataStore.resourcePacks(ctx);
+        File root = GameDataStore.resourcePacksFor(ctx, slug);
+        return root != null ? root : GameDataStore.ensure(instancePath(ctx, "resource_packs"));
+    }
+
+    /** The managed instance's {@code behavior_packs} folder. */
+    private File behaviorRoot(Context ctx) {
+        if (slug == null || slug.isEmpty()) return GameDataStore.behaviorPacks(ctx);
+        File root = GameDataStore.behaviorPacksFor(ctx, slug);
+        return root != null ? root : GameDataStore.ensure(instancePath(ctx, "behavior_packs"));
+    }
+
+    /** The managed instance's in-game "globally enabled" {@code packs} folder. */
+    private File globalRoot(Context ctx) {
+        if (slug == null || slug.isEmpty()) return GameDataStore.globalPacks(ctx);
+        File root = GameDataStore.globalPacksFor(ctx, slug);
+        return root != null ? root : GameDataStore.ensure(instancePath(ctx, "packs"));
+    }
+
+    /**
+     * {@code <dataDir>/mc/<slug>/games/com.mojang/<name>}. The {@code *For} helpers answer
+     * {@code null} for an instance that has never been booted, because the game is what
+     * creates that tree on its first launch — managing one still needs the path, so it is
+     * built here from the same base the helpers use.
+     */
+    private File instancePath(Context ctx, String name) {
+        return new File(IdentityStore.instanceRoot(ctx, slug), "games/com.mojang/" + name);
     }
 
     // ------------------------------------------------------------- list state
@@ -132,7 +174,7 @@ public class PacksFragment extends Fragment implements PackAdapter.Listener {
         if (binding == null || listing) return;
         final Context ctx = requireContext();
         final File root = packsRoot(ctx);
-        final File global = GameDataStore.globalPacks(ctx);
+        final File global = globalRoot(ctx);
         listing = true;
         new Thread(() -> {
             final List<PackAdapter.Pack> found = PackAdapter.Pack.list(root, global);
@@ -274,8 +316,8 @@ public class PacksFragment extends Fragment implements PackAdapter.Listener {
         GameDataStore.ensure(root);
         // An .mcaddon carries both kinds, so let the manifest decide where each
         // half lands instead of forcing it into the tab the picker was opened on.
-        final File resource = GameDataStore.resourcePacks(ctx);
-        final File behavior = GameDataStore.behaviorPacks(ctx);
+        final File resource = resourceRoot(ctx);
+        final File behavior = behaviorRoot(ctx);
         final boolean splitAddon = "mcaddon".equals(ext) && resource != null && behavior != null;
         toast(getString(R.string.common_working));
         new Thread(() -> {
@@ -304,7 +346,7 @@ public class PacksFragment extends Fragment implements PackAdapter.Listener {
     /** Deleting a pack also revokes its global-packs entry, if it has one. */
     private void deletePack(PackAdapter.Pack pack) {
         final Context ctx = requireContext();
-        final File global = GameDataStore.globalPacks(ctx);
+        final File global = globalRoot(ctx);
         new Thread(() -> {
             if (global != null) {
                 PackZip.deleteRec(new File(global, pack.id));
@@ -325,7 +367,7 @@ public class PacksFragment extends Fragment implements PackAdapter.Listener {
     @Override
     public void onPackToggle(PackAdapter.Pack pack, boolean enable) {
         final Context ctx = requireContext();
-        final File global = GameDataStore.globalPacks(ctx);
+        final File global = globalRoot(ctx);
         if (global == null) {
             toast(getString(R.string.content_no_instance));
             refresh();

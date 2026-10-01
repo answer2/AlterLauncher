@@ -24,6 +24,7 @@ import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.core.manager.IdentityStore;
 import com.answer.launcher.R;
 import com.answer.launcher.databinding.FragmentHomeBinding;
+import com.answer.launcher.ui.AvatarLoader;
 import com.answer.launcher.ui.SignInSheet;
 import com.answer.launcher.ui.LauncherPrefs;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -150,6 +151,9 @@ public class HomeFragment extends Fragment {
      * manager that fails to authenticate is shown as expired and prompts a re-login; a sign-in
      * that was written by the game rather than the launcher has no manager here to test, so it
      * stays "signed in" instead of falsely reporting an expiry we cannot actually prove.
+     *
+     * <p>The avatar comes along with the same answer: Xbox only gives up the picture to a live
+     * session, so an expired or absent sign-in draws the placeholder instead.
      */
     private void applyAccountCard(IdentityStore.Account account, SessionValidator.Status validity) {
         boolean expired = account.signedIn && validity.hasAccount && !validity.valid;
@@ -169,6 +173,15 @@ public class HomeFragment extends Fragment {
             binding.userId.setText(R.string.account_not_signed_in);
             binding.userStatus.setText(R.string.account_not_signed_in_hint);
         }
+        /*
+         * The slot the app has shipped with an icon in since the first commit now holds the real
+         * face: a cached DisplayPicRaw URL, drawn as a circle, with a letter avatar underneath it
+         * until the picture arrives. Passing a null URL (signed out, or a check that never got an
+         * answer) also drops any download still in flight so it cannot land on the wrong account.
+         */
+        AvatarLoader.load(binding.userImage,
+                account.signedIn ? validity.avatarUrl : null,
+                account.signedIn ? validity.gamertag : null);
     }
 
     private boolean accountStateSignedIn;

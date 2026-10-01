@@ -236,6 +236,9 @@
     <string name="content_label_modules">模块数：%d</string>
     <string name="content_label_uuid">UUID：%s</string>
     <string name="content_unknown">未提供</string>
+    <string name="content_managing_instance">正在管理：%s</string>
+    <string name="content_pick_instance_title">选择要管理的实例</string>
+    <string name="content_no_instance_list">还没有实例：先到「实例」导入一个 Minecraft 安装包</string>
 
     <!-- Shared by the content screens -->
     <string name="common_more">更多</string>
@@ -276,4 +279,20 @@
     <string name="plugin_change_effect">已通知游戏，下次启动游戏生效</string>
     <string name="plugin_toggle_failed">切换失败：%s</string>
     <string name="plugin_label_type">类型：%s</string>
+
+    <!-- Modpack: .altpack import / export (task #31/#32) -->
+    <string name="modpack_import_button">导入整合包</string>
+    <string name="modpack_export_button">导出整合包</string>
+    <string name="modpack_add_folder_button">添加已有文件夹</string>
+    <string name="modpack_import_title">导入到哪个实例？</string>
+    <string name="modpack_import_message">整合包会写入所选实例的世界与包目录，同名内容会被压缩包里的版本替换。插件是全局的，对所有实例生效。</string>
+    <string name="modpack_import_type_error">请选择 .altpack（或 .zip）整合包</string>
+    <string name="modpack_import_no_target">没有可导入的实例：请先导入一个 Minecraft 安装包</string>
+    <string name="modpack_import_success">整合包导入完成：%1$d 个世界 · %2$d 个资源包 · %3$d 个行为包 · %4$d 个插件</string>
+    <string name="modpack_import_failed">导入整合包失败：%s</string>
+    <string name="modpack_import_empty">整合包里没有可导入的内容（缺少 worlds / resource_packs / behavior_packs / plugins 目录）</string>
+    <string name="modpack_export_success">已导出整合包 %1$s（共 %2$d 项内容）</string>
+    <string name="modpack_export_failed">导出整合包失败：%s</string>
+    <string name="modpack_add_folder_title">暂不支持添加已有文件夹</string>
+    <string name="modpack_add_folder_message">启动器的实例来自安装包导入：每个实例都要带着自己的 base.apk 和解出的库文件，只有一份游戏数据的文件夹没法作为实例启动（会退回系统安装的 Minecraft，数据目录也对不上）。\n\n想把外部数据引进来：把该文件夹整理成整合包（manifest.json 加 worlds、resource_packs、behavior_packs、plugins 四个目录，打成 zip），再用「导入整合包」写入目标实例。</string>
 </resources>

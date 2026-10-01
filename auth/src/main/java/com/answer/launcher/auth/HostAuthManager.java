@@ -9,6 +9,7 @@ import net.raphimc.minecraftauth.msa.model.MsaDeviceCode;
 // The library's own DeviceCodeMsaAuthService is used through RetryingDeviceCodeMsaService.
 import net.raphimc.minecraftauth.util.CryptUtil;
 import net.raphimc.minecraftauth.bedrock.model.MinecraftCertificateChain;
+import net.raphimc.minecraftauth.xbl.model.XblUserToken;
 
 import com.google.gson.JsonObject;
 
@@ -152,6 +153,22 @@ public final class HostAuthManager {
     public static String userHash(BedrockAuthManager manager) {
         try {
             return manager.getXblUserToken().getUpToDate().getUserHash();
+        } catch (Throwable t) {
+            LastError.set(t);
+            return null;
+        }
+    }
+
+    /**
+     * The {@code Authorization} value Xbox Live's own endpoints accept for this account:
+     * {@code XBL3.0 x=<userHash>;<user token>}. This is the token the game carries to profile and
+     * friend services — anything signed with the MSA token instead is refused — so it is what the
+     * avatar lookup needs. Null when the user token could not be brought up to date.
+     */
+    public static String xblUserTokenHeader(BedrockAuthManager manager) {
+        try {
+            XblUserToken token = manager.getXblUserToken().getUpToDate();
+            return "XBL3.0 x=" + token.getUserHash() + ";" + token.getToken();
         } catch (Throwable t) {
             LastError.set(t);
             return null;
