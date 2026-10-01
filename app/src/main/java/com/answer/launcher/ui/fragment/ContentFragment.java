@@ -138,9 +138,9 @@ public class ContentFragment extends Fragment {
                 // the page never disagree about what is being shown.
                 return GlobalPacksFragment.newInstance(selectedSlug);
             case PAGE_PLUGIN:
-                // Plugin directories live in shared app storage and are process-wide, so the
-                // instance selection does not apply to them.
-                return new PluginsFragment();
+                // Plugins are isolated per installation (task #35): the page manages the selected
+                // instance's own plugin dir, the same one :game loads when that instance boots.
+                return PluginsFragment.newInstance(currentSlug());
             case PAGE_WORLDS:
             default:
                 return WorldsFragment.newInstance(selectedSlug);

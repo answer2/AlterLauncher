@@ -17,19 +17,14 @@ public class NativePluginManager {
 
     private Context mContext;
     private List<String> nativeFiles = new ArrayList<>();
-    private File nativePath;
 
     private NativePluginManager(Context context) {
         this.mContext = context;
-        File base = Alternative.getManager().getHostFilesDir();
-        if (base == null) base = context.getFilesDir();
-        this.nativePath = new File(base.getAbsolutePath() + "/nativePlugin");
-        if (!this.nativePath.exists()) this.nativePath.mkdir();
         rescan();
     }
 
     /**
-     * Re-read the native plugin directory. Same reason as
+     * Re-read the native plugin directory for the active installation. Same reason as
      * {@code PluginManager.rescan()}: the UI process can import into shared storage
      * at any time and {@code :game} has to notice.
      *
@@ -40,7 +35,7 @@ public class NativePluginManager {
      */
     public void rescan() {
         nativeFiles.clear();
-        File[] files = nativePath.listFiles();
+        File[] files = PluginPaths.activeNativeDir(mContext).listFiles();
         if (files == null) return;
         for(File file : files){
            if(!file.isDirectory()&&file.getName().endsWith(".so")) nativeFiles.add(file.getAbsolutePath());
@@ -61,7 +56,9 @@ public class NativePluginManager {
     public void addNativePlugin(String path) {
         File file = new File(path);
         if (file.exists()) {
-            String pluginPath = this.nativePath.getAbsoluteFile().getAbsolutePath() + "/" + file.getName();
+            File dir = PluginPaths.activeNativeDir(mContext);
+            if (!dir.exists()) dir.mkdirs();
+            String pluginPath = new File(dir, file.getName()).getAbsolutePath();
             FileUtil.copy(file, pluginPath);
             nativeFiles.add(pluginPath);
         }
@@ -70,12 +67,16 @@ public class NativePluginManager {
     public List<String> getNativeFiles() {
         return this.nativeFiles;
     }
-    
+
     public void clear(){
-        for(File file : nativePath.listFiles()){
-            file.delete();
+        File[] files = PluginPaths.activeNativeDir(mContext).listFiles();
+        if (files != null) {
+            for(File file : files){
+                file.delete();
+            }
         }
+        nativeFiles.clear();
     }
-    
+
 
 }

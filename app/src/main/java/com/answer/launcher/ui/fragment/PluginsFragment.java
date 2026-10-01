@@ -19,7 +19,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.answer.launcher.R;
 import com.answer.launcher.core.bridge.GameBridgeClient;
-import com.answer.launcher.core.manager.Alternative;
+import com.answer.launcher.core.manager.PluginPaths;
 import com.answer.launcher.databinding.FragmentPluginsBinding;
 import com.answer.launcher.ui.PackZip;
 import com.answer.launcher.ui.PluginAdapter;
@@ -46,17 +46,29 @@ import java.util.Locale;
  */
 public class PluginsFragment extends Fragment implements PluginAdapter.Listener {
 
-    private static final String PLUGIN_DIR = "plugin";
-    private static final String NATIVE_DIR = "nativePlugin";
+    private static final String ARG_SLUG = "slug";
 
     private FragmentPluginsBinding binding;
     private PluginAdapter adapter;
     private ActivityResultLauncher<String[]> importLauncher;
     private volatile boolean listing;
+    /** The installation whose plugins are shown; null means the shared (no-instance) dir. */
+    private String slug;
+
+    public static PluginsFragment newInstance(String slug) {
+        PluginsFragment f = new PluginsFragment();
+        Bundle args = new Bundle();
+        args.putString(ARG_SLUG, slug);
+        f.setArguments(args);
+        return f;
+    }
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (getArguments() != null) {
+            slug = getArguments().getString(ARG_SLUG);
+        }
         importLauncher = registerForActivityResult(
                 new ActivityResultContracts.OpenDocument(), this::onImportPicked);
     }
@@ -93,24 +105,17 @@ public class PluginsFragment extends Fragment implements PluginAdapter.Listener 
 
     // ----------------------------------------------------------------- paths
 
-    /** The same base the plugin managers use, resolved without touching game data. */
-    private File baseDir() {
-        File base = null;
-        try {
-            base = Alternative.getManager().getHostFilesDir();
-        } catch (Throwable ignored) {
-            // The launcher process may not have assembled the runtime, which is fine.
-        }
-        if (base == null) base = requireContext().getFilesDir();
-        return base;
-    }
-
+    /**
+     * The two plugin dirs for the installation being managed. Resolved through
+     * {@link PluginPaths} so the UI writes exactly where {@code :game} reads for that instance
+     * (task #35): a null slug means the shared dir (system install / no imported instance).
+     */
     private File dexDir() {
-        return new File(baseDir(), PLUGIN_DIR);
+        return PluginPaths.dexDir(requireContext(), slug);
     }
 
     private File nativeDir() {
-        return new File(baseDir(), NATIVE_DIR);
+        return PluginPaths.nativeDir(requireContext(), slug);
     }
 
     private static void ensureDir(File dir) {

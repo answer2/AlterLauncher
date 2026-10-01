@@ -289,10 +289,10 @@
     <string name="modpack_export_button">导出整合包</string>
     <string name="modpack_add_folder_button">添加已有文件夹</string>
     <string name="modpack_import_title">导入到哪个实例？</string>
-    <string name="modpack_import_message">整合包会写入所选实例的世界与包目录，同名内容会被压缩包里的版本替换。插件是全局的，对所有实例生效。</string>
+    <string name="modpack_import_message">整合包会把整个实例内容（世界、包、设置、插件、模组）写入所选实例，同名内容会被压缩包里的版本替换。插件与模组按实例隔离。不含 Minecraft 本体安装包。</string>
     <string name="modpack_import_type_error">请选择 .altpack（或 .zip）整合包</string>
     <string name="modpack_import_no_target">没有可导入的实例：请先导入一个 Minecraft 安装包</string>
-    <string name="modpack_import_success">整合包导入完成：%1$d 个世界 · %2$d 个资源包 · %3$d 个行为包 · %4$d 个插件</string>
+    <string name="modpack_import_success">整合包导入完成：%1$d 项内容 · %2$d 个插件 · %3$d 个模组</string>
     <string name="modpack_import_failed">导入整合包失败：%s</string>
     <string name="modpack_import_empty">整合包里没有可导入的内容（缺少 worlds / resource_packs / behavior_packs / plugins 目录）</string>
     <string name="modpack_export_success">已导出整合包 %1$s（共 %2$d 项内容）</string>

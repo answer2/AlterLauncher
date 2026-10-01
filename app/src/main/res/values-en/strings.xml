@@ -289,10 +289,10 @@
     <string name="modpack_export_button">Export modpack</string>
     <string name="modpack_add_folder_button">Add existing folder</string>
     <string name="modpack_import_title">Import into which instance?</string>
-    <string name="modpack_import_message">The modpack is installed into the selected instance\'s worlds and packs folders; entries with the same name are replaced by the archive copy. Plugins are global and apply to every instance.</string>
+    <string name="modpack_import_message">The modpack installs the whole instance content (worlds, packs, settings, plugins, mods) into the selected instance; entries with the same name are replaced by the archive copy. Plugins and mods are isolated per instance.</string>
     <string name="modpack_import_type_error">Pick an .altpack (or .zip) modpack archive</string>
     <string name="modpack_import_no_target">No instance to import into: import a Minecraft package first</string>
-    <string name="modpack_import_success">Modpack imported: %1$d world(s), %2$d resource pack(s), %3$d behaviour pack(s), %4$d plugin(s)</string>
+    <string name="modpack_import_success">Modpack imported: %1$d content item(s), %2$d plugin(s), %3$d mod(s)</string>
     <string name="modpack_import_failed">Modpack import failed: %s</string>
     <string name="modpack_import_empty">Nothing to import in the archive (no worlds / resource_packs / behavior_packs / plugins folder)</string>
     <string name="modpack_export_success">Modpack exported as %1$s (%2$d item(s))</string>

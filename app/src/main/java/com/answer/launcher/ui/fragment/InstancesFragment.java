@@ -240,11 +240,12 @@ public class InstancesFragment extends Fragment {
             post(() -> {
                 if (binding == null) return;
                 if (r.success()) {
+                    int content = r.count(ModPack.KIND_DATA) + r.count(ModPack.KIND_WORLDS)
+                            + r.count(ModPack.KIND_RESOURCE) + r.count(ModPack.KIND_BEHAVIOR);
                     toast(getString(R.string.modpack_import_success,
-                            r.count(ModPack.KIND_WORLDS), r.count(ModPack.KIND_RESOURCE),
-                            r.count(ModPack.KIND_BEHAVIOR), r.count(ModPack.KIND_PLUGINS)));
+                            content, r.count(ModPack.KIND_PLUGINS), r.count(ModPack.KIND_MODS)));
                     if (r.count(ModPack.KIND_PLUGINS) > 0) {
-                        // Plugins are read by :game from shared storage, so a modpack that
+                        // Plugins are read by :game from the instance's own dir, so a modpack that
                         // carried any has to tell it to look again, like the plugin screen does.
                         GameBridgeClient.get().reloadPlugins();
                         toast(getString(R.string.plugin_change_effect));

@@ -28,17 +28,12 @@ public class PluginManager {
     private static volatile PluginManager manager;
 
     private final Context mContext;
-    private final File pluginPath;
     private final PluginLoader loader;
     private final List<String> plugins = new ArrayList<>();
     private List<LoadResult> lastResults = new ArrayList<>();
 
     private PluginManager(Context context) {
         this.mContext = context;
-        File base = Alternative.getManager().getHostFilesDir();
-        if (base == null) base = context.getFilesDir();
-        this.pluginPath = new File(base.getAbsolutePath() + "/plugin");
-        if (!this.pluginPath.exists()) this.pluginPath.mkdir();
         this.loader = new PluginLoader(context);
         rescan();
     }
@@ -55,12 +50,13 @@ public class PluginManager {
     }
 
     /**
-     * Re-read the plugin directory into {@link #plugins}. The directory lives in
-     * shared app storage, so the UI process can drop a file there at any time.
+     * Re-read the active installation's plugin directory into {@link #plugins}. The directory is
+     * per-instance (task #35), so a rescan after the active instance changes picks up that
+     * installation's set, and the UI process can drop a file there at any time.
      */
     public void rescan() {
         plugins.clear();
-        File[] files = pluginPath.listFiles();
+        File[] files = PluginPaths.activeDexDir(mContext).listFiles();
         if (files == null) return;
         for (File file : files) {
             if (!file.isDirectory()
@@ -74,7 +70,9 @@ public class PluginManager {
         try {
             File file = new File(path);
             if (file.exists()) {
-                File dest = new File(pluginPath, file.getName());
+                File dir = PluginPaths.activeDexDir(mContext);
+                if (!dir.exists()) dir.mkdirs();
+                File dest = new File(dir, file.getName());
                 FileUtil.copy(file, dest.getAbsolutePath());
                 plugins.add(dest.getAbsolutePath());
             }
@@ -88,7 +86,7 @@ public class PluginManager {
     }
 
     public void clear() {
-        File[] files = pluginPath.listFiles();
+        File[] files = PluginPaths.activeDexDir(mContext).listFiles();
         if (files != null) {
             for (File file : files) file.delete();
         }

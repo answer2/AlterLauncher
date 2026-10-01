@@ -13,8 +13,8 @@ import com.answer.launcher.api.PluginManifest;
 import com.answer.launcher.api.PluginResources;
 import com.answer.launcher.api.PluginState;
 import com.answer.launcher.core.LauncherConstants;
-import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.core.manager.MinecraftManager;
+import com.answer.launcher.core.manager.PluginPaths;
 
 import dalvik.system.DexClassLoader;
 import dalvik.system.DexFile;
@@ -52,27 +52,23 @@ public final class PluginLoader {
     private static final String MANIFEST_ASSET = "assets/alter-plugin.json";
 
     private final Context context;
-    private final File pluginDir;
     private final File optimizedDir;
     private final Map<String, LoadedPlugin> loaded = new LinkedHashMap<>();
 
     public PluginLoader(Context context) {
         this.context = context;
-        File base = Alternative.getManager().getHostFilesDir();
-        if (base == null) base = context.getFilesDir();
-        this.pluginDir = new File(base.getAbsolutePath() + "/plugin");
-        if (!this.pluginDir.exists()) this.pluginDir.mkdirs();
         this.optimizedDir = context.getDir("plugin", Context.MODE_PRIVATE);
     }
 
+    /** The active installation's dex plugin dir (task #35); the shared dir when none is active. */
     public File getPluginDir() {
-        return pluginDir;
+        return PluginPaths.activeDexDir(context);
     }
 
     /** Loose {@code .dex} / {@code .apk} files in the plugin dir. */
     public List<File> scan() {
         List<File> out = new ArrayList<>();
-        File[] files = pluginDir.listFiles();
+        File[] files = getPluginDir().listFiles();
         if (files == null) return out;
         for (File f : files) {
             if (f.isFile() && (f.getName().endsWith(".dex") || f.getName().endsWith(".apk"))) {
@@ -155,7 +151,7 @@ public final class PluginLoader {
         }
 
         String id = manifest.id.isEmpty() ? source.getName() : manifest.id;
-        File workDir = new File(pluginDir, id);
+        File workDir = new File(getPluginDir(), id);
         workDir.mkdirs();
         PluginResources res = buildResources(source);
         PluginContextImpl ctx = new PluginContextImpl(manifest, workDir, res);
