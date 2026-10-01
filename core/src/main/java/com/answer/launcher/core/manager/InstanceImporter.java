@@ -49,6 +49,7 @@ public class InstanceImporter {
 
     public static Result import_(Context ctx, Uri apkUri, String label) {
         File cache = null;
+        File createdDir = null;
         try {
             cache = copyToCache(ctx, apkUri);
             if (cache == null) return new Result(null, "无法读取所选文件", false);
@@ -73,6 +74,7 @@ public class InstanceImporter {
             String id = uniqueId(ctx, versionName);
             File root = InstanceStore.instancesRoot(ctx);
             File dir = new File(root, id);
+            createdDir = dir;
             if (!dir.exists()) dir.mkdirs();
 
             File baseApk = new File(dir, "base.apk");
@@ -107,6 +109,9 @@ public class InstanceImporter {
             return new Result(in, null, aligned);
         } catch (Exception e) {
             Log.e(TAG, "import failed", e);
+            // A half-imported tree (corrupt lib, failed write) is worse than none: it shows
+            // up in the list and then dies at launch. Pull it back so the store stays clean.
+            if (createdDir != null) deleteRec(createdDir);
             return new Result(null, "导入失败：" + e.getMessage(), false);
         } finally {
             if (cache != null) cache.delete();
@@ -190,7 +195,16 @@ public class InstanceImporter {
         return new ArrayList<>(pref);
     }
 
-    private static boolean extractLibs(File apk, String abi, File dest) {
+    /**
+     * Extract {@code lib/<abi>/*.so} and report whether they are all 16 KB-page aligned.
+     *
+     * <p>Throws when an entry decompresses to a different length than its central-directory
+     * size: Android's {@code ZipFile} does not always verify the CRC, so a truncated or corrupt
+     * {@code libminecraftpe.so} would otherwise be written out short and only fail later at
+     * {@code dlopen} with an opaque "invalid shdr offset/size" — a bad APK should be refused here,
+     * with a readable reason, not imported as a broken instance.
+     */
+    private static boolean extractLibs(File apk, String abi, File dest) throws IOException {
         boolean allAligned = true;
         try (ZipFile zf = new ZipFile(apk)) {
             Enumeration<? extends ZipEntry> e = zf.entries();
@@ -205,14 +219,16 @@ public class InstanceImporter {
                     int r;
                     while ((r = is.read(buf)) > 0) os.write(buf, 0, r);
                 }
+                long want = ze.getSize();
+                if (want >= 0 && out.length() != want) {
+                    throw new IOException(n + " 解压不完整（" + out.length() + "/" + want
+                            + " 字节），安装包已损坏，请重新下载");
+                }
                 if (!is16kbAligned(out)) {
                     allAligned = false;
                     Log.w(TAG, "16KB-unaligned .so: " + out.getName());
                 }
             }
-        } catch (IOException e) {
-            Log.e(TAG, "extractLibs failed", e);
-            return false;
         }
         return allAligned;
     }
@@ -224,6 +240,17 @@ public class InstanceImporter {
             int n;
             while ((n = is.read(buf)) > 0) os.write(buf, 0, n);
         }
+    }
+
+    /** Recursive delete for rolling back a failed import. */
+    private static void deleteRec(File f) {
+        if (f == null) return;
+        if (f.isDirectory()) {
+            File[] kids = f.listFiles();
+            if (kids != null) for (File c : kids) deleteRec(c);
+        }
+        //noinspection ResultOfMethodCallIgnored
+        f.delete();
     }
 
     /**
