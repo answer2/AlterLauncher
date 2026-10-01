@@ -153,11 +153,6 @@
     <string name="home_runtime_assembling">Assembling runtime…</string>
     <string name="home_runtime_not_started">Runtime not started</string>
     <string name="home_back_to_game">Back to game</string>
-    <string name="home_no_apk_imported">No install package imported</string>
-    <string name="home_chip_stable">Stable</string>
-    <string name="home_chip_beta">Beta</string>
-    <string name="home_version_select">Choose version</string>
-    <string name="home_version_settings">Version settings</string>
     <string name="home_version_support_chip">Version support</string>
 
     <!-- About -->

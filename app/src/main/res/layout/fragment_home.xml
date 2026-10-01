@@ -11,42 +11,6 @@
         android:background="@color/md_theme_surfaceContainerHighest">
 
         <LinearLayout
-            android:id="@+id/select_content"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:layout_marginStart="10dp"
-            android:layout_marginEnd="10dp"
-            android:gravity="center"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
-
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chip1"
-                style="@style/Widget.Material3.Chip.Suggestion.Elevated"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/home_chip_stable"
-                android:textAppearance="?android:attr/textAppearanceMedium" />
-
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chip2"
-                style="@style/Widget.Material3.Chip.Suggestion.Elevated"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:text="@string/home_chip_beta"
-                android:textAppearance="?android:attr/textAppearanceMedium" />
-        </LinearLayout>
-
-        <!-- The identity block used to hang off the parent's bottom constraint with a
-             vertical bias, while 启动 and the version row are pinned to that same bottom.
-             On a short window the column simply ran underneath them: the 登录 button and the
-             runtime line were invisible behind 启动. One LinearLayout, constrained BETWEEN the
-             chips and 启动 with height 0dp, gives the column an actual budget and centres it
-             in whatever space is left. The ids are unchanged so HomeFragment still binds. -->
-        <LinearLayout
             android:id="@+id/identity_block"
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -57,12 +21,16 @@
             app:layout_constraintBottom_toTopOf="@id/load_game"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/select_content">
+            app:layout_constraintTop_toTopOf="parent">
 
             <ImageView
                 android:id="@+id/user_image"
                 android:layout_width="65dp"
                 android:layout_height="65dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:contentDescription="@string/account_section_header"
                 android:src="@drawable/ic_account_circle" />
 
             <TextView
@@ -83,67 +51,15 @@
                 android:textColor="?android:attr/textColorSecondary"
                 android:textSize="13sp" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/account_login"
-                style="?attr/materialButtonOutlinedStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="@string/account_login_button"
-                app:cornerRadius="8dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/account_signout"
-                style="?attr/materialButtonOutlinedStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="@string/account_signout_button"
-                android:textColor="@color/md_theme_error"
-                android:visibility="gone"
-                app:cornerRadius="8dp"
-                app:strokeColor="@color/md_theme_error" />
-
             <TextView
                 android:id="@+id/runtime_status"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="8dp"
                 android:gravity="center"
                 android:text="@string/home_runtime_not_started"
                 android:textColor="?android:attr/textColorSecondary"
                 android:textSize="13sp" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/version_content"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/select_version"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="20sp"
-                android:layout_marginEnd="2dp"
-                android:layout_marginBottom="10dp"
-                android:layout_weight="2.0"
-                android:text="@string/home_version_select"
-                app:cornerRadius="8dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/version_setting"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="2dp"
-                android:layout_marginEnd="20dp"
-                android:layout_marginBottom="10dp"
-                android:layout_weight="2.0"
-                android:text="@string/home_version_settings"
-                app:cornerRadius="8dp" />
         </LinearLayout>
 
         <com.google.android.material.button.MaterialButton
@@ -152,11 +68,11 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="20dp"
             android:layout_marginEnd="20dp"
+            android:layout_marginBottom="20dp"
             android:text="@string/title_launch"
             app:cornerRadius="8dp"
-            app:layout_constraintBottom_toTopOf="@id/version_content"
+            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintHorizontal_bias="0.0"
             app:layout_constraintStart_toStartOf="parent" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 

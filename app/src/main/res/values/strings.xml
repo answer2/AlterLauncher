@@ -153,11 +153,6 @@
     <string name="home_runtime_assembling">正在装配运行时…</string>
     <string name="home_runtime_not_started">运行时未启动</string>
     <string name="home_back_to_game">回到游戏</string>
-    <string name="home_no_apk_imported">似乎没有导入安装包</string>
-    <string name="home_chip_stable">稳定</string>
-    <string name="home_chip_beta">测试</string>
-    <string name="home_version_select">版本选择</string>
-    <string name="home_version_settings">版本设置</string>
     <string name="home_version_support_chip">版本支持</string>
 
     <!-- About -->

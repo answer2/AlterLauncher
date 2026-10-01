@@ -1,7 +1,6 @@
 package com.answer.launcher.ui.fragment;
 
 import android.content.Context;
-import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -23,12 +22,10 @@ import com.answer.launcher.core.bridge.GameBridgeClient;
 import com.answer.launcher.core.bridge.GameRuntime;
 import com.answer.launcher.core.manager.Alternative;
 import com.answer.launcher.core.manager.IdentityStore;
-import com.answer.launcher.core.manager.MultiVersionManager;
 import com.answer.launcher.R;
 import com.answer.launcher.databinding.FragmentHomeBinding;
 import com.answer.launcher.ui.SignInSheet;
 import com.answer.launcher.ui.LauncherPrefs;
-import com.answer.launcher.ui.activity.CrashActivity;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.hjq.permissions.OnPermissionCallback;
 import com.hjq.permissions.Permission;
@@ -36,7 +33,6 @@ import com.hjq.permissions.XXPermissions;
 
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -86,7 +82,6 @@ public class HomeFragment extends Fragment {
          * that keeps the UI responsive and finally reflects a session that expired since the
          * last look.
          */
-        binding.accountLogin.setText("…");
         binding.userStatus.setText(R.string.account_checking_status);
         checkLogin(host);
 
@@ -159,23 +154,68 @@ public class HomeFragment extends Fragment {
     private void applyAccountCard(IdentityStore.Account account, SessionValidator.Status validity) {
         boolean expired = account.signedIn && validity.hasAccount && !validity.valid;
         boolean signedIn = account.signedIn && !expired;
+        accountStateSignedIn = signedIn;
+        accountStateExpired = expired;
         if (signedIn) {
             binding.userId.setText(validity.gamertag != null ? validity.gamertag
                     : (account.xuid != null ? "XUID " + account.xuid : getString(R.string.account_signed_in_fallback)));
             binding.userStatus.setText(account.shared
                     ? getString(R.string.account_shared_status)
                     : getString(R.string.account_isolated_status));
-            binding.accountLogin.setText(R.string.account_relogin_button);
         } else if (expired) {
             binding.userId.setText(R.string.account_expired_label);
             binding.userStatus.setText(R.string.account_expired_status);
-            binding.accountLogin.setText(R.string.account_relogin_button);
         } else {
             binding.userId.setText(R.string.account_not_signed_in);
             binding.userStatus.setText(R.string.account_not_signed_in_hint);
-            binding.accountLogin.setText(R.string.account_login_button);
         }
-        binding.accountSignout.setVisibility(signedIn ? View.VISIBLE : View.GONE);
+    }
+
+    private boolean accountStateSignedIn;
+    private boolean accountStateExpired;
+
+    /**
+     * The avatar is the single entry point for every account action. Options adapt to the
+     * current state: signed-in offers re-login + sign-out, expired offers re-login only,
+     * signed-out offers sign-in.
+     */
+    private void showAccountDialog() {
+        if (accountStateSignedIn) {
+            new MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(R.string.account_section_header)
+                    .setItems(new CharSequence[]{
+                            getString(R.string.account_relogin_button),
+                            getString(R.string.account_signout_button)
+                    }, (d, which) -> {
+                        if (which == 0) startSignIn();
+                        else confirmSignOut();
+                    })
+                    .show();
+        } else if (accountStateExpired) {
+            new MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(R.string.account_expired_label)
+                    .setMessage(R.string.account_expired_status)
+                    .setNegativeButton(R.string.common_cancel, null)
+                    .setPositiveButton(R.string.account_relogin_button, (d, w) -> startSignIn())
+                    .show();
+        } else {
+            new MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(R.string.account_not_signed_in)
+                    .setMessage(R.string.account_not_signed_in_hint)
+                    .setNegativeButton(R.string.common_cancel, null)
+                    .setPositiveButton(R.string.account_login_button, (d, w) -> startSignIn())
+                    .show();
+        }
+    }
+
+    private void startSignIn() {
+        SignInSheet.show(requireActivity(),
+                (success, message) -> {
+                    Toast.makeText(requireContext(),
+                            success ? getString(R.string.sign_in_complete_toast) : getString(R.string.sign_in_failed_toast, message),
+                            Toast.LENGTH_LONG).show();
+                    refresh();
+                });
     }
 
     /**
@@ -278,64 +318,11 @@ public class HomeFragment extends Fragment {
         /*
          * Sign-in used to be the game's job because the token envelopes the SDK writes are
          * JWEs sealed with the title key and this device's keypair. It is not: the launcher can
-         * run the device-code flow itself and hand XAL the store it expects to find, which is
-         * what this button does now. The card above still reads the state back from disk, so
-         * what the player sees here is what the game will boot into either way.
+         * run the device-code flow itself and hand XAL the store it expects to find. The avatar
+         * is the single entry point for every account action (sign-in, re-login, sign-out).
          */
-        binding.accountLogin.setOnClickListener(view -> SignInSheet.show(requireActivity(),
-                (success, message) -> {
-                    Toast.makeText(requireContext(),
-                            success ? getString(R.string.sign_in_complete_toast) : getString(R.string.sign_in_failed_toast, message),
-                            Toast.LENGTH_LONG).show();
-                    refresh();
-                }));
+        binding.userImage.setOnClickListener(view -> showAccountDialog());
 
-        binding.accountSignout.setOnClickListener(view -> confirmSignOut());
-
-        binding.versionSetting.setOnClickListener(view -> {
-            Intent intent = new Intent(getActivity(), CrashActivity.class);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            intent.putExtra("CRASH_LOG", "错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣错误🤣测试🤣🤣🤣");
-            getActivity().startActivity(intent);
-        });
-
-        binding.selectVersion.setOnClickListener(v->{
-            try {
-                File file = new File("/sdcard/base.apk");
-                if (!file.exists()){
-                    Toast.makeText(getActivity(), R.string.home_no_apk_imported, Toast.LENGTH_LONG).show();
-                    return;
-                }
-
-                Context c =  MultiVersionManager.getManager()
-                        .createPackageContext(requireActivity().getApplication().getBaseContext(),
-                        Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY,
-                                "/sdcard/base.apk");
-                System.out.println(c);
-                System.out.println(c.getPackageName());
-                Toast.makeText(getActivity(), "获取到Context ：" + c +"  包名：" + c.getPackageName(), Toast.LENGTH_LONG).show();
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    System.out.println(c.getOpPackageName());
-                }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-
-        /*
-        binding.button.setOnClickListener(view->{
-            if (!TextUtils.isEmpty(binding.edit.getText()))
-                Constants.MINECRAFTPACKAGE = binding.edit.getText().toString();
-
-
-        });
-
-        binding.laucher.setOnClickListener(view->{
-
-        });
-
-         */
         return binding.getRoot();
     }
 
