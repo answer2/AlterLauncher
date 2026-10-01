@@ -170,6 +170,9 @@
     <string name="instance_no_native_libs">No native libs</string>
     <string name="instance_not_16kb">Not 16 KB</string>
     <string name="instance_use_system">Use system version</string>
+    <string name="instance_rail_add">Add</string>
+    <string name="instance_rail_launch">Launch</string>
+    <string name="instance_add_folder_short">Add folder</string>
     <string name="instance_import_button">Import APK</string>
     <string name="instance_empty_hint">No instances imported yet\nTap "Import APK" to pick a Minecraft install package from storage</string>
     <string name="instance_active_chip">Active</string>

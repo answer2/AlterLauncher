@@ -86,26 +86,15 @@ public class InstancesFragment extends Fragment {
             showOptions(instances.get(position));
             return true;
         });
-        binding.toolbar.setOnMenuItemClickListener(item -> {
-            if (item.getItemId() == R.id.action_import) {
-                importLauncher.launch(new String[]{"application/vnd.android.package-archive"});
-                return true;
-            }
-            if (item.getItemId() == R.id.action_system) {
-                InstanceStore.clearActive(requireContext());
-                toast(getString(R.string.instance_switched_to_system));
-                refresh();
-                return true;
-            }
-            if (item.getItemId() == R.id.action_import_modpack) {
-                modPackLauncher.launch(new String[]{"*/*"});
-                return true;
-            }
-            if (item.getItemId() == R.id.action_add_folder) {
-                showAddFolderUnsupported();
-                return true;
-            }
-            return false;
+        // PCL-style left rail: the instance actions live here instead of a toolbar overflow.
+        binding.sideImport.setOnClickListener(v ->
+                importLauncher.launch(new String[]{"application/vnd.android.package-archive"}));
+        binding.sideModpack.setOnClickListener(v -> modPackLauncher.launch(new String[]{"*/*"}));
+        binding.sideAddfolder.setOnClickListener(v -> showAddFolderUnsupported());
+        binding.sideSystem.setOnClickListener(v -> {
+            InstanceStore.clearActive(requireContext());
+            toast(getString(R.string.instance_switched_to_system));
+            refresh();
         });
         refresh();
     }
@@ -131,6 +120,9 @@ public class InstancesFragment extends Fragment {
         activeId = InstanceStore.getActive(ctx);
         adapter.notifyDataSetChanged();
         boolean empty = instances.isEmpty();
+        binding.headerTitle.setText(empty
+                ? getString(R.string.title_instance)
+                : getString(R.string.title_instance) + " (" + instances.size() + ")");
         binding.list.setVisibility(empty ? View.GONE : View.VISIBLE);
         binding.textEmpty.setVisibility(empty ? View.VISIBLE : View.GONE);
     }

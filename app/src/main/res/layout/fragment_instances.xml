@@ -3,44 +3,112 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="?android:attr/colorBackground">
+    android:background="?android:attr/colorBackground"
+    android:orientation="horizontal">
 
-    <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
+    <!-- PCL-style left rail (task #40 UI): the same compact sidebar the content, settings and
+         download pages use. Here it holds the instance actions (import, add, boot-system) instead
+         of page navigation, so the right pane is free for the installation list. -->
+    <ScrollView
+        android:id="@+id/sidebar_scroll"
+        android:layout_width="84dp"
+        android:layout_height="match_parent"
         android:background="?android:attr/colorBackground"
-        app:menu="@menu/menu_instances"
-        app:title="@string/title_instance"
-        app:titleTextAppearance="?attr/textAppearanceTitleMedium" />
+        android:scrollbars="none">
 
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1">
+        <LinearLayout
+            android:id="@+id/sidebar"
+            style="@style/Sidebar">
 
-        <ListView
-            android:id="@+id/list"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:divider="@null"
-            android:paddingTop="6dp"
-            android:paddingBottom="24dp"
-            android:scrollbars="vertical" />
+            <TextView
+                style="@style/SidebarSection"
+                android:text="@string/instance_rail_add" />
+
+            <LinearLayout
+                android:id="@+id/side_import"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_action_add" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/instance_import_button" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/side_modpack"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_box_content" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/modpack_import_button" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/side_addfolder"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_folder" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/instance_add_folder_short" />
+            </LinearLayout>
+
+            <TextView
+                style="@style/SidebarSection"
+                android:text="@string/instance_rail_launch" />
+
+            <LinearLayout
+                android:id="@+id/side_system"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_system" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/instance_use_system" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical">
 
         <TextView
-            android:id="@+id/text_empty"
+            android:id="@+id/header_title"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center"
-            android:padding="32dp"
-            android:text="@string/instance_empty_hint"
-            android:textAlignment="center"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOutline"
-            android:visibility="gone" />
-    </FrameLayout>
+            android:layout_height="wrap_content"
+            android:paddingStart="16dp"
+            android:paddingTop="14dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="6dp"
+            android:text="@string/title_instance"
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
 
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <ListView
+                android:id="@+id/list"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:divider="@null"
+                android:paddingTop="6dp"
+                android:paddingBottom="24dp"
+                android:scrollbars="vertical" />
+
+            <TextView
+                android:id="@+id/text_empty"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:padding="32dp"
+                android:text="@string/instance_empty_hint"
+                android:textAlignment="center"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorOutline"
+                android:visibility="gone" />
+        </FrameLayout>
+    </LinearLayout>
 </LinearLayout>

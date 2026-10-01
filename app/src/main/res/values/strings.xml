@@ -170,6 +170,9 @@
     <string name="instance_no_native_libs">无 native 库</string>
     <string name="instance_not_16kb">非16KB</string>
     <string name="instance_use_system">使用系统版本</string>
+    <string name="instance_rail_add">添加</string>
+    <string name="instance_rail_launch">启动</string>
+    <string name="instance_add_folder_short">添加文件夹</string>
     <string name="instance_import_button">导入安装包</string>
     <string name="instance_empty_hint">还没有导入任何实例\n点击「导入安装包」从存储中选择一个 Minecraft 安装包</string>
     <string name="instance_active_chip">当前</string>
