@@ -252,7 +252,14 @@ public final class XalExporter {
     /** The MSA ticket store: the refresh token is what makes the login survive. */
     private static JsonObject msaStore(String localId, MsaToken msa) {
         JsonObject ticket = new JsonObject();
-        ticket.addProperty("access_token", msa.getAccessToken());
+        // The stored access token carries the SDK's token-type prefix: the game's
+        // own file writes "t=<jwt>" (measured — docs/levi-compat-design.md §6.2,
+        // and Levi's exporter does the same), where "t" marks it as an access
+        // token rather than a code. XAL's silent restore reads this field to skip
+        // the browser; a bare token does not parse as a stored access token, so
+        // the title falls back to the interactive tap even though the sign-in is
+        // otherwise complete.
+        ticket.addProperty("access_token", "t=" + msa.getAccessToken());
         ticket.addProperty("xal_expires", format(msa.getExpireTimeMs()));
         ticket.addProperty("scopes", SCOPE_STORED);
         JsonArray tickets = new JsonArray();
