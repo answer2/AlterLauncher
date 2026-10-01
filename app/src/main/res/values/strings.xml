@@ -93,6 +93,9 @@
     <string name="download_api_error">接口返回错误</string>
     <string name="download_parse_error">响应解析失败: %s</string>
     <string name="download_beta_badge">测试版</string>
+    <string name="download_nav_release">正式版</string>
+    <string name="download_nav_beta">测试版</string>
+    <string name="download_reserved_coming">敬请期待</string>
 
     <!-- Settings -->
     <string name="setting_rescan_notified">已通知游戏进程重新扫描</string>
@@ -196,6 +199,7 @@
     <string name="content_tab_resource">资源包</string>
     <string name="content_tab_behavior">行为包</string>
     <string name="content_tab_global">全局</string>
+    <string name="content_tab_plugins">插件</string>
     <string name="global_pack_import_success">已导入 %d 个全局包，已链接到所有实例</string>
     <string name="content_no_instance">还没有当前实例：先到「实例」导入并选择一个 Minecraft 实例，才能查看和管理世界与包。</string>
     <string name="content_unreadable">无法读取所选文件（已被移动，或没有访问权限）</string>
@@ -240,4 +244,18 @@
     <string name="pack_import_type_error">请选择 .mcpack、.mcaddon（或 .zip）文件</string>
     <string name="pack_delete_title">删除包</string>
     <string name="pack_toggle_failed">切换失败：%s</string>
+
+    <!-- Content tab: plugins (dex/apk + native) -->
+    <string name="plugin_import">导入插件</string>
+    <string name="plugin_empty">还没有插件\n点右下角按钮导入 .apk / .dex 或 .so 插件</string>
+    <string name="plugin_kind_dex">Dex/Apk</string>
+    <string name="plugin_kind_native">Native</string>
+    <string name="plugin_switch_desc">启用或停用插件</string>
+    <string name="plugin_preview">插件信息</string>
+    <string name="plugin_delete_title">删除插件</string>
+    <string name="plugin_import_type_error">请选择 .apk、.dex、.jar 或 .so 插件文件</string>
+    <string name="plugin_import_success">已导入：%s</string>
+    <string name="plugin_change_effect">已通知游戏，下次启动游戏生效</string>
+    <string name="plugin_toggle_failed">切换失败：%s</string>
+    <string name="plugin_label_type">类型：%s</string>
 </resources>

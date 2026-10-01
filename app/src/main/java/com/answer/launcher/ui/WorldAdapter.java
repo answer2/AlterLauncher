@@ -7,6 +7,7 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.answer.launcher.R;
@@ -48,7 +49,22 @@ public class WorldAdapter extends RecyclerView.Adapter<WorldAdapter.Holder> {
             this.name = readLevelName(dir);
             this.modified = dir.lastModified();
             this.size = PackZip.dirSize(dir);
-            this.icon = PackZip.decodeSampled(new File(dir, "world.png"), 192);
+            this.icon = PackZip.decodeSampled(findIcon(dir), 192);
+        }
+
+        /**
+         * Bedrock stores the thumbnail as {@code world_icon.jpeg} (older builds used
+         * {@code world.png}); check both spellings so the card shows the real image
+         * instead of the placeholder.
+         */
+        @Nullable
+        private static File findIcon(File dir) {
+            String[] names = {"world_icon.jpeg", "world_icon.jpg", "world_icon.png", "world.png"};
+            for (String n : names) {
+                File f = new File(dir, n);
+                if (f.isFile()) return f;
+            }
+            return null;
         }
 
         public String displayName() {

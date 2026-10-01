@@ -40,6 +40,7 @@ public class ContentFragment extends Fragment {
         bindRow(binding.navResource, PacksFragment.newInstance(PacksFragment.KIND_RESOURCE));
         bindRow(binding.navBehavior, PacksFragment.newInstance(PacksFragment.KIND_BEHAVIOR));
         bindRow(binding.navGlobal, new GlobalPacksFragment());
+        bindRow(binding.navPlugin, new PluginsFragment());
         select(binding.navWorlds);
     }
 

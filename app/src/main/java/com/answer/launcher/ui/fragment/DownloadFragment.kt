@@ -15,7 +15,6 @@ import com.answer.launcher.R
 import com.answer.launcher.databinding.FragmentDownloadBinding
 import com.answer.launcher.databinding.ItemVersionBinding
 import com.answer.launcher.ui.VersionApi
-import com.answer.launcher.ui.ToolbarMenu
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /**
@@ -23,14 +22,27 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
  * the right网盘 link for their ABI. The links are cloud-drive share pages, not direct files, so
  * "download" opens them in a browser — the player then imports the APK through 实例, which is the
  * launcher's existing path. Kept read-only and network-only: nothing here writes game data.
+ *
+ * A compact PCL-style left sidebar (the same pattern as the content and settings pages) splits the
+ * single flat list into 正式版 / 测试版 tabs that filter the one cached fetch, plus four reserved
+ * category rows (资源包 / 行为包 / 世界 / 插件) that only show a "敬请期待" placeholder for now.
  */
 class DownloadFragment : Fragment() {
 
     private var binding: FragmentDownloadBinding? = null
-    private val versions = ArrayList<VersionApi.Version>()
+
+    /** The whole catalog, fetched once and cached. */
+    private val allVersions = ArrayList<VersionApi.Version>()
+
+    /** The filtered subset currently shown in the list. */
+    private val shown = ArrayList<VersionApi.Version>()
+
     private var adapter: VersionAdapter? = null
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var loading = false
+
+    private var selectedItem: View? = null
+    private var currentTab = TAB_RELEASE
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -43,16 +55,19 @@ class DownloadFragment : Fragment() {
         adapter = a
         b.versionList.adapter = a
         b.versionList.setOnItemClickListener { _, _, position, _ ->
-            showProviders(versions[position])
+            showProviders(shown[position])
         }
-        ToolbarMenu.onClick(b.toolbar) { item ->
-            if (item.itemId == R.id.action_refresh) {
-                load()
-                true
-            } else {
-                false
-            }
-        }
+        b.btnRefresh.setOnClickListener { load() }
+
+        bindRow(b.navRelease, TAB_RELEASE)
+        bindRow(b.navBeta, TAB_BETA)
+        bindRow(b.navDlResource, TAB_RESERVED)
+        bindRow(b.navDlBehavior, TAB_RESERVED)
+        bindRow(b.navDlWorld, TAB_RESERVED)
+        bindRow(b.navDlPlugin, TAB_RESERVED)
+        select(b.navRelease)
+
+        // Fetch the full list once; 正式版/测试版 re-filter it locally, refresh re-fetches.
         load()
         return b.root
     }
@@ -61,6 +76,48 @@ class DownloadFragment : Fragment() {
         super.onDestroyView()
         binding = null
         adapter = null
+        selectedItem = null
+    }
+
+    private fun bindRow(row: View, tab: Int) {
+        row.setOnClickListener { select(row) }
+        row.tag = tab
+    }
+
+    /** PCL-style single-pane switch: highlight the active row, swap the visible group. */
+    private fun select(row: View) {
+        selectedItem?.setActivated(false)
+        selectedItem = row
+        row.setActivated(true)
+        val tab = row.tag as Int
+        currentTab = tab
+        val b = binding ?: return
+        if (tab == TAB_RESERVED) {
+            b.groupVersions.visibility = View.GONE
+            b.groupReserved.visibility = View.VISIBLE
+        } else {
+            b.groupVersions.visibility = View.VISIBLE
+            b.groupReserved.visibility = View.GONE
+            b.groupTitle.setText(if (tab == TAB_BETA) R.string.download_nav_beta else R.string.download_nav_release)
+            applyFilter()
+        }
+    }
+
+    /** Re-renders the list from the cached catalog for the selected release/beta tab. */
+    private fun applyFilter() {
+        val b = binding ?: return
+        shown.clear()
+        val wantBeta = currentTab == TAB_BETA
+        for (v in allVersions) {
+            if (v.beta == wantBeta) shown.add(v)
+        }
+        adapter?.notifyDataSetChanged()
+        b.status.text = when {
+            loading -> getString(R.string.download_loading_versions)
+            allVersions.isEmpty() -> getString(R.string.download_no_versions)
+            shown.isEmpty() -> getString(R.string.download_no_versions)
+            else -> getString(R.string.download_version_count, shown.size)
+        }
     }
 
     private fun load() {
@@ -74,12 +131,10 @@ class DownloadFragment : Fragment() {
                 val list = VersionApi.lastVersions()
                 main.post {
                     loading = false
-                    val bind = binding ?: return@post
-                    versions.clear()
-                    versions.addAll(list)
-                    adapter?.notifyDataSetChanged()
-                    bind.status.text =
-                        if (list.isEmpty()) getString(R.string.download_no_versions) else getString(R.string.download_version_count, list.size)
+                    if (binding == null) return@post
+                    allVersions.clear()
+                    allVersions.addAll(list)
+                    applyFilter()
                 }
             } catch (e: Exception) {
                 main.post {
@@ -135,8 +190,8 @@ class DownloadFragment : Fragment() {
     }
 
     private inner class VersionAdapter : BaseAdapter() {
-        override fun getCount(): Int = versions.size
-        override fun getItem(position: Int): Any = versions[position]
+        override fun getCount(): Int = shown.size
+        override fun getItem(position: Int): Any = shown[position]
         override fun getItemId(position: Int): Long = position.toLong()
 
         override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
@@ -146,7 +201,7 @@ class DownloadFragment : Fragment() {
             } else {
                 convertView.tag as ItemVersionBinding
             }
-            val v = versions[position]
+            val v = shown[position]
             b.tvVersion.text = v.versionAll
             b.tvBeta.visibility = if (v.beta) View.VISIBLE else View.GONE
             val date = v.updateTime.substringBefore('T')
@@ -154,5 +209,11 @@ class DownloadFragment : Fragment() {
                 .joinToString("  ·  ")
             return b.root
         }
+    }
+
+    companion object {
+        private const val TAB_RELEASE = 0
+        private const val TAB_BETA = 1
+        private const val TAB_RESERVED = 2
     }
 }

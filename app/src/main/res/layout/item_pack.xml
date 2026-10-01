@@ -70,7 +70,7 @@
                 tools:text="v1.0.2 · 3f2a9c1b-1234" />
         </LinearLayout>
 
-        <com.google.android.material.switchmaterial.SwitchMaterial
+        <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/pack_enabled"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

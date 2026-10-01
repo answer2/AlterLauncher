@@ -4,37 +4,153 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?android:attr/colorBackground"
-    android:orientation="vertical">
+    android:orientation="horizontal">
 
-    <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
+    <ScrollView
+        android:id="@+id/sidebar_scroll"
+        android:layout_width="84dp"
+        android:layout_height="match_parent"
         android:background="?android:attr/colorBackground"
-        app:menu="@menu/menu_download"
-        app:title="@string/download_title"
-        app:titleTextAppearance="?attr/textAppearanceTitleMedium" />
+        android:scrollbars="none">
 
-    <TextView
-        android:id="@+id/status"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:layout_marginBottom="6dp"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:text="@string/download_loading_versions"
-        android:textColor="?android:attr/textColorSecondary"
-        android:textSize="13sp" />
+        <LinearLayout
+            android:id="@+id/sidebar"
+            style="@style/Sidebar">
 
-    <ListView
-        android:id="@+id/version_list"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
+            <LinearLayout
+                android:id="@+id/nav_release"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_nav_about" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/download_nav_release" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/nav_beta"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_nav_global" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/download_nav_beta" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/nav_dl_resource"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_nav_resource" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/content_tab_resource" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/nav_dl_behavior"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_nav_behavior" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/content_tab_behavior" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/nav_dl_world"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_nav_world" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/content_tab_worlds" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/nav_dl_plugin"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_nav_plugin" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/content_tab_plugins" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
         android:layout_weight="1"
-        android:clipToPadding="false"
-        android:divider="@null"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:scrollbars="vertical" />
+        android:orientation="vertical">
+
+        <!-- Version list group: shown for 正式版 / 测试版 -->
+        <LinearLayout
+            android:id="@+id/group_versions"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="16dp"
+                android:paddingTop="12dp"
+                android:paddingEnd="16dp">
+
+                <TextView
+                    android:id="@+id/group_title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/download_nav_release"
+                    android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_refresh"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/download_refresh"
+                    app:icon="@drawable/ic_action_download"
+                    app:iconGravity="textStart"
+                    app:cornerRadius="8dp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="6dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:text="@string/download_loading_versions"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="13sp" />
+
+            <ListView
+                android:id="@+id/version_list"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:clipToPadding="false"
+                android:divider="@null"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:scrollbars="vertical" />
+        </LinearLayout>
+
+        <!-- Reserved group: shown for 资源包 / 行为包 / 世界 / 插件 -->
+        <TextView
+            android:id="@+id/group_reserved"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:padding="32dp"
+            android:text="@string/download_reserved_coming"
+            android:textAlignment="center"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textColor="?attr/colorOutline"
+            android:visibility="gone" />
+    </LinearLayout>
 </LinearLayout>

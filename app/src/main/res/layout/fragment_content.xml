@@ -52,6 +52,15 @@
 
                 <TextView style="@style/SidebarItemText" android:text="@string/content_tab_global" />
             </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/nav_plugin"
+                style="@style/SidebarItem">
+
+                <ImageView style="@style/SidebarItemIcon" android:src="@drawable/ic_nav_plugin" android:contentDescription="@null" />
+
+                <TextView style="@style/SidebarItemText" android:text="@string/content_tab_plugins" />
+            </LinearLayout>
         </LinearLayout>
     </ScrollView>
 

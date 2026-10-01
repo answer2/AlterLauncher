@@ -93,6 +93,9 @@
     <string name="download_api_error">API returned an error</string>
     <string name="download_parse_error">Failed to parse response: %s</string>
     <string name="download_beta_badge">Beta</string>
+    <string name="download_nav_release">Stable</string>
+    <string name="download_nav_beta">Beta</string>
+    <string name="download_reserved_coming">Coming soon</string>
 
     <!-- Settings -->
     <string name="setting_rescan_notified">Rescan requested for the game process</string>
@@ -196,6 +199,7 @@
     <string name="content_tab_resource">Resource packs</string>
     <string name="content_tab_behavior">Behaviour packs</string>
     <string name="content_tab_global">Global</string>
+    <string name="content_tab_plugins">Plugins</string>
     <string name="global_pack_import_success">Imported %d global pack(s), linked into every instance</string>
     <string name="content_no_instance">No active instance yet: import and select a Minecraft instance under \"Instances\" first, then worlds and packs become manageable here.</string>
     <string name="content_unreadable">Cannot read the selected file (moved, or no access permission)</string>
@@ -240,4 +244,18 @@
     <string name="pack_import_type_error">Pick a .mcpack, .mcaddon (or .zip) archive</string>
     <string name="pack_delete_title">Delete pack</string>
     <string name="pack_toggle_failed">Could not switch: %s</string>
+
+    <!-- Content tab: plugins (dex/apk + native) -->
+    <string name="plugin_import">Import plugin</string>
+    <string name="plugin_empty">No plugins yet\nUse the button in the corner to import a .apk / .dex or .so plugin</string>
+    <string name="plugin_kind_dex">Dex/Apk</string>
+    <string name="plugin_kind_native">Native</string>
+    <string name="plugin_switch_desc">Enable or disable plugin</string>
+    <string name="plugin_preview">Plugin details</string>
+    <string name="plugin_delete_title">Delete plugin</string>
+    <string name="plugin_import_type_error">Pick a .apk, .dex, .jar or .so plugin file</string>
+    <string name="plugin_import_success">Imported: %s</string>
+    <string name="plugin_change_effect">Notified the game; takes effect on next launch</string>
+    <string name="plugin_toggle_failed">Could not switch: %s</string>
+    <string name="plugin_label_type">Type: %s</string>
 </resources>
