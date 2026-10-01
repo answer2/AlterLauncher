@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App -->
+    <string name="app_name">Alter Launcher</string>
+    <string name="app_info">AlterLauncher</string>
+    <string name="name">AlterLauncher</string>
+
+    <!-- Navigation -->
+    <string name="title_launch">Launch</string>
+    <string name="title_download">Download</string>
+    <string name="title_setting">Settings</string>
+    <string name="title_about">About</string>
+    <string name="title_instance">Instances</string>
+
+    <!-- Common / shared -->
+    <string name="common_cancel">Cancel</string>
+    <string name="common_confirm">OK</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_got_it">Got it</string>
+    <string name="copy">Copy</string>
+    <string name="restart">Restart</string>
+    <string name="warning_error">Error</string>
+    <string name="empty">Nothing here yet ( •̀ ω •́ )✧</string>
+    <string name="warning_content">You can copy the error message and save it to a file, then send it to GitHub or the community group for help.</string>
+
+    <!-- Sign-in flow -->
+    <string name="sign_in_game_running_error">Game is running. Exit the game before signing in.</string>
+    <string name="sign_in_requesting_code">Requesting a sign-in code from Xbox Live…</string>
+    <string name="sign_in_dialog_title">Sign in with Microsoft</string>
+    <string name="sign_in_copy_code">Copy code</string>
+    <string name="sign_in_open_browser">Open page</string>
+    <string name="sign_in_clip_label">Microsoft sign-in code</string>
+    <string name="sign_in_code_copied">Code copied. Paste it in any browser.</string>
+    <string name="sign_in_waiting_elapsed">Waiting for you to finish sign-in in the browser… (%d s elapsed, checking)</string>
+    <string name="sign_in_enter_code_hint">Open this URL on any device, enter the code below, then wait.</string>
+    <string name="sign_in_syncing_account">Sign-in verified. Syncing account info, please wait…</string>
+    <string name="sign_in_cancelled">Sign-in cancelled</string>
+    <string name="sign_in_error_detail_suffix">(%s)</string>
+    <string name="sign_in_success">Signed in</string>
+    <string name="sign_in_webview_hint">Code %s · finish sign-in here; result is detected automatically.</string>
+    <string name="sign_in_no_url_error">No sign-in URL available</string>
+    <string name="sign_in_no_browser_error">No browser available</string>
+    <string name="sign_in_webview_fallback">Embedded browser not supported; fell back to system browser</string>
+    <string name="sign_in_complete_toast">Signed in. Launching the game will use this account.</string>
+    <string name="sign_in_failed_toast">Sign-in failed: %s</string>
+    <string name="sign_in_webview_title">Sign-in verification</string>
+    <string name="sign_in_webview_instructions">Complete Microsoft sign-in below. This page auto-detects the result when closed.</string>
+    <string name="sign_in_open_system_browser">Open in system browser</string>
+
+    <!-- Account card / sign-out -->
+    <string name="account_checking_status">Checking sign-in status…</string>
+    <string name="account_signed_in_fallback">Signed in</string>
+    <string name="account_shared_status">All versions share this sign-in</string>
+    <string name="account_isolated_status">Only this version uses this sign-in</string>
+    <string name="account_relogin_button">Re-login</string>
+    <string name="account_expired_label">Sign-in expired</string>
+    <string name="account_expired_status">Sign-in expired or revoked. Please sign in again.</string>
+    <string name="account_not_signed_in">Not signed in</string>
+    <string name="account_not_signed_in_hint">Not signed in · tap the button below to sign in with Microsoft</string>
+    <string name="account_login_button">Sign in</string>
+    <string name="account_game_running_block">Game is running. Exit the game first.</string>
+    <string name="account_signout_title">Sign out</string>
+    <string name="account_signout_confirm_message">This clears the Microsoft sign-in stored on this device (in shared mode it also affects all versions). You will need to sign in again in the browser. Continue?</string>
+    <string name="account_signout_confirm_button">Sign out</string>
+    <string name="account_signout_button">Sign out</string>
+    <string name="account_signout_success">Signed out</string>
+    <string name="account_signout_partial">Signed out, but some files could not be removed</string>
+    <string name="account_setting_line_signed_in">Signed in · XUID %1$s · Account %2$s</string>
+    <string name="account_unknown_xuid">unknown</string>
+    <string name="account_setting_line_not_signed_in">Not signed in</string>
+    <string name="account_section_header">Account &amp; sign-in</string>
+    <string name="account_share_toggle">Share sign-in across versions</string>
+    <string name="account_login_method_header">Sign-in method</string>
+    <string name="account_webview_toggle">Use in-app WebView for sign-in</string>
+    <string name="account_webview_summary">By default the Microsoft page opens in the system browser. When on, the in-app WebView is used; if Microsoft rejects it, we auto-fall back to the system browser.</string>
+    <string name="identity_share_summary">When on, all versions share one Xbox sign-in — log in once and every version uses it. When off, each version signs in independently. Takes effect on next launch.</string>
+    <string name="identity_isolated_summary">This version uses its own sign-in; logging in here only affects this version. Takes effect on next launch.</string>
+
+    <!-- Download -->
+    <string name="download_title">Version download</string>
+    <string name="download_refresh">Refresh</string>
+    <string name="download_loading_versions">Loading version list…</string>
+    <string name="download_no_versions">No versions available</string>
+    <string name="download_version_count">%d versions · tap to choose a download mirror</string>
+    <string name="download_load_failed">Load failed: %s</string>
+    <string name="download_no_links">This version has no download links</string>
+    <string name="download_provider_dialog_title">%s · choose mirror</string>
+    <string name="download_armv8_label">ARMv8 (64-bit)</string>
+    <string name="download_armv7_label">ARMv7 (32-bit)</string>
+    <string name="download_no_abi_links">No link for this ABI</string>
+    <string name="download_no_app_for_link">No app available to open this link</string>
+    <string name="download_api_unavailable">Version API unavailable</string>
+    <string name="download_api_error">API returned an error</string>
+    <string name="download_parse_error">Failed to parse response: %s</string>
+    <string name="download_beta_badge">Beta</string>
+
+    <!-- Settings -->
+    <string name="setting_rescan_notified">Rescan requested for the game process</string>
+    <string name="setting_version_line">Version: %s</string>
+    <string name="setting_version_not_installed">Not installed</string>
+    <string name="setting_data_dir_no_launch">Data directory for this run: no version launched yet</string>
+    <string name="setting_data_dir_path">Data directory for this run: %s</string>
+    <string name="setting_runtime_failed">Runtime assembly failed: %s</string>
+    <string name="setting_runtime_running">Running · pid %d</string>
+    <string name="setting_runtime_assembling">Assembling runtime…</string>
+    <string name="setting_runtime_not_started">Runtime not started</string>
+    <string name="setting_identity_change_effect">Takes effect on next game launch</string>
+    <string name="setting_webview_on_toast">Next sign-in will try the in-app WebView</string>
+    <string name="setting_webview_off_toast">Next sign-in will use the system browser</string>
+    <string name="setting_clear_cache_title">Clear cache</string>
+    <string name="setting_clear_cache_message">Only clears the launcher\'s own cache directory. Game data, accounts, and imported instances are untouched. Continue?</string>
+    <string name="setting_clear_cache_confirm">Clear</string>
+    <string name="setting_cache_freed">Freed %.1f MB</string>
+    <string name="setting_appearance_header">Appearance &amp; startup</string>
+    <string name="setting_auto_validate_toggle">Auto-verify sign-in before launch</string>
+    <string name="setting_auto_validate_summary">When off, no online Xbox check is made — only the local record is shown.</string>
+    <string name="setting_clear_cache_button">Clear cache</string>
+    <string name="setting_install_data_header">Install &amp; data</string>
+    <string name="setting_version_placeholder">Version: —</string>
+    <string name="setting_runtime_header">Runtime</string>
+    <string name="setting_rescan_plugins_button">Rescan plugins</string>
+
+    <!-- Instance management -->
+    <string name="instance_switched_to_system">Switched to the system-installed Minecraft</string>
+    <string name="instance_importing">Importing…</string>
+    <string name="instance_import_success">Imported: %s</string>
+    <string name="instance_import_align_warning">(some .so files are not 16 KB aligned)</string>
+    <string name="instance_import_failed_title">Import failed</string>
+    <string name="instance_unknown_error">Unknown error</string>
+    <string name="instance_set_active">Set as active instance: %s</string>
+    <string name="instance_option_set_active">Set as active</string>
+    <string name="instance_option_rename">Rename</string>
+    <string name="instance_option_delete">Delete</string>
+    <string name="instance_rename_title">Rename</string>
+    <string name="instance_rename_empty_error">Name cannot be empty</string>
+    <string name="instance_delete_title">Delete instance</string>
+    <string name="instance_delete_confirm_message">Delete "%s"? This cannot be undone.</string>
+    <string name="instance_deleted">Deleted</string>
+    <string name="instance_subtitle_format">Version %1$s · %2$s · #%3$d</string>
+    <string name="instance_no_native_libs">No native libs</string>
+    <string name="instance_not_16kb">Not 16 KB</string>
+    <string name="instance_use_system">Use system version</string>
+    <string name="instance_import_button">Import APK</string>
+    <string name="instance_empty_hint">No instances imported yet\nTap "Import APK" to pick a Minecraft install package from storage</string>
+    <string name="instance_active_chip">Active</string>
+    <string name="instance_more_content_desc">More</string>
+
+    <!-- Home fragment -->
+    <string name="home_arch_64">64-bit</string>
+    <string name="home_arch_32">32-bit</string>
+    <string name="home_runtime_failed">Runtime assembly failed: %s</string>
+    <string name="home_runtime_running">Running · pid %d</string>
+    <string name="home_runtime_assembling">Assembling runtime…</string>
+    <string name="home_runtime_not_started">Runtime not started</string>
+    <string name="home_back_to_game">Back to game</string>
+    <string name="home_no_apk_imported">No install package imported</string>
+    <string name="home_chip_stable">Stable</string>
+    <string name="home_chip_beta">Beta</string>
+    <string name="home_version_select">Choose version</string>
+    <string name="home_version_settings">Version settings</string>
+    <string name="home_version_support_chip">Version support</string>
+
+    <!-- About -->
+    <string name="about_rescan_requested">Rescan requested for the :game process</string>
+    <string name="about_label_game_process">Game process  </string>
+    <string name="about_not_running">Not running</string>
+    <string name="about_label_runtime_state">Runtime state  </string>
+    <string name="about_label_engine_hooks">Engine hooks  </string>
+    <string name="about_label_menu_state">Menu state  </string>
+    <string name="about_label_game_version">Game version  </string>
+    <string name="about_label_third_party">Third-party  </string>
+    <string name="about_see_notice">See NOTICE at project root</string>
+    <string name="about_label_dex_plugins">Dex/Apk plugins</string>
+    <string name="about_label_native_plugins">Native plugins</string>
+    <string name="about_loaded_plugin_count">\nLoaded plugins %d</string>
+    <string name="about_none_loaded">  (none)</string>
+    <string name="about_rescan_button">Rescan plugins</string>
+    <string name="about_crash_test_button">Test</string>
+</resources>
