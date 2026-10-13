@@ -54,6 +54,17 @@ captures/
 # Assistant/AI tool working data - local only, never part of the project.
 .workbuddy/
 
+# Verbatim AOSP framework sources kept locally as reading material (Apache-2.0,
+# byte-identical to the local SDK's sources/android-36). Only our own analysis
+# notes (aosp16-src/BRIEF-*.md) belong to this repository.
+aosp16-src/**/*.java
+
+# 32-bit companion build output (app/build-x32), same reason as /build/ above.
+build-x32/
+
+# Local scratch copies.
+*.bak
+
 # Keystore files
 # Uncomment the following lines if you do not want to check your keystore files in.
 #*.jks

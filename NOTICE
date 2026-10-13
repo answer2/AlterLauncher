@@ -1,6 +1,12 @@
 NOTICE
 ======
 
+AlterLauncher's own sources are licensed under the GNU General Public License,
+Version 3.0 or later (see LICENSE). The works below are included or derived in
+addition to that; each keeps its own license terms, which prevail for those
+parts. GPL-3.0 accepts the Apache-2.0 contributions as "or later"-compatible,
+and the LGPL components are shipped so they remain separately replaceable.
+
 AlterLauncher bundles or derives from the following third-party works.
 
 1. preloader-android (LiteLDev/preloader-android)
@@ -31,10 +37,24 @@ AlterLauncher bundles or derives from the following third-party works.
    see auth/build.gradle.kts. LGPL terms require that the library remain
    swappable — shipping it as its own artifact satisfies this.
 
-4. shadowhook (bytedance/shadowhook)
-   https://github.com/bytedance/shadowhook
-   GNU LGPL, Version 3.0 with an MIT-style exception... vendored as a prebuilt
-   static library in cpp/; remains separately replaceable at source level.
+4. shadowhook (bytedance/android-inline-hook, v2.0.1)
+   https://github.com/bytedance/android-inline-hook
+   GNU LGPL, Version 3.0 with a linking exception; the vendored public header
+   (cpp/src/main/cpp/shadowhook/shadowhook.h) additionally carries an MIT-style
+   permission notice from ByteDance, which is reproduced in that file. Taken from
+   the com.bytedance.android:shadowhook:2.0.1 AAR on Maven Central and vendored as
+   prebuilt shared libraries (one libshadowhook.so per ABI), so the library stays
+   separately replaceable at link time, as LGPL requires.
 
-The full text of the Apache License, Version 2.0 is included at
+5. Android Open Source Project (AOSP)
+   https://source.android.com
+   Apache License, Version 2.0. Framework sources (ActivityThread, LoadedApk,
+   ContextImpl, Instrumentation, Service) were read as ground truth for the
+   in-process virtualization work. They are NOT redistributed by this repository:
+   read them from your local Android SDK's sources/android-<api> tree. Only our
+   own measurements about them are committed, in
+   aosp16-src/BRIEF-android16-virtualization.md.
+
+The full text of the GNU General Public License, Version 3.0, is included at
+LICENSE. The full text of the Apache License, Version 2.0 is included at
 LICENSES/Apache-2.0.txt.
