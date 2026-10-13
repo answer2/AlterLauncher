@@ -1,4 +1,4 @@
-// Host-side unit tests for the version-rule engine (util/HookRules.cpp).
+// Host-side unit tests for the version-rule engine (memory/HookRules.cpp).
 //
 // This is the multi-version half of the test story: which [rule] block a given
 // Minecraft version lands in, and what a typo in that data file costs. The
@@ -14,7 +14,7 @@
 //
 //   hookrules_test [path/to/game-hooks.ini]
 //
-#include "util/HookRules.h"
+#include "memory/HookRules.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -122,6 +122,13 @@ void testKeyKinds() {
     size_t slot = 0;
     check(r.lookupVtable("tick", &cls, &slot) && cls == "ClientInstance" && slot == 25,
           "vtable splits into class + index");
+    slot = 0;
+    check(r.lookupVtable("tick", nullptr, &slot) && slot == 25,
+          "slot-only lookup accepts a null class output");
+    cls.clear();
+    check(r.lookupVtable("tick", &cls, nullptr) && cls == "ClientInstance",
+          "class-only lookup accepts a null slot output");
+    check(r.lookupVtable("tick", nullptr, nullptr), "existence-only vtable lookup");
     check(!r.lookupVtable("missing", &cls, &slot), "an absent vtable key is not found");
     check(r.lookupSignature("chat") == "? ? ? D1 FD 03 00", "sig keeps its wildcards verbatim");
 

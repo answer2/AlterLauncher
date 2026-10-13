@@ -1,7 +1,8 @@
 #include <jni.h>
 #include <hook/manager_minecraft.h>
+#include <main.h>
 #include <android/android_log.h>
-#include <shadowhook/shadowhook.h>
+#include <util/HookEngine.h>
 #include <dlfcn.h>
 #include <android/native_activity.h>
 #include <util/stringUtil.h>
@@ -102,8 +103,47 @@ void mMain_hook(struct android_app *state) {
 
 //eglSwapBuffers (EGLDisplay dpy, EGLSurface surface);
 EGLAPI EGLBoolean EGLAPIENTRY (*eglSwapBuffers_real)(EGLDisplay dpy, EGLSurface surface);
+
+// The game's first swap is the only honest "the engine took over the screen"
+// signal available from Java land: window focus arrives while the engine is
+// still loading packs behind a black surface. Fired once, on the render
+// thread; Main::vm is published by JNI_OnLoad, long before any swap.
+static volatile bool g_firstFrameFired = false;
+
+// The render thread is a plain pthread attached on demand, and FindClass from
+// an attached native thread only sees the bootstrap loader — the app's
+// NativeCore would silently fail to resolve there. So the class and method are
+// resolved once at install time, on the main thread (whose loader defines the
+// app classes), and held as a global reference.
+static jclass g_coreClass = nullptr;
+static jmethodID g_onFirstFrameMethod = nullptr;
+
+static void notifyFirstFrame() {
+    JavaVM *vm = Main::vm;
+    if (vm == nullptr || g_coreClass == nullptr || g_onFirstFrameMethod == nullptr) {
+        return;
+    }
+    JNIEnv *env = nullptr;
+    bool attached = false;
+    if (vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) != JNI_OK) {
+        if (vm->AttachCurrentThread(&env, nullptr) != JNI_OK || env == nullptr) {
+            return;
+        }
+        attached = true;
+    }
+    env->CallStaticVoidMethod(g_coreClass, g_onFirstFrameMethod);
+    env->ExceptionClear();
+    if (attached) {
+        vm->DetachCurrentThread();
+    }
+    LOGD("first-frame signal delivered to NativeCore");
+}
+
 EGLAPI EGLBoolean EGLAPIENTRY  eglSwapBuffers_hook(EGLDisplay dpy, EGLSurface surface){
-    LOGD("Minecraft eglSwapBuffers : Exchange");
+    if (!g_firstFrameFired) {
+        g_firstFrameFired = true;
+        notifyFirstFrame();
+    }
 
     if (!isInit&& eglContext_ != nullptr) {
         OpenGLRenderer *renderer = new OpenGLRenderer(dpy, surface, eglContext_);
@@ -113,6 +153,46 @@ EGLAPI EGLBoolean EGLAPIENTRY  eglSwapBuffers_hook(EGLDisplay dpy, EGLSurface su
     }
     EGLBoolean b = eglSwapBuffers_real(dpy, surface);
     return b;
+}
+
+// Installed lazily — only when the in-game loading overlay is actually shown,
+// so a launch that never displays the cover never pays the per-frame
+// trampoline. Runs on the main thread: env here carries the app class loader,
+// so NativeCore resolves and can be cached as a global reference.
+void installFirstFrameHook(JNIEnv *env, jclass /*clazz*/) {
+    if (g_coreClass == nullptr) {
+        jclass core = env->FindClass("com/answer/launcher/core/manager/NativeCore");
+        if (core == nullptr) {
+            env->ExceptionClear();
+            LOGE("NativeCore not resolvable for the first-frame signal");
+            return;
+        }
+        g_onFirstFrameMethod = env->GetStaticMethodID(core, "onFirstFrameNative", "()V");
+        if (g_onFirstFrameMethod == nullptr) {
+            env->ExceptionClear();
+            env->DeleteLocalRef(core);
+            LOGE("onFirstFrameNative not found on NativeCore");
+            return;
+        }
+        g_coreClass = (jclass) env->NewGlobalRef(core);
+        env->DeleteLocalRef(core);
+    }
+    if (eglSwapBuffers_real != nullptr) {
+        return; // already installed
+    }
+    void *addr = dlsym(RTLD_DEFAULT, "eglSwapBuffers");
+    if (addr == nullptr) {
+        LOGE("eglSwapBuffers not resolvable for the first-frame signal");
+        return;
+    }
+    void *stub = HookEngine::hookAddr(addr, (void *) eglSwapBuffers_hook,
+                                     (void **) &eglSwapBuffers_real);
+    if (stub == nullptr) {
+        LOGE("first-frame hook install failed: %s", HookEngine::lastError());
+        eglSwapBuffers_real = nullptr;
+    } else {
+        LOGD("first-frame eglSwapBuffers hook installed");
+    }
 }
 
 EGLAPI EGLContext EGLAPIENTRY (*eglCreateContext_real) (EGLDisplay dpy, EGLConfig config, EGLContext share_context, const EGLint *attrib_list);
@@ -156,12 +236,12 @@ void initManagers() {
 
     // ANativeActivity_finish is exported by libandroid.so, which this library is
     // linked against, so it does not depend on the handle above.
-    void *stub = shadowhook_hook_sym_addr((void *) ANativeActivity_finish,
+    void *stub = HookEngine::hookAddr((void *) ANativeActivity_finish,
                                           (void *) ANativeActivity_finish_hook,
                                           (void **) &ANativeActivity_finish_real);
     if (stub == nullptr) {
         LOGE("failed to hook ANativeActivity_finish: %s",
-             shadowhook_to_errmsg(shadowhook_get_errno()));
+             HookEngine::lastError());
     } else {
         LOGD("hooked ANativeActivity_finish");
     }

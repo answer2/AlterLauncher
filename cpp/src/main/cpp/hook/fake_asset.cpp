@@ -2,7 +2,7 @@
 #include <android/native_activity.h>
 #include <android/native_window.h>
 #include <android/android_log.h>
-#include <shadowhook/shadowhook.h>
+#include <util/HookEngine.h>
 #include <hook/fake_asset.h>
 
 
@@ -26,17 +26,12 @@ AAssetDir* AAssetManager_open_Dir_hook(AAssetManager* assetManager,const char* d
 
 
 void initFakeAssets(JNIEnv *env, AAssetManager* assets){
-    if (shadowhook_init(SHADOWHOOK_MODE_UNIQUE, false) != SHADOWHOOK_ERRNO_OK) {
-        LOGD("shadowhook init failed.\n");
-        return ;
-    }
-    LOGD("shadowhook init successfully.\n");
     
     Application_AssetManager = assets;
     Jnienv = env;
    
-    shadowhook_hook_sym_addr((void*)AAssetManager_open, (void*)AAssetManager_open_hook, (void**)&AAssetManager_open_real);
-    shadowhook_hook_sym_addr((void*)AAssetManager_openDir, (void*)AAssetManager_open_Dir_hook, (void**)&AAssetManager_open_Dir_real);
+    HookEngine::hookAddr((void*)AAssetManager_open, (void*)AAssetManager_open_hook, (void**)&AAssetManager_open_real);
+    HookEngine::hookAddr((void*)AAssetManager_openDir, (void*)AAssetManager_open_Dir_hook, (void**)&AAssetManager_open_Dir_real);
     
     LOGD("Hook initing.\n");
   

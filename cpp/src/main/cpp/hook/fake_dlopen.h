@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 #include <hook/native_bridge.h>
-#include <shadowhook/shadowhook.h>
+#include <util/HookEngine.h>
 #include <android/android_log.h>
 #include <util/stringUtil.h>
 #include <util/fake_dlfcn.h>
@@ -85,15 +85,15 @@ void initFakeDlopen() {
   // log shim, and shadowhook on the global dlopen intercepts every load in the
   // process, including the linker's own re-entrant ones.
   if (android_dlopen_ext != nullptr) {
-    shadowhook_hook_sym_addr(android_dlopen_ext,
-                             (void *)android_dlopen_ext_hook,
-                             (void **)&android_dlopen_ext_real);
+    HookEngine::hookAddr(android_dlopen_ext,
+                         (void *)android_dlopen_ext_hook,
+                         (void **)&android_dlopen_ext_real);
   } else {
     LOGD("android_dlopen_ext not resolved, skip its hook");
   }
 
   if (NativeBridgeLoadLibraryExt_ != nullptr) {
-    shadowhook_hook_sym_addr(
+    HookEngine::hookAddr(
         NativeBridgeLoadLibraryExt_, (void *)NativeBridgeLoadLibraryExt_hook,
         (void **)&NativeBridgeLoadLibraryExt_real);
   } else {

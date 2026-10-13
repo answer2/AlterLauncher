@@ -2,7 +2,7 @@
 # Build and run the pure-logic version-rule tests (cpp/src/test/cpp/
 # HookRulesTest.cpp) against the shipped core/src/main/assets/game-hooks.ini.
 #
-# util/HookRules.cpp is std C++ with one Android dependency (a debug log line),
+# memory/HookRules.cpp is std C++ with one Android dependency (a debug log line),
 # so it is fully testable off the game. This machine's desktop clang ships no
 # C++ standard library, but the NDK's aarch64 clang++ does - so we cross-build a
 # static binary and run it on the connected device. No game, no root, no hooks:
@@ -16,7 +16,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 src="$root/cpp/src/test/cpp/HookRulesTest.cpp"
-impl="$root/cpp/src/main/cpp/util/HookRules.cpp"
+impl="$root/cpp/src/main/cpp/memory/HookRules.cpp"
 ini="$root/core/src/main/assets/game-hooks.ini"
 out="$root/build/hookrules_test"
 mode="${1:-}"
@@ -74,7 +74,7 @@ build_and_run_device() {
   rm -f build/hookrules_test
   "$tc/bin/clang++.exe" --target=aarch64-linux-android21 --sysroot="$sysroot_win" \
     -std=c++17 -Wall -Wextra -O1 -I cpp/src/main/cpp \
-    cpp/src/test/cpp/HookRulesTest.cpp cpp/src/main/cpp/util/HookRules.cpp \
+    cpp/src/test/cpp/HookRulesTest.cpp cpp/src/main/cpp/memory/HookRules.cpp \
     -llog -static-libstdc++ -o build/hookrules_test
   [ -x build/hookrules_test ] || [ -f build/hookrules_test ] || { echo "compiler produced no binary"; return 1; }
   echo "[run] device"
