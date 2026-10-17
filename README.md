@@ -1,5 +1,7 @@
 # AlterLauncher
 
+**语言**：中文 · [English](README.en.md)
+
 [![License: GPL v3](https://img.shields.io/badge/license/GPL--3.0--or--later-blue.svg?style=flat-square)](LICENSE)
 [![Android](https://img.shields.io/badge/Android-8.0%2B-green?style=flat-square&logo=android)](#系统要求)
 [![MCBE](https://img.shields.io/badge/Minecraft%20Bedrock-1.21.91%20%E2%80%93%201.26.50-orange?style=flat-square)](#支持版本)
@@ -97,7 +99,6 @@ cpp/src/main/cpp/memory/              RTTI 查找、签名扫描、规则解析
 cpp/src/main/cpp/hook/                安装与拦截（含 `666` 自检入口）
 cpp/src/test/                         纯逻辑宿主测试，run_tests.sh
 docs/                                 设计文档（多开并发、native mod 协议、插件开发、Levi 兼容）
-tools/sdk-re/                         离线逆向/门禁脚本（见下一节）
 aosp16-src/BRIEF-*.md                 Android 16 framework 的实测笔记（AOSP 源码本身不入库）
 LICENSE / NOTICE / LICENSES/          GPL-3.0-or-later + 第三方许可清单
 ```
@@ -151,7 +152,10 @@ Mojang 发了新版本、某功能开始返回失败时，走这条链：
 
 ## 离线工具链
 
-`tools/sdk-re/` 是入库的脚本；`build/` 是本地草稿区（样本、IDA 数据库、一次性脚本），不入库。
+`tools/sdk-re/` 与 `build/` 都是**本地专用，不入库、不分发**：前者是逆向与门禁脚本，后者是草稿区
+（样本、IDA 数据库、一次性脚本）。`tools/sdk-re/` 不入库的原因是它的产物——从游戏二进制导出的符号名、
+vtable 逐槽内容与地址——属于商业游戏的衍生数据，不适合随本仓库分发；脚本里也带作者本机的绝对路径。
+下面这张表说明这些脚本各自回答什么问题，需要复现流程的读者按描述自行实现同等门禁。
 
 | 脚本 | 它回答的问题 |
 | --- | --- |
@@ -190,7 +194,7 @@ cpp/src/test/run_tests.sh --desktop    # 桌面 clang++/g++（需宿主 libc++/l
 
 ## 已知未完成
 
-规则键的缺口是**可量化**的——`tools/sdk-re/gap_report.py` 在 2026-10 的输出：
+规则键的缺口是**可量化**的——本地 `tools/sdk-re/gap_report.py`（不入库）在 2026-10 的输出：
 
 ```
 vtable  wanted=65 defined=25   sig  wanted=11 defined=14   dat  wanted=83 defined=29   off  wanted=2 defined=4
@@ -230,7 +234,7 @@ fail-closed 就是设计行为。跑 `gap_report.py` 能看到它是不是缺键
 门槛是**证据**，不是看起来合理：
 
 1. 任何偏移/槽位写清来源（本构建实测 or 第二方参考）；猜测值不得进 `dat.*`。
-2. 提交前跑 `tools/sdk-re/` 的门禁与 `cpp/src/test/run_tests.sh`。
+2. 提交前跑本地 `tools/sdk-re/` 的门禁（脚本不入库）与 `cpp/src/test/run_tests.sh`。
 3. 语义修复的回归测试必须展示它在撤掉修复的副本上**确实失败**。
 4. 不顺手重排无关文件；`build/mc/` 下的参考数据库与 sidecar 保持原样。
 5. 提交信息一行中文说明"改了什么/为什么"，署名只带项目作者本人。

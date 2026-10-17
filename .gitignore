@@ -59,6 +59,12 @@ captures/
 # notes (aosp16-src/BRIEF-*.md) belong to this repository.
 aosp16-src/**/*.java
 
+# Offline RE / gate toolchain, local only. Its outputs are symbol names, per-slot
+# vtable contents and addresses exported from the commercial game binary, and the
+# scripts embed the author's absolute paths — neither belongs in this distribution.
+# README documents what each gate checks so others can reimplement it.
+/tools/
+
 # 32-bit companion build output (app/build-x32), same reason as /build/ above.
 build-x32/
 
